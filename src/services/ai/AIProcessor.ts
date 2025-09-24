@@ -1,9 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type {
-  AIAnalysis,
-  AnomalyFlag,
-  WorkSummary,
-} from "../../types";
+import type { AIAnalysis, AnomalyFlag, WorkSummary } from "../../types";
 import type { EncryptedSessionData } from "../../types/proofPack.types";
 
 export interface AIProcessor {
@@ -36,7 +32,6 @@ export interface AIAnalysisResult {
 
 export class NotariAIProcessor implements AIProcessor {
   private initialized = false;
-  private fallbackEnabled = true;
 
   constructor() {
     this.initialize();
@@ -46,9 +41,11 @@ export class NotariAIProcessor implements AIProcessor {
     try {
       const success = await invoke<boolean>("initialize_ai_processor");
       this.initialized = success;
-      
+
       if (!success) {
-        console.warn("AI processor initialization failed, using fallback methods");
+        console.warn(
+          "AI processor initialization failed, using fallback methods",
+        );
       }
     } catch (error) {
       console.error("Failed to initialize AI processor:", error);
@@ -83,9 +80,12 @@ export class NotariAIProcessor implements AIProcessor {
   async generateSummary(analysis: AIAnalysis): Promise<WorkSummary> {
     try {
       if (this.initialized) {
-        const summary = await invoke<WorkSummary | null>("generate_work_summary", {
-          sessionData: analysis, // This would need the original session data
-        });
+        const summary = await invoke<WorkSummary | null>(
+          "generate_work_summary",
+          {
+            sessionData: analysis, // This would need the original session data
+          },
+        );
 
         if (summary) {
           return summary;
@@ -100,7 +100,9 @@ export class NotariAIProcessor implements AIProcessor {
     }
   }
 
-  async detectAnomalies(sessionData: EncryptedSessionData): Promise<AnomalyFlag[]> {
+  async detectAnomalies(
+    sessionData: EncryptedSessionData,
+  ): Promise<AnomalyFlag[]> {
     try {
       const analysis = await this.analyzeSession(sessionData);
       return analysis.potentialFlags;
@@ -120,10 +122,10 @@ export class NotariAIProcessor implements AIProcessor {
       version: "1.0.0",
       capabilities: [
         "typing_pattern_analysis",
-        "mouse_behavior_analysis", 
+        "mouse_behavior_analysis",
         "anomaly_detection",
         "work_summarization",
-        "authenticity_assessment"
+        "authenticity_assessment",
       ],
       lastUpdated: Date.now(),
       accuracy: 0.85,
@@ -146,8 +148,7 @@ export class NotariAIProcessor implements AIProcessor {
 
   private fallbackAnalysis(sessionData: EncryptedSessionData): AIAnalysis {
     // Client-side fallback analysis using statistical methods
-    const now = new Date().toISOString();
-    
+
     return {
       sessionId: sessionData.sessionId,
       contentType: "mixed",
@@ -164,11 +165,11 @@ export class NotariAIProcessor implements AIProcessor {
   private generateBasicPatterns(sessionData: EncryptedSessionData) {
     // Generate basic patterns from available metadata
     const patterns = [];
-    
+
     // Use timestamp and content size for basic pattern analysis
     const sessionDate = new Date(sessionData.timestamp);
     const contentSize = sessionData.encryptedContent.byteLength;
-    
+
     patterns.push({
       type: "application" as const,
       confidence: 0.7,
@@ -189,7 +190,6 @@ export class NotariAIProcessor implements AIProcessor {
   private generateBasicSummary(sessionData: EncryptedSessionData): WorkSummary {
     const contentSize = sessionData.encryptedContent.byteLength;
     const estimatedDuration = Math.max(contentSize / 1000, 60000); // Estimate based on content size
-    const minutes = Math.round(estimatedDuration / 60000);
 
     return {
       overview: `Work session analyzed with ${Math.round(contentSize / 1024)}KB of captured data using statistical analysis.`,
@@ -201,7 +201,7 @@ export class NotariAIProcessor implements AIProcessor {
           percentage: 80,
         },
         {
-          activity: "Idle Time", 
+          activity: "Idle Time",
           duration: estimatedDuration * 0.2,
           percentage: 20,
         },
@@ -224,7 +224,7 @@ export class NotariAIProcessor implements AIProcessor {
   private generateFallbackSummary(analysis: AIAnalysis): WorkSummary {
     return {
       overview: `Analysis completed with ${analysis.workPatterns.length} patterns detected and ${analysis.potentialFlags.length} potential issues identified.`,
-      keyActivities: analysis.workPatterns.map(p => p.description),
+      keyActivities: analysis.workPatterns.map((p) => p.description),
       timeBreakdown: [
         {
           activity: "Pattern Analysis",
@@ -242,7 +242,7 @@ export class NotariAIProcessor implements AIProcessor {
         overallScore: analysis.confidenceScore,
         humanLikelihood: Math.max(0.5, analysis.confidenceScore),
         consistencyScore: analysis.confidenceScore,
-        flags: analysis.potentialFlags.map(f => f.description),
+        flags: analysis.potentialFlags.map((f) => f.description),
       },
     };
   }

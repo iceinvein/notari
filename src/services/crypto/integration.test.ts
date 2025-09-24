@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cryptoManager } from "./CryptoManager";
 
 // Mock Tauri invoke function for integration tests
@@ -7,6 +7,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
+
 const mockInvoke = vi.mocked(invoke);
 
 describe("CryptoManager Integration Tests", () => {
@@ -26,7 +27,7 @@ describe("CryptoManager Integration Tests", () => {
           lastUsed: Date.now(),
           isHardwareBacked: true,
         },
-      })
+      }),
     );
 
     // Mock encryption
@@ -42,7 +43,7 @@ describe("CryptoManager Integration Tests", () => {
           },
           "device-key-123",
         ],
-      })
+      }),
     );
 
     // Mock decryption
@@ -50,7 +51,7 @@ describe("CryptoManager Integration Tests", () => {
       Promise.resolve({
         success: true,
         data: Array.from(new TextEncoder().encode("Hello, World!")),
-      })
+      }),
     );
 
     // Generate device key
@@ -59,7 +60,10 @@ describe("CryptoManager Integration Tests", () => {
 
     // Encrypt data
     const testData = new TextEncoder().encode("Hello, World!").buffer;
-    const encryptionResult = await cryptoManager.encrypt(testData, deviceKey.id);
+    const encryptionResult = await cryptoManager.encrypt(
+      testData,
+      deviceKey.id,
+    );
     expect(encryptionResult.keyId).toBe(deviceKey.id);
     expect(encryptionResult.algorithm).toBe("AES-256-GCM");
 
@@ -86,7 +90,7 @@ describe("CryptoManager Integration Tests", () => {
           privateKey: Array.from(new Uint8Array(64).fill(4)),
           algorithm: "Ed25519",
         },
-      })
+      }),
     );
 
     // Mock device key generation
@@ -101,7 +105,7 @@ describe("CryptoManager Integration Tests", () => {
           lastUsed: Date.now(),
           isHardwareBacked: true,
         },
-      })
+      }),
     );
 
     // Mock signing
@@ -114,7 +118,7 @@ describe("CryptoManager Integration Tests", () => {
           keyId: "signing-key-456",
           timestamp: Date.now(),
         },
-      })
+      }),
     );
 
     // Mock verification
@@ -122,13 +126,13 @@ describe("CryptoManager Integration Tests", () => {
       Promise.resolve({
         success: true,
         data: true,
-      })
+      }),
     );
 
     // Generate key pair and device key
     const keyPair = await cryptoManager.generateKeyPair();
     const deviceKey = await cryptoManager.generateDeviceKey();
-    
+
     // Store the key pair for signing
     cryptoManager.storeKeyPair(deviceKey.id, keyPair);
 
@@ -151,7 +155,7 @@ describe("CryptoManager Integration Tests", () => {
     mockInvoke.mockImplementationOnce(() =>
       Promise.resolve({
         success: true,
-      })
+      }),
     );
 
     // Mock retrieve operation
@@ -159,14 +163,14 @@ describe("CryptoManager Integration Tests", () => {
       Promise.resolve({
         success: true,
         data: Array.from(new Uint8Array(testKeyData)),
-      })
+      }),
     );
 
     // Mock delete operation
     mockInvoke.mockImplementationOnce(() =>
       Promise.resolve({
         success: true,
-      })
+      }),
     );
 
     // Store key in keychain
@@ -175,7 +179,7 @@ describe("CryptoManager Integration Tests", () => {
     // Retrieve key from keychain
     const retrievedData = await cryptoManager.retrieveKeyFromKeychain(keyId);
     expect(Array.from(new Uint8Array(retrievedData))).toEqual(
-      Array.from(new Uint8Array(testKeyData))
+      Array.from(new Uint8Array(testKeyData)),
     );
 
     // Delete key from keychain
@@ -190,11 +194,11 @@ describe("CryptoManager Integration Tests", () => {
       Promise.resolve({
         success: false,
         error: "Hardware security module not available",
-      })
+      }),
     );
 
     await expect(cryptoManager.generateDeviceKey()).rejects.toThrow(
-      "Hardware security module not available"
+      "Hardware security module not available",
     );
 
     // Mock failed encryption
@@ -202,12 +206,12 @@ describe("CryptoManager Integration Tests", () => {
       Promise.resolve({
         success: false,
         error: "Encryption key not found",
-      })
+      }),
     );
 
     const testData = new ArrayBuffer(10);
-    await expect(cryptoManager.encrypt(testData, "invalid-key")).rejects.toThrow(
-      "Encryption key not found"
-    );
+    await expect(
+      cryptoManager.encrypt(testData, "invalid-key"),
+    ).rejects.toThrow("Encryption key not found");
   });
 });

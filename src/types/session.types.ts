@@ -1,3 +1,10 @@
+export type SessionId = string;
+
+export interface TimeRange {
+  start: string;
+  end: string;
+}
+
 export interface SessionConfig {
   captureScreen: boolean;
   captureKeystrokes: boolean;
@@ -7,10 +14,10 @@ export interface SessionConfig {
 }
 
 export enum SessionStatus {
-  Active = 'active',
-  Paused = 'paused',
-  Completed = 'completed',
-  Failed = 'failed',
+  Active = "active",
+  Paused = "paused",
+  Completed = "completed",
+  Failed = "failed",
 }
 
 export interface WorkSession {

@@ -1,28 +1,33 @@
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from "@tauri-apps/api/core";
 import {
-  SessionConfig,
-  WorkSession,
+  type CreateSessionRequest,
+  type IntegrityResponse,
+  type SessionConfig,
+  type SessionIntegrityLog,
+  type SessionListResponse,
+  type SessionResponse,
   SessionStatus,
-  CreateSessionRequest,
-  SessionResponse,
-  SessionListResponse,
-  IntegrityResponse,
-  StatusResponse,
-  SessionIntegrityLog,
-} from '../../types/session.types';
+  type StatusResponse,
+  type WorkSession,
+} from "../../types/session.types";
 
 export class SessionManager {
   /**
    * Create a new work session
    */
-  async createSession(userId: string, config: SessionConfig): Promise<WorkSession> {
+  async createSession(
+    userId: string,
+    config: SessionConfig,
+  ): Promise<WorkSession> {
     const request: CreateSessionRequest = { userId, config };
-    const response: SessionResponse = await invoke('create_session', { request });
-    
+    const response: SessionResponse = await invoke("create_session", {
+      request,
+    });
+
     if (!response.success || !response.session) {
-      throw new Error(response.error || 'Failed to create session');
+      throw new Error(response.error || "Failed to create session");
     }
-    
+
     return response.session;
   }
 
@@ -30,12 +35,14 @@ export class SessionManager {
    * Get session by ID
    */
   async getSession(sessionId: string): Promise<WorkSession | null> {
-    const response: SessionResponse = await invoke('get_session', { sessionId });
-    
+    const response: SessionResponse = await invoke("get_session", {
+      sessionId,
+    });
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to get session');
+      throw new Error(response.error || "Failed to get session");
     }
-    
+
     return response.session || null;
   }
 
@@ -43,10 +50,12 @@ export class SessionManager {
    * Pause an active session
    */
   async pauseSession(sessionId: string): Promise<void> {
-    const response: StatusResponse = await invoke('pause_session', { sessionId });
-    
+    const response: StatusResponse = await invoke("pause_session", {
+      sessionId,
+    });
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to pause session');
+      throw new Error(response.error || "Failed to pause session");
     }
   }
 
@@ -54,10 +63,12 @@ export class SessionManager {
    * Resume a paused session
    */
   async resumeSession(sessionId: string): Promise<void> {
-    const response: StatusResponse = await invoke('resume_session', { sessionId });
-    
+    const response: StatusResponse = await invoke("resume_session", {
+      sessionId,
+    });
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to resume session');
+      throw new Error(response.error || "Failed to resume session");
     }
   }
 
@@ -65,10 +76,12 @@ export class SessionManager {
    * Stop a session (mark as completed)
    */
   async stopSession(sessionId: string): Promise<void> {
-    const response: StatusResponse = await invoke('stop_session', { sessionId });
-    
+    const response: StatusResponse = await invoke("stop_session", {
+      sessionId,
+    });
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to stop session');
+      throw new Error(response.error || "Failed to stop session");
     }
   }
 
@@ -76,25 +89,32 @@ export class SessionManager {
    * Mark a session as failed
    */
   async failSession(sessionId: string, reason: string): Promise<void> {
-    const response: StatusResponse = await invoke('fail_session', { sessionId, reason });
-    
+    const response: StatusResponse = await invoke("fail_session", {
+      sessionId,
+      reason,
+    });
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to mark session as failed');
+      throw new Error(response.error || "Failed to mark session as failed");
     }
   }
 
   /**
    * Store encrypted session data
    */
-  async storeSessionData(sessionId: string, data: Uint8Array, filePath: string): Promise<void> {
-    const response: StatusResponse = await invoke('store_session_data', {
+  async storeSessionData(
+    sessionId: string,
+    data: Uint8Array,
+    filePath: string,
+  ): Promise<void> {
+    const response: StatusResponse = await invoke("store_session_data", {
       sessionId,
       data: Array.from(data),
       filePath,
     });
-    
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to store session data');
+      throw new Error(response.error || "Failed to store session data");
     }
   }
 
@@ -105,12 +125,15 @@ export class SessionManager {
     isValid: boolean;
     logs: SessionIntegrityLog[];
   }> {
-    const response: IntegrityResponse = await invoke('verify_session_integrity', { sessionId });
-    
+    const response: IntegrityResponse = await invoke(
+      "verify_session_integrity",
+      { sessionId },
+    );
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to verify session integrity');
+      throw new Error(response.error || "Failed to verify session integrity");
     }
-    
+
     return {
       isValid: response.isValid,
       logs: response.logs,
@@ -120,30 +143,36 @@ export class SessionManager {
   /**
    * Get sessions for a user
    */
-  async getUserSessions(userId: string, limit?: number): Promise<WorkSession[]> {
-    const response: SessionListResponse = await invoke('get_user_sessions', {
+  async getUserSessions(
+    userId: string,
+    limit?: number,
+  ): Promise<WorkSession[]> {
+    const response: SessionListResponse = await invoke("get_user_sessions", {
       userId,
       limit: limit || null,
     });
-    
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to get user sessions');
+      throw new Error(response.error || "Failed to get user sessions");
     }
-    
+
     return response.sessions;
   }
 
   /**
    * Mark session as tampered
    */
-  async markSessionTampered(sessionId: string, evidence: string): Promise<void> {
-    const response: StatusResponse = await invoke('mark_session_tampered', {
+  async markSessionTampered(
+    sessionId: string,
+    evidence: string,
+  ): Promise<void> {
+    const response: StatusResponse = await invoke("mark_session_tampered", {
       sessionId,
       evidence,
     });
-    
+
     if (!response.success) {
-      throw new Error(response.error || 'Failed to mark session as tampered');
+      throw new Error(response.error || "Failed to mark session as tampered");
     }
   }
 
@@ -152,7 +181,9 @@ export class SessionManager {
    */
   async getActiveSessions(userId: string): Promise<WorkSession[]> {
     const sessions = await this.getUserSessions(userId);
-    return sessions.filter(session => session.status === SessionStatus.Active);
+    return sessions.filter(
+      (session) => session.status === SessionStatus.Active,
+    );
   }
 
   /**
@@ -193,15 +224,15 @@ export class SessionManager {
   getStatusDisplay(status: SessionStatus): string {
     switch (status) {
       case SessionStatus.Active:
-        return 'Recording';
+        return "Recording";
       case SessionStatus.Paused:
-        return 'Paused';
+        return "Paused";
       case SessionStatus.Completed:
-        return 'Completed';
+        return "Completed";
       case SessionStatus.Failed:
-        return 'Failed';
+        return "Failed";
       default:
-        return 'Unknown';
+        return "Unknown";
     }
   }
 
@@ -211,15 +242,15 @@ export class SessionManager {
   getStatusColor(status: SessionStatus): string {
     switch (status) {
       case SessionStatus.Active:
-        return 'green';
+        return "green";
       case SessionStatus.Paused:
-        return 'yellow';
+        return "yellow";
       case SessionStatus.Completed:
-        return 'blue';
+        return "blue";
       case SessionStatus.Failed:
-        return 'red';
+        return "red";
       default:
-        return 'gray';
+        return "gray";
     }
   }
 }

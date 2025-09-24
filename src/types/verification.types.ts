@@ -3,11 +3,13 @@ import type { BlockchainAnchor, MerkleProof } from "./blockchain.types";
 import type { CryptoSignature } from "./crypto.types";
 
 export interface VerificationData {
-  signatures: CryptoSignature[];
-  merkleRoot: string;
-  blockchainAnchor?: BlockchainAnchor;
   integrityHash: string;
-  createdAt: number;
+  signature?: CryptoSignature;
+  signatures?: CryptoSignature[];
+  merkleRoot?: string;
+  blockchainAnchor?: BlockchainAnchor;
+  timestamp: number;
+  version: string;
 }
 
 export interface VerificationResult {

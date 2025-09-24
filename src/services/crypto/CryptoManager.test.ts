@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { DeviceKey, KeyPair, CryptoSignature } from "../../types";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CryptoSignature, DeviceKey, KeyPair } from "../../types";
 
 // Mock Tauri invoke function
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
-import { TauriCryptoManager } from "./CryptoManager";
 import { invoke } from "@tauri-apps/api/core";
+import { TauriCryptoManager } from "./CryptoManager";
 
 const mockInvoke = vi.mocked(invoke);
 
@@ -53,7 +53,7 @@ describe("TauriCryptoManager", () => {
       });
 
       await expect(cryptoManager.generateDeviceKey()).rejects.toThrow(
-        "Key generation failed"
+        "Key generation failed",
       );
     });
   });
@@ -124,7 +124,7 @@ describe("TauriCryptoManager", () => {
       });
 
       await expect(cryptoManager.encrypt(testData, keyId)).rejects.toThrow(
-        "Encryption failed"
+        "Encryption failed",
       );
     });
   });
@@ -149,7 +149,9 @@ describe("TauriCryptoManager", () => {
 
       expect(mockInvoke).toHaveBeenCalledWith("decrypt_data", {
         params: {
-          encryptedData: Array.from(new Uint8Array(decryptionParams.encryptedData)),
+          encryptedData: Array.from(
+            new Uint8Array(decryptionParams.encryptedData),
+          ),
           iv: Array.from(new Uint8Array(decryptionParams.iv)),
           keyId: decryptionParams.keyId,
           algorithm: decryptionParams.algorithm,
@@ -205,7 +207,7 @@ describe("TauriCryptoManager", () => {
       const keyId = "nonexistent-key";
 
       await expect(cryptoManager.sign(testData, keyId)).rejects.toThrow(
-        "Private key not found for keyId: nonexistent-key"
+        "Private key not found for keyId: nonexistent-key",
       );
     });
   });
@@ -214,7 +216,7 @@ describe("TauriCryptoManager", () => {
     it("should verify signature successfully", async () => {
       const testData = new TextEncoder().encode("Test data").buffer;
       const keyId = "test-key";
-      
+
       // Create mock device key
       const mockDeviceKey: DeviceKey = {
         id: keyId,
@@ -264,9 +266,9 @@ describe("TauriCryptoManager", () => {
         timestamp: Date.now(),
       };
 
-      await expect(cryptoManager.verify(testData, mockSignature)).rejects.toThrow(
-        "Public key not found for keyId: nonexistent-key"
-      );
+      await expect(
+        cryptoManager.verify(testData, mockSignature),
+      ).rejects.toThrow("Public key not found for keyId: nonexistent-key");
     });
   });
 
