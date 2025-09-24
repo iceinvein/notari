@@ -152,7 +152,7 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
     ) {
       const newArea: RedactionArea = {
         id: `redaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        type: "rectangle",
+        type: "visual",
         coordinates: selectionState.currentArea,
         sessionId,
         timestamp: Date.now(),

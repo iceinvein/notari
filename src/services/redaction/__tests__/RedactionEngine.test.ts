@@ -75,7 +75,7 @@ describe("TauriRedactionEngine", () => {
 
   const mockRedactionArea: RedactionArea = {
     id: "area-123",
-    type: "rectangle",
+    type: "visual",
     coordinates: { x: 10, y: 10, width: 100, height: 50 },
     sessionId: "session1",
     timestamp: Date.now(),

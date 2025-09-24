@@ -9,10 +9,10 @@ export interface RedactionData {
 
 export interface RedactionArea {
   id: string;
-  type: "rectangle" | "freeform" | "text_pattern";
+  type: "visual" | "text_pattern" | "metadata";
   coordinates?: Rectangle;
   pattern?: string;
-  sessionId: string;
+  sessionId?: string;
   timestamp: number;
   reason: string;
 }

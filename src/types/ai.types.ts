@@ -1,7 +1,7 @@
 // AI processing types
 import type { TimeRange } from "./session.types";
 
-export type ContentType = "text" | "image" | "code" | "mixed";
+export type ContentType = "text" | "image" | "code" | "mixed" | "document";
 
 export interface AIAnalysis {
   sessionId: string;
@@ -11,8 +11,10 @@ export interface AIAnalysis {
   relevanceScores: RelevanceScore[];
   potentialFlags: AnomalyFlag[];
   summary: WorkSummary;
-  processingTime: number;
-  modelVersion: string;
+  insights?: string[];
+  timestamp?: number;
+  processingTime?: number;
+  modelVersion?: string;
 }
 
 export interface WorkPattern {

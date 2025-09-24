@@ -12,7 +12,7 @@ describe("App", () => {
     );
     expect(screen.getByRole("heading", { name: "Notari" })).toBeInTheDocument();
     expect(
-      screen.getByText("Tamper-evident proof-of-work verification system"),
+      screen.getByText("Proof-of-Work System"),
     ).toBeInTheDocument();
   });
 });

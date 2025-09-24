@@ -244,7 +244,7 @@ export class TauriRedactionEngine implements RedactionEngine {
     proofPack: ProofPack,
     areas: RedactionArea[],
   ): Promise<RedactionImpact> {
-    const affectedSessions = [...new Set(areas.map((area) => area.sessionId))];
+    const affectedSessions = [...new Set(areas.map((area) => area.sessionId).filter((id): id is string => id !== undefined))];
     const totalSessions = proofPack.evidence.sessions.length;
 
     // Determine verification capability based on redaction coverage

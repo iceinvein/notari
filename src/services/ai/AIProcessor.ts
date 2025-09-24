@@ -228,7 +228,7 @@ export class NotariAIProcessor implements AIProcessor {
       timeBreakdown: [
         {
           activity: "Pattern Analysis",
-          duration: analysis.processingTime,
+          duration: analysis.processingTime || 0,
           percentage: 100,
         },
       ],

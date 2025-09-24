@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProofPack, VerificationResult } from "../../types";
 import {
   VerificationAPI,
@@ -46,6 +46,14 @@ describe("VerificationAPI", () => {
         sessions: [],
         aiAnalysis: [],
         timeline: [],
+        systemContext: {
+          operatingSystem: "macOS",
+          platform: "darwin",
+          deviceId: "test-device",
+          timezone: "UTC",
+          locale: "en-US",
+          screenResolution: { width: 1920, height: 1080 },
+        },
       },
       verification: {
         integrityHash: "test-hash",
