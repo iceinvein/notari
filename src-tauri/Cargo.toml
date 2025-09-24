@@ -23,3 +23,22 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+# Cryptographic dependencies
+ring = "0.17"
+aes-gcm = "0.10"
+rand = "0.8"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+base64 = "0.22"
+thiserror = "1.0"
+
+# Platform-specific keychain dependencies
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Security_Credentials",
+    "Win32_Foundation",
+    "Win32_System_Memory",
+] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "2.11"
+
