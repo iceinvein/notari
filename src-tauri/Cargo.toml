@@ -43,6 +43,7 @@ rusqlite = { version = "0.32", features = ["bundled", "chrono", "uuid"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "migrate"] }
 hex = "0.4"
 sha2 = "0.10"
+blake3 = "1.5"
 
 # AI/ML dependencies (statistical analysis)
 ndarray = "0.16"

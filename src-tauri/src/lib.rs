@@ -3,12 +3,14 @@ mod commands;
 mod capture;
 mod storage;
 mod ai;
+mod redaction;
 
 use commands::crypto::{self as crypto_commands, CryptoState};
 use commands::capture::{self as capture_commands, init_capture_state};
 use commands::session as session_commands;
 use commands::ai::{self as ai_commands, init_ai_state};
 use commands::proof_pack as proof_pack_commands;
+use commands::redaction as redaction_commands;
 use storage::{Database, SessionStore};
 use crypto::CryptoManager;
 use std::sync::Arc;
@@ -83,7 +85,15 @@ pub fn run() {
             ai_commands::generate_work_summary,
             proof_pack_commands::get_system_context,
             proof_pack_commands::store_proof_pack_metadata,
-            proof_pack_commands::get_proof_pack
+            proof_pack_commands::get_proof_pack,
+            redaction_commands::mark_for_redaction,
+            redaction_commands::apply_redactions_backend,
+            redaction_commands::generate_commitment_proof,
+            redaction_commands::verify_commitment_proof,
+            redaction_commands::validate_redaction_integrity_backend,
+            redaction_commands::verify_redacted_pack,
+            redaction_commands::get_redaction_capabilities,
+            redaction_commands::generate_separate_hashes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

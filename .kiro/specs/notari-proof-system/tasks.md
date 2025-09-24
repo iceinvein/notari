@@ -58,7 +58,7 @@
   - Write comprehensive unit tests for Proof Pack creation, validation, and export formats
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 7. Implement redaction engine with privacy controls
+- [x] 7. Implement redaction engine with privacy controls
   - Create React UI components for selecting and marking sensitive content areas using Hero UI
   - Implement RedactionEngine service with cryptographic redaction algorithms
   - Build commitment schemes in Rust to prove redacted content existed without revealing it
