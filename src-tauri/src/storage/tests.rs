@@ -115,7 +115,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_store_and_verify_session_data() {
-        let (store, _) = setup_test_store().await;
+        let (mut store, _) = setup_test_store().await;
         
         let config = SessionConfig {
             capture_screen: true,

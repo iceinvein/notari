@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use uuid::Uuid;
+use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct SessionId(pub Uuid);
@@ -169,3 +170,15 @@ pub enum CaptureError {
 }
 
 pub type CaptureResult<T> = Result<T, CaptureError>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionData {
+    pub session_id: String,
+    pub user_id: String,
+    pub start_time: chrono::DateTime<chrono::Utc>,
+    pub end_time: Option<chrono::DateTime<chrono::Utc>>,
+    pub duration: u64, // milliseconds
+    pub encrypted_data: Vec<u8>,
+    pub checksum: String,
+    pub metadata: std::collections::HashMap<String, serde_json::Value>,
+}

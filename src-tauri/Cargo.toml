@@ -44,6 +44,9 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono"
 hex = "0.4"
 sha2 = "0.10"
 
+# AI/ML dependencies (statistical analysis)
+ndarray = "0.16"
+
 # Test dependencies
 [dev-dependencies]
 tempfile = "3.8"

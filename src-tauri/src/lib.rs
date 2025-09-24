@@ -2,10 +2,12 @@ mod crypto;
 mod commands;
 mod capture;
 mod storage;
+mod ai;
 
 use commands::crypto::{self as crypto_commands, CryptoState};
 use commands::capture::{self as capture_commands, init_capture_state};
 use commands::session as session_commands;
+use commands::ai::{self as ai_commands, init_ai_state};
 use storage::{Database, SessionStore};
 use crypto::CryptoManager;
 use std::sync::Arc;
@@ -35,6 +37,7 @@ pub fn run() {
         .manage(CryptoState::default())
         .manage(init_capture_state())
         .manage(session_store)
+        .manage(init_ai_state())
         .invoke_handler(tauri::generate_handler![
             greet,
             crypto_commands::generate_device_key,
@@ -65,7 +68,11 @@ pub fn run() {
             session_commands::store_session_data,
             session_commands::verify_session_integrity,
             session_commands::get_user_sessions,
-            session_commands::mark_session_tampered
+            session_commands::mark_session_tampered,
+            ai_commands::initialize_ai_processor,
+            ai_commands::analyze_session_data,
+            ai_commands::get_ai_processor_status,
+            ai_commands::generate_work_summary
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
