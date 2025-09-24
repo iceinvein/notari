@@ -1,15 +1,15 @@
-import { useState, useEffect } from "react";
 import {
+  Button,
   Card,
-  CardHeader,
   CardBody,
+  CardHeader,
   Checkbox,
   Chip,
-  Button,
   Input,
   Select,
   SelectItem,
 } from "@heroui/react";
+import { useEffect, useState } from "react";
 import type { WorkSession } from "../../types";
 import { SessionStatus } from "../../types";
 
@@ -18,7 +18,10 @@ interface SessionSelectionProps {
   onSelectionChange: (sessions: WorkSession[]) => void;
 }
 
-export function SessionSelection({ selectedSessions, onSelectionChange }: SessionSelectionProps) {
+export function SessionSelection({
+  selectedSessions,
+  onSelectionChange,
+}: SessionSelectionProps) {
   const [availableSessions, setAvailableSessions] = useState<WorkSession[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("date");
@@ -90,7 +93,7 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
     const minutes = Math.floor(duration / 1000 / 60);
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    
+
     if (hours > 0) {
       return `${hours}h ${remainingMinutes}m`;
     }
@@ -111,13 +114,13 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
 
     // Filter by status
     if (filterStatus !== "all") {
-      filtered = filtered.filter(session => session.status === filterStatus);
+      filtered = filtered.filter((session) => session.status === filterStatus);
     }
 
     // Filter by search term
     if (searchTerm) {
-      filtered = filtered.filter(session =>
-        session.id.toLowerCase().includes(searchTerm.toLowerCase())
+      filtered = filtered.filter((session) =>
+        session.id.toLowerCase().includes(searchTerm.toLowerCase()),
       );
     }
 
@@ -126,10 +129,11 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
       switch (sortBy) {
         case "date":
           return b.startTime - a.startTime;
-        case "duration":
+        case "duration": {
           const aDuration = (a.endTime || Date.now()) - a.startTime;
           const bDuration = (b.endTime || Date.now()) - b.startTime;
           return bDuration - aDuration;
+        }
         default:
           return 0;
       }
@@ -142,35 +146,39 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
     if (isSelected) {
       onSelectionChange([...selectedSessions, session]);
     } else {
-      onSelectionChange(selectedSessions.filter(s => s.id !== session.id));
+      onSelectionChange(selectedSessions.filter((s) => s.id !== session.id));
     }
   };
 
   const handleSelectAll = () => {
     const filteredSessions = getFilteredSessions();
-    const allSelected = filteredSessions.every(session =>
-      selectedSessions.some(selected => selected.id === session.id)
+    const allSelected = filteredSessions.every((session) =>
+      selectedSessions.some((selected) => selected.id === session.id),
     );
 
     if (allSelected) {
       // Deselect all filtered sessions
-      const remainingSessions = selectedSessions.filter(selected =>
-        !filteredSessions.some(filtered => filtered.id === selected.id)
+      const remainingSessions = selectedSessions.filter(
+        (selected) =>
+          !filteredSessions.some((filtered) => filtered.id === selected.id),
       );
       onSelectionChange(remainingSessions);
     } else {
       // Select all filtered sessions
-      const newSelections = filteredSessions.filter(session =>
-        !selectedSessions.some(selected => selected.id === session.id)
+      const newSelections = filteredSessions.filter(
+        (session) =>
+          !selectedSessions.some((selected) => selected.id === session.id),
       );
       onSelectionChange([...selectedSessions, ...newSelections]);
     }
   };
 
   const filteredSessions = getFilteredSessions();
-  const allFilteredSelected = filteredSessions.length > 0 && filteredSessions.every(session =>
-    selectedSessions.some(selected => selected.id === session.id)
-  );
+  const allFilteredSelected =
+    filteredSessions.length > 0 &&
+    filteredSessions.every((session) =>
+      selectedSessions.some((selected) => selected.id === session.id),
+    );
 
   return (
     <div className="space-y-6">
@@ -186,15 +194,29 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
               value={searchTerm}
               onValueChange={setSearchTerm}
               startContent={
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  role="img"
+                  aria-label="Search icon"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
                 </svg>
               }
             />
             <Select
               label="Sort by"
               selectedKeys={[sortBy]}
-              onSelectionChange={(keys) => setSortBy(Array.from(keys)[0] as string)}
+              onSelectionChange={(keys) =>
+                setSortBy(Array.from(keys)[0] as string)
+              }
             >
               <SelectItem key="date">Date (Newest First)</SelectItem>
               <SelectItem key="duration">Duration (Longest First)</SelectItem>
@@ -202,7 +224,9 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
             <Select
               label="Filter by Status"
               selectedKeys={[filterStatus]}
-              onSelectionChange={(keys) => setFilterStatus(Array.from(keys)[0] as string)}
+              onSelectionChange={(keys) =>
+                setFilterStatus(Array.from(keys)[0] as string)
+              }
             >
               <SelectItem key="all">All Sessions</SelectItem>
               <SelectItem key="completed">Completed Only</SelectItem>
@@ -210,15 +234,12 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
           </div>
 
           <div className="flex items-center justify-between">
-            <Button
-              variant="flat"
-              size="sm"
-              onPress={handleSelectAll}
-            >
+            <Button variant="flat" size="sm" onPress={handleSelectAll}>
               {allFilteredSelected ? "Deselect All" : "Select All"}
             </Button>
             <span className="text-sm text-gray-500">
-              {selectedSessions.length} of {filteredSessions.length} sessions selected
+              {selectedSessions.length} of {filteredSessions.length} sessions
+              selected
             </span>
           </div>
         </CardBody>
@@ -227,14 +248,14 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
       {/* Session List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filteredSessions.map((session) => {
-          const isSelected = selectedSessions.some(s => s.id === session.id);
-          
+          const isSelected = selectedSessions.some((s) => s.id === session.id);
+
           return (
             <Card
               key={session.id}
               className={`cursor-pointer transition-all duration-200 ${
-                isSelected 
-                  ? "ring-2 ring-primary bg-primary-50 dark:bg-primary-900/20" 
+                isSelected
+                  ? "ring-2 ring-primary bg-primary-50 dark:bg-primary-900/20"
                   : "hover:shadow-md"
               }`}
               isPressable
@@ -244,7 +265,9 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
                 <div className="flex items-start space-x-3">
                   <Checkbox
                     isSelected={isSelected}
-                    onValueChange={(checked) => handleSessionToggle(session, checked)}
+                    onValueChange={(checked) =>
+                      handleSessionToggle(session, checked)
+                    }
                     className="mt-1"
                   />
                   <div className="flex-1 space-y-2">
@@ -253,28 +276,39 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
                         Session {session.id.slice(-4)}
                       </h4>
                       <Chip
-                        color={session.status === "completed" ? "success" : "default"}
+                        color={
+                          session.status === "completed" ? "success" : "default"
+                        }
                         size="sm"
                         variant="flat"
                       >
                         {session.status.toUpperCase()}
                       </Chip>
                     </div>
-                    
+
                     <div className="text-sm text-gray-600 dark:text-gray-400">
                       <div>Started: {formatDate(session.startTime)}</div>
-                      <div>Duration: {formatDuration(session.startTime, session.endTime)}</div>
+                      <div>
+                        Duration:{" "}
+                        {formatDuration(session.startTime, session.endTime)}
+                      </div>
                     </div>
 
                     <div className="flex flex-wrap gap-1">
                       {session.captureConfig.captureScreen && (
-                        <Chip size="sm" variant="flat" color="primary">Screen</Chip>
+                        <Chip size="sm" variant="flat" color="primary">
+                          Screen
+                        </Chip>
                       )}
                       {session.captureConfig.captureKeystrokes && (
-                        <Chip size="sm" variant="flat" color="secondary">Keys</Chip>
+                        <Chip size="sm" variant="flat" color="secondary">
+                          Keys
+                        </Chip>
                       )}
                       {session.captureConfig.captureMouse && (
-                        <Chip size="sm" variant="flat" color="success">Mouse</Chip>
+                        <Chip size="sm" variant="flat" color="success">
+                          Mouse
+                        </Chip>
                       )}
                     </div>
                   </div>
@@ -289,11 +323,25 @@ export function SessionSelection({ selectedSessions, onSelectionChange }: Sessio
         <Card>
           <CardBody className="text-center py-8">
             <div className="text-gray-500 dark:text-gray-400">
-              <svg className="w-12 h-12 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              <svg
+                className="w-12 h-12 mx-auto mb-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                role="img"
+                aria-label="No sessions found"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
               </svg>
               <p>No sessions found matching your criteria</p>
-              <p className="text-sm mt-1">Try adjusting your search or filters</p>
+              <p className="text-sm mt-1">
+                Try adjusting your search or filters
+              </p>
             </div>
           </CardBody>
         </Card>

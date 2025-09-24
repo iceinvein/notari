@@ -1,18 +1,18 @@
-import { useState } from "react";
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Button,
+  Card,
+  CardBody,
+  CardHeader,
   Progress,
-  Tabs,
   Tab,
+  Tabs,
 } from "@heroui/react";
-import { SessionSelection } from "./SessionSelection";
+import { useState } from "react";
+import type { ProofPack, WorkSession } from "../../types";
 import { ProofPackConfiguration } from "./ProofPackConfiguration";
-import { ProofPackPreview } from "./ProofPackPreview";
 import { ProofPackExport } from "./ProofPackExport";
-import type { WorkSession, ProofPack } from "../../types";
+import { ProofPackPreview } from "./ProofPackPreview";
+import { SessionSelection } from "./SessionSelection";
 
 type WizardStep = "select" | "configure" | "preview" | "export";
 
@@ -27,17 +27,34 @@ export function ProofPackWizard() {
     includeTimeline: true,
     compressionLevel: "medium" as "low" | "medium" | "high",
   });
-  const [generatedProofPack, setGeneratedProofPack] = useState<ProofPack | null>(null);
+  const [generatedProofPack, setGeneratedProofPack] =
+    useState<ProofPack | null>(null);
 
   const steps = [
-    { key: "select", title: "Select Sessions", description: "Choose work sessions to include" },
-    { key: "configure", title: "Configure", description: "Set proof pack options" },
-    { key: "preview", title: "Preview", description: "Review before generation" },
-    { key: "export", title: "Export", description: "Generate and export proof pack" },
+    {
+      key: "select",
+      title: "Select Sessions",
+      description: "Choose work sessions to include",
+    },
+    {
+      key: "configure",
+      title: "Configure",
+      description: "Set proof pack options",
+    },
+    {
+      key: "preview",
+      title: "Preview",
+      description: "Review before generation",
+    },
+    {
+      key: "export",
+      title: "Export",
+      description: "Generate and export proof pack",
+    },
   ];
 
   const getCurrentStepIndex = () => {
-    return steps.findIndex(step => step.key === currentStep);
+    return steps.findIndex((step) => step.key === currentStep);
   };
 
   const getProgressValue = () => {
@@ -141,7 +158,8 @@ export function ProofPackWizard() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">
-                Step {getCurrentStepIndex() + 1} of {steps.length}: {steps[getCurrentStepIndex()].title}
+                Step {getCurrentStepIndex() + 1} of {steps.length}:{" "}
+                {steps[getCurrentStepIndex()].title}
               </h3>
               <span className="text-sm text-gray-500">
                 {Math.round(getProgressValue())}% Complete
@@ -173,14 +191,22 @@ export function ProofPackWizard() {
                 key={step.key}
                 title={
                   <div className="flex items-center space-x-2">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                      index <= getCurrentStepIndex() 
-                        ? "bg-primary text-white" 
-                        : "bg-gray-200 text-gray-500"
-                    }`}>
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        index <= getCurrentStepIndex()
+                          ? "bg-primary text-white"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
+                    >
                       {index + 1}
                     </div>
-                    <span className={index <= getCurrentStepIndex() ? "text-primary" : "text-gray-500"}>
+                    <span
+                      className={
+                        index <= getCurrentStepIndex()
+                          ? "text-primary"
+                          : "text-gray-500"
+                      }
+                    >
                       {step.title}
                     </span>
                   </div>
@@ -193,9 +219,7 @@ export function ProofPackWizard() {
       </Card>
 
       {/* Step Content */}
-      <div className="min-h-[400px]">
-        {renderCurrentStep()}
-      </div>
+      <div className="min-h-[400px]">{renderCurrentStep()}</div>
 
       {/* Navigation Buttons */}
       <Card>

@@ -1,16 +1,16 @@
-import { useState } from "react";
 import {
+  Button,
   Card,
-  CardHeader,
   CardBody,
-  Input,
-  Textarea,
+  CardHeader,
   Checkbox,
+  Chip,
+  Input,
   Select,
   SelectItem,
-  Chip,
-  Button,
+  Textarea,
 } from "@heroui/react";
+import { useState } from "react";
 import type { WorkSession } from "../../types";
 
 interface ProofPackConfig {
@@ -28,10 +28,10 @@ interface ProofPackConfigurationProps {
   selectedSessions: WorkSession[];
 }
 
-export function ProofPackConfiguration({ 
-  config, 
-  onConfigChange, 
-  selectedSessions 
+export function ProofPackConfiguration({
+  config,
+  onConfigChange,
+  selectedSessions,
 }: ProofPackConfigurationProps) {
   const [newTag, setNewTag] = useState("");
 
@@ -42,7 +42,7 @@ export function ProofPackConfiguration({
   const addTag = () => {
     if (newTag.trim() && !config.tags.includes(newTag.trim())) {
       handleConfigUpdate({
-        tags: [...config.tags, newTag.trim()]
+        tags: [...config.tags, newTag.trim()],
       });
       setNewTag("");
     }
@@ -50,7 +50,7 @@ export function ProofPackConfiguration({
 
   const removeTag = (tagToRemove: string) => {
     handleConfigUpdate({
-      tags: config.tags.filter(tag => tag !== tagToRemove)
+      tags: config.tags.filter((tag) => tag !== tagToRemove),
     });
   };
 
@@ -91,20 +91,20 @@ export function ProofPackConfiguration({
   };
 
   const compressionOptions = [
-    { 
-      key: "low", 
-      label: "Low Compression", 
-      description: "Fastest processing, larger file size" 
+    {
+      key: "low",
+      label: "Low Compression",
+      description: "Fastest processing, larger file size",
     },
-    { 
-      key: "medium", 
-      label: "Medium Compression", 
-      description: "Balanced processing time and file size" 
+    {
+      key: "medium",
+      label: "Medium Compression",
+      description: "Balanced processing time and file size",
     },
-    { 
-      key: "high", 
-      label: "High Compression", 
-      description: "Slower processing, smallest file size" 
+    {
+      key: "high",
+      label: "High Compression",
+      description: "Slower processing, smallest file size",
     },
   ];
 
@@ -123,17 +123,19 @@ export function ProofPackConfiguration({
             onValueChange={(value) => handleConfigUpdate({ title: value })}
             isRequired
           />
-          
+
           <Textarea
             label="Description"
             placeholder="Describe the work or project this proof pack represents"
             value={config.description}
-            onValueChange={(value) => handleConfigUpdate({ description: value })}
+            onValueChange={(value) =>
+              handleConfigUpdate({ description: value })
+            }
             minRows={3}
           />
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Tags</label>
+            <div className="text-sm font-medium">Tags</div>
             <div className="flex space-x-2">
               <Input
                 placeholder="Add a tag"
@@ -150,7 +152,9 @@ export function ProofPackConfiguration({
               <Button
                 variant="flat"
                 onPress={addTag}
-                isDisabled={!newTag.trim() || config.tags.includes(newTag.trim())}
+                isDisabled={
+                  !newTag.trim() || config.tags.includes(newTag.trim())
+                }
               >
                 Add
               </Button>
@@ -181,7 +185,9 @@ export function ProofPackConfiguration({
         <CardBody className="space-y-4">
           <Checkbox
             isSelected={config.includeAIAnalysis}
-            onValueChange={(checked) => handleConfigUpdate({ includeAIAnalysis: checked })}
+            onValueChange={(checked) =>
+              handleConfigUpdate({ includeAIAnalysis: checked })
+            }
           >
             <div>
               <div className="font-medium">Include AI Analysis</div>
@@ -193,7 +199,9 @@ export function ProofPackConfiguration({
 
           <Checkbox
             isSelected={config.includeTimeline}
-            onValueChange={(checked) => handleConfigUpdate({ includeTimeline: checked })}
+            onValueChange={(checked) =>
+              handleConfigUpdate({ includeTimeline: checked })
+            }
           >
             <div>
               <div className="font-medium">Include Detailed Timeline</div>
@@ -223,7 +231,9 @@ export function ProofPackConfiguration({
               <SelectItem key={option.key} textValue={option.label}>
                 <div>
                   <div className="font-medium">{option.label}</div>
-                  <div className="text-sm text-gray-500">{option.description}</div>
+                  <div className="text-sm text-gray-500">
+                    {option.description}
+                  </div>
                 </div>
               </SelectItem>
             ))}
@@ -241,26 +251,39 @@ export function ProofPackConfiguration({
         <CardBody>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
-              <span className="text-blue-700 dark:text-blue-200 font-medium">Sessions:</span>
+              <span className="text-blue-700 dark:text-blue-200 font-medium">
+                Sessions:
+              </span>
               <span className="ml-2">{selectedSessions.length}</span>
             </div>
             <div>
-              <span className="text-blue-700 dark:text-blue-200 font-medium">Total Duration:</span>
-              <span className="ml-2">{Math.floor(getTotalDuration() / 60)}h {getTotalDuration() % 60}m</span>
+              <span className="text-blue-700 dark:text-blue-200 font-medium">
+                Total Duration:
+              </span>
+              <span className="ml-2">
+                {Math.floor(getTotalDuration() / 60)}h {getTotalDuration() % 60}
+                m
+              </span>
             </div>
             <div>
-              <span className="text-blue-700 dark:text-blue-200 font-medium">Estimated Size:</span>
+              <span className="text-blue-700 dark:text-blue-200 font-medium">
+                Estimated Size:
+              </span>
               <span className="ml-2">{getEstimatedSize()} MB</span>
             </div>
             <div>
-              <span className="text-blue-700 dark:text-blue-200 font-medium">Compression:</span>
+              <span className="text-blue-700 dark:text-blue-200 font-medium">
+                Compression:
+              </span>
               <span className="ml-2 capitalize">{config.compressionLevel}</span>
             </div>
           </div>
-          
+
           {config.tags.length > 0 && (
             <div className="mt-4">
-              <span className="text-blue-700 dark:text-blue-200 font-medium text-sm">Tags:</span>
+              <span className="text-blue-700 dark:text-blue-200 font-medium text-sm">
+                Tags:
+              </span>
               <div className="flex flex-wrap gap-1 mt-1">
                 {config.tags.map((tag) => (
                   <Chip key={tag} size="sm" variant="flat" color="primary">

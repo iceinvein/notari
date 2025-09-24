@@ -1,10 +1,10 @@
 import {
+  Button,
   Card,
-  CardHeader,
   CardBody,
   CardFooter,
+  CardHeader,
   Chip,
-  Button,
   Progress,
 } from "@heroui/react";
 import type { WorkSession } from "../../types";
@@ -34,7 +34,7 @@ export function SessionCard({ session }: SessionCardProps) {
     const minutes = Math.floor(duration / 1000 / 60);
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    
+
     if (hours > 0) {
       return `${hours}h ${remainingMinutes}m`;
     }
@@ -74,11 +74,7 @@ export function SessionCard({ session }: SessionCardProps) {
               </p>
             </div>
           </div>
-          <Chip
-            color={getStatusColor(session.status)}
-            variant="flat"
-            size="sm"
-          >
+          <Chip color={getStatusColor(session.status)} variant="flat" size="sm">
             {session.status.toUpperCase()}
           </Chip>
         </div>
@@ -88,7 +84,9 @@ export function SessionCard({ session }: SessionCardProps) {
         <div className="space-y-3">
           {/* Duration */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Duration:</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Duration:
+            </span>
             <span className="font-medium">
               {formatDuration(session.startTime, session.endTime)}
             </span>
@@ -96,16 +94,24 @@ export function SessionCard({ session }: SessionCardProps) {
 
           {/* Capture Settings */}
           <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600 dark:text-gray-400">Capture:</span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              Capture:
+            </span>
             <div className="flex space-x-1">
               {session.captureConfig.captureScreen && (
-                <Chip size="sm" variant="flat" color="primary">Screen</Chip>
+                <Chip size="sm" variant="flat" color="primary">
+                  Screen
+                </Chip>
               )}
               {session.captureConfig.captureKeystrokes && (
-                <Chip size="sm" variant="flat" color="secondary">Keys</Chip>
+                <Chip size="sm" variant="flat" color="secondary">
+                  Keys
+                </Chip>
               )}
               {session.captureConfig.captureMouse && (
-                <Chip size="sm" variant="flat" color="success">Mouse</Chip>
+                <Chip size="sm" variant="flat" color="success">
+                  Mouse
+                </Chip>
               )}
             </div>
           </div>
@@ -114,8 +120,12 @@ export function SessionCard({ session }: SessionCardProps) {
           {session.status === "completed" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Integrity:</span>
-                <span className="font-medium text-success">{getIntegrityScore()}%</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  Integrity:
+                </span>
+                <span className="font-medium text-success">
+                  {getIntegrityScore()}%
+                </span>
               </div>
               <Progress
                 value={getIntegrityScore()}

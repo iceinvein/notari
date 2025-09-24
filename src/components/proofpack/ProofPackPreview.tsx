@@ -1,15 +1,15 @@
-import { useState } from "react";
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Button,
+  Card,
+  CardBody,
+  CardHeader,
   Chip,
-  Progress,
   Divider,
+  Progress,
   Spinner,
 } from "@heroui/react";
-import type { WorkSession, ProofPack } from "../../types";
+import { useState } from "react";
+import type { ProofPack, WorkSession } from "../../types";
 
 interface ProofPackConfig {
   title: string;
@@ -26,10 +26,10 @@ interface ProofPackPreviewProps {
   onGenerate: (proofPack: ProofPack) => void;
 }
 
-export function ProofPackPreview({ 
-  config, 
-  selectedSessions, 
-  onGenerate 
+export function ProofPackPreview({
+  config,
+  selectedSessions,
+  onGenerate,
 }: ProofPackPreviewProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationProgress, setGenerationProgress] = useState(0);
@@ -50,7 +50,7 @@ export function ProofPackPreview({
     const minutes = Math.floor(duration / 1000 / 60);
     const hours = Math.floor(minutes / 60);
     const remainingMinutes = minutes % 60;
-    
+
     if (hours > 0) {
       return `${hours}h ${remainingMinutes}m`;
     }
@@ -66,22 +66,22 @@ export function ProofPackPreview({
 
   const getDateRange = () => {
     if (selectedSessions.length === 0) return "";
-    
-    const startTimes = selectedSessions.map(s => s.startTime);
+
+    const startTimes = selectedSessions.map((s) => s.startTime);
     const earliest = Math.min(...startTimes);
     const latest = Math.max(...startTimes);
-    
+
     if (earliest === latest) {
       return formatDate(earliest);
     }
-    
+
     return `${formatDate(earliest)} - ${formatDate(latest)}`;
   };
 
   const simulateGeneration = async () => {
     setIsGenerating(true);
     setGenerationProgress(0);
-    
+
     const steps = [
       { message: "Validating session data...", duration: 1000 },
       { message: "Encrypting sensitive information...", duration: 1500 },
@@ -97,7 +97,7 @@ export function ProofPackPreview({
 
     for (const step of steps) {
       setCurrentStep(step.message);
-      await new Promise(resolve => setTimeout(resolve, step.duration));
+      await new Promise((resolve) => setTimeout(resolve, step.duration));
       progress += progressIncrement;
       setGenerationProgress(Math.min(progress, 100));
     }
@@ -109,55 +109,63 @@ export function ProofPackPreview({
       metadata: {
         creator: "user-1",
         created: Date.now(),
-        sessions: selectedSessions.map(s => s.id),
+        sessions: selectedSessions.map((s) => s.id),
         totalDuration: getTotalDuration() * 60 * 1000, // convert to milliseconds
         title: config.title,
         description: config.description,
         tags: config.tags,
       },
       evidence: {
-        sessions: selectedSessions.map(session => ({
+        sessions: selectedSessions.map((session) => ({
           sessionId: session.id,
           encryptedContent: new ArrayBuffer(0), // Mock empty buffer
           contentHash: `hash-${session.id}`,
           timestamp: session.startTime,
         })),
-        aiAnalysis: config.includeAIAnalysis ? [
-          {
-            sessionId: selectedSessions[0]?.id || "",
-            contentType: "document",
-            workPatterns: [],
-            confidenceScore: 0.95,
-            relevanceScores: [],
-            potentialFlags: [],
-            summary: {
-              overview: "High-quality work session with consistent typing patterns",
-              keyActivities: ["Focused work period", "No suspicious activity detected"],
-              timeBreakdown: [],
-              productivity: {
-                activeTime: 3600,
-                idleTime: 300,
-                focusScore: 0.95,
-                taskSwitching: 2,
+        aiAnalysis: config.includeAIAnalysis
+          ? [
+              {
+                sessionId: selectedSessions[0]?.id || "",
+                contentType: "document",
+                workPatterns: [],
+                confidenceScore: 0.95,
+                relevanceScores: [],
+                potentialFlags: [],
+                summary: {
+                  overview:
+                    "High-quality work session with consistent typing patterns",
+                  keyActivities: [
+                    "Focused work period",
+                    "No suspicious activity detected",
+                  ],
+                  timeBreakdown: [],
+                  productivity: {
+                    activeTime: 3600,
+                    idleTime: 300,
+                    focusScore: 0.95,
+                    taskSwitching: 2,
+                  },
+                  authenticity: {
+                    overallScore: 95,
+                    humanLikelihood: 0.98,
+                    consistencyScore: 0.92,
+                    flags: [],
+                  },
+                },
+                timestamp: Date.now(),
               },
-              authenticity: {
-                overallScore: 95,
-                humanLikelihood: 0.98,
-                consistencyScore: 0.92,
-                flags: [],
+            ]
+          : [],
+        timeline: config.includeTimeline
+          ? [
+              {
+                timestamp: Date.now(),
+                type: "keystroke",
+                data: { count: 1250 },
+                sessionId: selectedSessions[0]?.id || "",
               },
-            },
-            timestamp: Date.now(),
-          }
-        ] : [],
-        timeline: config.includeTimeline ? [
-          {
-            timestamp: Date.now(),
-            type: "keystroke",
-            data: { count: 1250 },
-            sessionId: selectedSessions[0]?.id || "",
-          }
-        ] : [],
+            ]
+          : [],
         systemContext: {
           operatingSystem: "macOS",
           platform: "darwin",
@@ -175,8 +183,8 @@ export function ProofPackPreview({
     };
 
     setCurrentStep("Complete!");
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     setIsGenerating(false);
     onGenerate(mockProofPack);
   };
@@ -209,11 +217,7 @@ export function ProofPackPreview({
         <CardHeader>
           <div className="flex items-center justify-between w-full">
             <h3 className="text-lg font-semibold">Proof Pack Preview</h3>
-            <Button
-              color="primary"
-              size="lg"
-              onPress={simulateGeneration}
-            >
+            <Button color="primary" size="lg" onPress={simulateGeneration}>
               Generate Proof Pack
             </Button>
           </div>
@@ -245,22 +249,35 @@ export function ProofPackPreview({
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <span className="font-medium text-gray-700 dark:text-gray-300">Sessions:</span>
-                <div className="text-lg font-bold">{selectedSessions.length}</div>
-              </div>
-              <div>
-                <span className="font-medium text-gray-700 dark:text-gray-300">Duration:</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Sessions:
+                </span>
                 <div className="text-lg font-bold">
-                  {Math.floor(getTotalDuration() / 60)}h {getTotalDuration() % 60}m
+                  {selectedSessions.length}
                 </div>
               </div>
               <div>
-                <span className="font-medium text-gray-700 dark:text-gray-300">Date Range:</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Duration:
+                </span>
+                <div className="text-lg font-bold">
+                  {Math.floor(getTotalDuration() / 60)}h{" "}
+                  {getTotalDuration() % 60}m
+                </div>
+              </div>
+              <div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Date Range:
+                </span>
                 <div className="text-sm">{getDateRange()}</div>
               </div>
               <div>
-                <span className="font-medium text-gray-700 dark:text-gray-300">Compression:</span>
-                <div className="text-sm capitalize">{config.compressionLevel}</div>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  Compression:
+                </span>
+                <div className="text-sm capitalize">
+                  {config.compressionLevel}
+                </div>
               </div>
             </div>
           </div>
@@ -275,13 +292,18 @@ export function ProofPackPreview({
         <CardBody>
           <div className="space-y-3">
             {selectedSessions.map((session, index) => (
-              <div key={session.id} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+              <div
+                key={session.id}
+                className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+              >
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-bold">
                     {index + 1}
                   </div>
                   <div>
-                    <div className="font-medium">Session {session.id.slice(-4)}</div>
+                    <div className="font-medium">
+                      Session {session.id.slice(-4)}
+                    </div>
                     <div className="text-sm text-gray-500">
                       {formatDate(session.startTime)}
                     </div>
@@ -293,13 +315,19 @@ export function ProofPackPreview({
                   </div>
                   <div className="flex space-x-1">
                     {session.captureConfig.captureScreen && (
-                      <Chip size="sm" variant="flat" color="primary">Screen</Chip>
+                      <Chip size="sm" variant="flat" color="primary">
+                        Screen
+                      </Chip>
                     )}
                     {session.captureConfig.captureKeystrokes && (
-                      <Chip size="sm" variant="flat" color="secondary">Keys</Chip>
+                      <Chip size="sm" variant="flat" color="secondary">
+                        Keys
+                      </Chip>
                     )}
                     {session.captureConfig.captureMouse && (
-                      <Chip size="sm" variant="flat" color="success">Mouse</Chip>
+                      <Chip size="sm" variant="flat" color="success">
+                        Mouse
+                      </Chip>
                     )}
                   </div>
                 </div>
@@ -317,14 +345,30 @@ export function ProofPackPreview({
         <CardBody>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="flex items-center space-x-3">
-              <div className={`w-4 h-4 rounded-full ${config.includeAIAnalysis ? "bg-green-500" : "bg-gray-300"}`} />
-              <span className={config.includeAIAnalysis ? "text-gray-900 dark:text-white" : "text-gray-500"}>
+              <div
+                className={`w-4 h-4 rounded-full ${config.includeAIAnalysis ? "bg-green-500" : "bg-gray-300"}`}
+              />
+              <span
+                className={
+                  config.includeAIAnalysis
+                    ? "text-gray-900 dark:text-white"
+                    : "text-gray-500"
+                }
+              >
                 AI Analysis & Insights
               </span>
             </div>
             <div className="flex items-center space-x-3">
-              <div className={`w-4 h-4 rounded-full ${config.includeTimeline ? "bg-green-500" : "bg-gray-300"}`} />
-              <span className={config.includeTimeline ? "text-gray-900 dark:text-white" : "text-gray-500"}>
+              <div
+                className={`w-4 h-4 rounded-full ${config.includeTimeline ? "bg-green-500" : "bg-gray-300"}`}
+              />
+              <span
+                className={
+                  config.includeTimeline
+                    ? "text-gray-900 dark:text-white"
+                    : "text-gray-500"
+                }
+              >
                 Detailed Timeline
               </span>
             </div>
@@ -349,8 +393,17 @@ export function ProofPackPreview({
         <CardBody>
           <div className="flex items-start space-x-3">
             <div className="w-5 h-5 text-green-500 mt-0.5">
-              <svg fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              <svg
+                fill="currentColor"
+                viewBox="0 0 20 20"
+                role="img"
+                aria-label="Success checkmark"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
             <div>
@@ -358,8 +411,9 @@ export function ProofPackPreview({
                 Ready for Generation
               </h4>
               <p className="text-sm text-green-700 dark:text-green-200 mt-1">
-                Your proof pack will be cryptographically signed and ready for blockchain anchoring. 
-                All sensitive data will remain encrypted and tamper-evident.
+                Your proof pack will be cryptographically signed and ready for
+                blockchain anchoring. All sensitive data will remain encrypted
+                and tamper-evident.
               </p>
             </div>
           </div>

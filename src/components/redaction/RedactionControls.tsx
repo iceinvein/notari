@@ -1,8 +1,8 @@
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Button,
+  Card,
+  CardBody,
+  CardHeader,
   Chip,
   Divider,
 } from "@heroui/react";
@@ -14,10 +14,10 @@ interface RedactionControlsProps {
   onClearAll: () => void;
 }
 
-export function RedactionControls({ 
-  redactionAreas, 
-  onRemoveArea, 
-  onClearAll 
+export function RedactionControls({
+  redactionAreas,
+  onRemoveArea,
+  onClearAll,
 }: RedactionControlsProps) {
   const formatCoordinates = (area: RedactionArea) => {
     if (!area.coordinates) return "N/A";
@@ -54,11 +54,25 @@ export function RedactionControls({
       <CardBody>
         {redactionAreas.length === 0 ? (
           <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            <svg className="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            <svg
+              className="w-8 h-8 mx-auto mb-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              role="img"
+              aria-label="No redaction areas"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+              />
             </svg>
             <p className="text-sm">No redaction areas selected</p>
-            <p className="text-xs mt-1">Use the redact tool to select sensitive content</p>
+            <p className="text-xs mt-1">
+              Use the redact tool to select sensitive content
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -70,7 +84,9 @@ export function RedactionControls({
               </div>
               <div className="flex items-center justify-between text-sm mt-1">
                 <span className="font-medium">Total Size:</span>
-                <span>{Math.round(getTotalRedactedArea()).toLocaleString()} px²</span>
+                <span>
+                  {Math.round(getTotalRedactedArea()).toLocaleString()} px²
+                </span>
               </div>
             </div>
 
@@ -94,7 +110,10 @@ export function RedactionControls({
                     </div>
                     <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                       <div>Position: {formatCoordinates(area)}</div>
-                      <div>Size: {Math.round(getAreaSize(area)).toLocaleString()} px²</div>
+                      <div>
+                        Size: {Math.round(getAreaSize(area)).toLocaleString()}{" "}
+                        px²
+                      </div>
                       {area.reason && (
                         <div className="truncate">Reason: {area.reason}</div>
                       )}

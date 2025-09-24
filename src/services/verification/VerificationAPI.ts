@@ -199,11 +199,17 @@ export class VerificationAPI {
   /**
    * Generate Merkle proof for a hash
    */
-  async generateMerkleProof(hash: string, anchorId: string): Promise<MerkleProof> {
+  async generateMerkleProof(
+    hash: string,
+    anchorId: string,
+  ): Promise<MerkleProof> {
     this.ensureInitialized();
 
     try {
-      return await invoke("generate_verification_merkle_proof", { hash, anchorId });
+      return await invoke("generate_verification_merkle_proof", {
+        hash,
+        anchorId,
+      });
     } catch (error) {
       throw new Error(`Failed to generate Merkle proof: ${error}`);
     }

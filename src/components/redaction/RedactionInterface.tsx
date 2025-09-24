@@ -1,21 +1,23 @@
-import { useState } from "react";
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Button,
-  Select,
-  SelectItem,
+  Card,
+  CardBody,
+  CardHeader,
   Chip,
   Progress,
+  Select,
+  SelectItem,
 } from "@heroui/react";
+import { useState } from "react";
+import type { ProofPack, RedactionArea } from "../../types";
 import { RedactionCanvas } from "./RedactionCanvas";
 import { RedactionControls } from "./RedactionControls";
 import { RedactionPreview } from "./RedactionPreview";
-import type { ProofPack, RedactionArea } from "../../types";
 
 export function RedactionInterface() {
-  const [selectedProofPack, setSelectedProofPack] = useState<ProofPack | null>(null);
+  const [selectedProofPack, setSelectedProofPack] = useState<ProofPack | null>(
+    null,
+  );
   const [redactionAreas, setRedactionAreas] = useState<RedactionArea[]>([]);
   const [currentTool, setCurrentTool] = useState<"select" | "redact">("select");
   const [isProcessing, setIsProcessing] = useState(false);
@@ -57,17 +59,17 @@ export function RedactionInterface() {
   ];
 
   const handleProofPackSelect = (proofPackId: string) => {
-    const proofPack = mockProofPacks.find(pp => pp.id === proofPackId);
+    const proofPack = mockProofPacks.find((pp) => pp.id === proofPackId);
     setSelectedProofPack(proofPack || null);
     setRedactionAreas([]); // Reset redaction areas when switching proof packs
   };
 
   const handleAddRedactionArea = (area: RedactionArea) => {
-    setRedactionAreas(prev => [...prev, area]);
+    setRedactionAreas((prev) => [...prev, area]);
   };
 
   const handleRemoveRedactionArea = (areaId: string) => {
-    setRedactionAreas(prev => prev.filter(area => area.id !== areaId));
+    setRedactionAreas((prev) => prev.filter((area) => area.id !== areaId));
   };
 
   const handleApplyRedactions = async () => {
@@ -86,8 +88,8 @@ export function RedactionInterface() {
     ];
 
     for (let i = 0; i < steps.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setProcessingProgress((i + 1) / steps.length * 100);
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setProcessingProgress(((i + 1) / steps.length) * 100);
     }
 
     setIsProcessing(false);
@@ -96,17 +98,17 @@ export function RedactionInterface() {
 
   const getRedactionImpact = () => {
     if (redactionAreas.length === 0) return { level: "none", percentage: 0 };
-    
+
     // Mock calculation based on redaction areas
     const totalArea = redactionAreas.reduce((sum, area) => {
       if (area.coordinates) {
-        return sum + (area.coordinates.width * area.coordinates.height);
+        return sum + area.coordinates.width * area.coordinates.height;
       }
       return sum + 1000; // Default area for non-visual redactions
     }, 0);
 
-    const percentage = Math.min(Math.round(totalArea / 100000 * 100), 100);
-    
+    const percentage = Math.min(Math.round((totalArea / 100000) * 100), 100);
+
     let level: "low" | "medium" | "high";
     if (percentage < 20) level = "low";
     else if (percentage < 50) level = "medium";
@@ -125,7 +127,8 @@ export function RedactionInterface() {
           Redaction Interface
         </h1>
         <p className="text-gray-600 dark:text-gray-300 mt-1">
-          Selectively redact sensitive information while maintaining proof integrity
+          Selectively redact sensitive information while maintaining proof
+          integrity
         </p>
       </div>
 
@@ -145,11 +148,18 @@ export function RedactionInterface() {
             }}
           >
             {mockProofPacks.map((proofPack) => (
-              <SelectItem key={proofPack.id} textValue={proofPack.metadata.title || proofPack.id}>
+              <SelectItem
+                key={proofPack.id}
+                textValue={proofPack.metadata.title || proofPack.id}
+              >
                 <div>
-                  <div className="font-medium">{proofPack.metadata.title || `Proof Pack ${proofPack.id.slice(-4)}`}</div>
+                  <div className="font-medium">
+                    {proofPack.metadata.title ||
+                      `Proof Pack ${proofPack.id.slice(-4)}`}
+                  </div>
                   <div className="text-sm text-gray-500">
-                    {proofPack.metadata.sessions.length} sessions • Created {new Date(proofPack.metadata.created).toLocaleDateString()}
+                    {proofPack.metadata.sessions.length} sessions • Created{" "}
+                    {new Date(proofPack.metadata.created).toLocaleDateString()}
                   </div>
                 </div>
               </SelectItem>
@@ -220,19 +230,32 @@ export function RedactionInterface() {
                     </div>
                     <Progress
                       value={impact.percentage}
-                      color={impact.level === "low" ? "success" : impact.level === "medium" ? "warning" : "danger"}
+                      color={
+                        impact.level === "low"
+                          ? "success"
+                          : impact.level === "medium"
+                            ? "warning"
+                            : "danger"
+                      }
                       className="w-full"
                     />
                     <div className="flex items-center space-x-2">
                       <Chip
                         size="sm"
-                        color={impact.level === "low" ? "success" : impact.level === "medium" ? "warning" : "danger"}
+                        color={
+                          impact.level === "low"
+                            ? "success"
+                            : impact.level === "medium"
+                              ? "warning"
+                              : "danger"
+                        }
                         variant="flat"
                       >
                         {impact.level.toUpperCase()} IMPACT
                       </Chip>
                       <span className="text-xs text-gray-500">
-                        {redactionAreas.length} area{redactionAreas.length !== 1 ? "s" : ""}
+                        {redactionAreas.length} area
+                        {redactionAreas.length !== 1 ? "s" : ""}
                       </span>
                     </div>
                   </div>
@@ -277,8 +300,17 @@ export function RedactionInterface() {
             <CardBody>
               <div className="flex items-start space-x-3">
                 <div className="w-5 h-5 text-amber-500 mt-0.5">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  <svg
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    role="img"
+                    aria-label="Warning icon"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </div>
                 <div>
@@ -286,8 +318,9 @@ export function RedactionInterface() {
                     Privacy & Verification Impact
                   </h4>
                   <p className="text-sm text-amber-700 dark:text-amber-200 mt-1">
-                    Redacted areas will be cryptographically hidden but their existence will be provable. 
-                    High redaction levels may impact the verifiability of your proof pack for some use cases.
+                    Redacted areas will be cryptographically hidden but their
+                    existence will be provable. High redaction levels may impact
+                    the verifiability of your proof pack for some use cases.
                   </p>
                 </div>
               </div>

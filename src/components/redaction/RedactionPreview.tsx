@@ -1,10 +1,10 @@
 import {
   Card,
-  CardHeader,
   CardBody,
+  CardHeader,
   Chip,
-  Progress,
   Divider,
+  Progress,
 } from "@heroui/react";
 import type { ProofPack, RedactionArea } from "../../types";
 
@@ -18,14 +18,17 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
     const totalAreas = redactionAreas.length;
     const totalRedactedPixels = redactionAreas.reduce((sum, area) => {
       if (area.coordinates) {
-        return sum + (area.coordinates.width * area.coordinates.height);
+        return sum + area.coordinates.width * area.coordinates.height;
       }
       return sum;
     }, 0);
 
     // Mock total content area (in real app this would be calculated from actual content)
     const totalContentArea = 800 * 600; // Approximate content area
-    const redactionPercentage = Math.min((totalRedactedPixels / totalContentArea) * 100, 100);
+    const redactionPercentage = Math.min(
+      (totalRedactedPixels / totalContentArea) * 100,
+      100,
+    );
 
     return {
       totalAreas,
@@ -93,16 +96,28 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
           {/* Redaction Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-primary">{stats.totalAreas}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Redaction Areas</div>
+              <div className="text-2xl font-bold text-primary">
+                {stats.totalAreas}
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Redaction Areas
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-warning">{stats.redactionPercentage}%</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Content Redacted</div>
+              <div className="text-2xl font-bold text-warning">
+                {stats.redactionPercentage}%
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Content Redacted
+              </div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-success">{impact.trustScore}%</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Trust Score</div>
+              <div className="text-2xl font-bold text-success">
+                {impact.trustScore}%
+              </div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Trust Score
+              </div>
             </div>
           </div>
 
@@ -110,7 +125,9 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
 
           {/* Verification Impact */}
           <div>
-            <h4 className="font-semibold mb-3">Verification Impact Assessment</h4>
+            <h4 className="font-semibold mb-3">
+              Verification Impact Assessment
+            </h4>
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Impact Level:</span>
@@ -140,10 +157,19 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
             <h4 className="font-semibold mb-3">Redacted Content Preview</h4>
             <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg border max-h-64 overflow-y-auto">
               <div className="space-y-2 text-sm">
-                {mockRedactedContent.split('\n').map((line, index) => (
-                  <div key={index} className={line.trim() === '' ? 'h-2' : ''}>
-                    {line.trim() !== '' && (
-                      <p className={line.includes('████') ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}>
+                {mockRedactedContent.split("\n").map((line, index) => (
+                  <div
+                    key={`redacted-line-${index}-${line.slice(0, 10)}`}
+                    className={line.trim() === "" ? "h-2" : ""}
+                  >
+                    {line.trim() !== "" && (
+                      <p
+                        className={
+                          line.includes("████")
+                            ? "text-red-600 dark:text-red-400"
+                            : "text-gray-800 dark:text-gray-200"
+                        }
+                      >
                         {line.trim()}
                       </p>
                     )}
@@ -152,7 +178,8 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
               </div>
             </div>
             <p className="text-xs text-gray-500 mt-2">
-              ████ represents redacted content that will be cryptographically hidden
+              ████ represents redacted content that will be cryptographically
+              hidden
             </p>
           </div>
 
@@ -164,8 +191,17 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="flex items-start space-x-3">
                 <div className="w-5 h-5 text-green-500 mt-0.5">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <svg
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    role="img"
+                    aria-label="Success checkmark"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </div>
                 <div>
@@ -175,15 +211,26 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
                   </div>
                 </div>
               </div>
-              
+
               <div className="flex items-start space-x-3">
                 <div className="w-5 h-5 text-green-500 mt-0.5">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <svg
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    role="img"
+                    aria-label="Success checkmark"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <div className="font-medium text-sm">Partial Verification</div>
+                  <div className="font-medium text-sm">
+                    Partial Verification
+                  </div>
                   <div className="text-xs text-gray-600 dark:text-gray-400">
                     Non-redacted content remains fully verifiable
                   </div>
@@ -192,12 +239,23 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
 
               <div className="flex items-start space-x-3">
                 <div className="w-5 h-5 text-green-500 mt-0.5">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <svg
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    role="img"
+                    aria-label="Success checkmark"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </div>
                 <div>
-                  <div className="font-medium text-sm">Integrity Preservation</div>
+                  <div className="font-medium text-sm">
+                    Integrity Preservation
+                  </div>
                   <div className="text-xs text-gray-600 dark:text-gray-400">
                     Overall proof pack integrity maintained
                   </div>
@@ -206,8 +264,17 @@ export function RedactionPreview({ redactionAreas }: RedactionPreviewProps) {
 
               <div className="flex items-start space-x-3">
                 <div className="w-5 h-5 text-green-500 mt-0.5">
-                  <svg fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <svg
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                    role="img"
+                    aria-label="Success checkmark"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                 </div>
                 <div>

@@ -2,9 +2,9 @@ import "@testing-library/jest-dom";
 import { vi } from "vitest";
 
 // Mock window.matchMedia for Hero UI components
-Object.defineProperty(window, 'matchMedia', {
+Object.defineProperty(window, "matchMedia", {
   writable: true,
-  value: vi.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation((query) => ({
     matches: false,
     media: query,
     onchange: null,
@@ -45,12 +45,12 @@ const originalWarn = console.warn;
 
 console.error = (...args) => {
   if (
-    typeof args[0] === 'string' &&
-    (args[0].includes('Warning: ReactDOM.render is no longer supported') ||
-     args[0].includes('Warning: React does not recognize') ||
-     args[0].includes('framer-motion') ||
-     args[0].includes('An update to') ||
-     args[0].includes('inside a test was not wrapped in act'))
+    typeof args[0] === "string" &&
+    (args[0].includes("Warning: ReactDOM.render is no longer supported") ||
+      args[0].includes("Warning: React does not recognize") ||
+      args[0].includes("framer-motion") ||
+      args[0].includes("An update to") ||
+      args[0].includes("inside a test was not wrapped in act"))
   ) {
     return;
   }
@@ -59,10 +59,10 @@ console.error = (...args) => {
 
 console.warn = (...args) => {
   if (
-    typeof args[0] === 'string' &&
-    (args[0].includes('If you do not provide a visible label') ||
-     args[0].includes('aria-label') ||
-     args[0].includes('accessibility'))
+    typeof args[0] === "string" &&
+    (args[0].includes("If you do not provide a visible label") ||
+      args[0].includes("aria-label") ||
+      args[0].includes("accessibility"))
   ) {
     return;
   }

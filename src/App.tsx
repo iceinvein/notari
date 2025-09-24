@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { MainLayout } from "./components/layout/MainLayout";
-import { SessionManagement } from "./components/session/SessionManagement";
 import { ProofPackWizard } from "./components/proofpack/ProofPackWizard";
 import { RedactionInterface } from "./components/redaction/RedactionInterface";
+import { SessionManagement } from "./components/session/SessionManagement";
 import { VerificationResults } from "./components/verification/VerificationResults";
 
 export type AppView = "sessions" | "proofpacks" | "redaction" | "verification";

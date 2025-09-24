@@ -1,18 +1,18 @@
-import { useState } from "react";
 import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
   Button,
-  Checkbox,
-  CheckboxGroup,
-  Select,
-  SelectItem,
   Card,
   CardBody,
+  Checkbox,
+  CheckboxGroup,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  Select,
+  SelectItem,
 } from "@heroui/react";
+import { useState } from "react";
 import type { SessionConfig } from "../../types";
 
 interface SessionConfigModalProps {
@@ -21,7 +21,11 @@ interface SessionConfigModalProps {
   onStartSession: (config: SessionConfig) => void;
 }
 
-export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: SessionConfigModalProps) {
+export function SessionConfigModal({
+  isOpen,
+  onOpenChange,
+  onStartSession,
+}: SessionConfigModalProps) {
   const [config, setConfig] = useState<SessionConfig>({
     captureScreen: true,
     captureKeystrokes: true,
@@ -48,8 +52,8 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
   ];
 
   return (
-    <Modal 
-      isOpen={isOpen} 
+    <Modal
+      isOpen={isOpen}
       onOpenChange={onOpenChange}
       size="2xl"
       scrollBehavior="inside"
@@ -68,12 +72,17 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                 {/* Capture Settings */}
                 <Card>
                   <CardBody>
-                    <h3 className="text-lg font-semibold mb-4">Capture Settings</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      Capture Settings
+                    </h3>
                     <div className="space-y-4">
                       <Checkbox
                         isSelected={config.captureScreen}
                         onValueChange={(checked) =>
-                          setConfig(prev => ({ ...prev, captureScreen: checked }))
+                          setConfig((prev) => ({
+                            ...prev,
+                            captureScreen: checked,
+                          }))
                         }
                       >
                         <div>
@@ -87,11 +96,16 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                       <Checkbox
                         isSelected={config.captureKeystrokes}
                         onValueChange={(checked) =>
-                          setConfig(prev => ({ ...prev, captureKeystrokes: checked }))
+                          setConfig((prev) => ({
+                            ...prev,
+                            captureKeystrokes: checked,
+                          }))
                         }
                       >
                         <div>
-                          <div className="font-medium">Keystroke Monitoring</div>
+                          <div className="font-medium">
+                            Keystroke Monitoring
+                          </div>
                           <div className="text-sm text-gray-500">
                             Track typing patterns and keyboard activity
                           </div>
@@ -101,7 +115,10 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                       <Checkbox
                         isSelected={config.captureMouse}
                         onValueChange={(checked) =>
-                          setConfig(prev => ({ ...prev, captureMouse: checked }))
+                          setConfig((prev) => ({
+                            ...prev,
+                            captureMouse: checked,
+                          }))
                         }
                       >
                         <div>
@@ -118,11 +135,16 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                 {/* Privacy Filters */}
                 <Card>
                   <CardBody>
-                    <h3 className="text-lg font-semibold mb-4">Privacy Filters</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      Privacy Filters
+                    </h3>
                     <CheckboxGroup
                       value={config.privacyFilters}
                       onValueChange={(values) =>
-                        setConfig(prev => ({ ...prev, privacyFilters: values }))
+                        setConfig((prev) => ({
+                          ...prev,
+                          privacyFilters: values,
+                        }))
                       }
                     >
                       {privacyFilterOptions.map((option) => (
@@ -132,7 +154,8 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                       ))}
                     </CheckboxGroup>
                     <p className="text-sm text-gray-500 mt-2">
-                      Selected filters will automatically redact sensitive content during capture
+                      Selected filters will automatically redact sensitive
+                      content during capture
                     </p>
                   </CardBody>
                 </Card>
@@ -140,19 +163,22 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                 {/* Quality Settings */}
                 <Card>
                   <CardBody>
-                    <h3 className="text-lg font-semibold mb-4">Quality Settings</h3>
+                    <h3 className="text-lg font-semibold mb-4">
+                      Quality Settings
+                    </h3>
                     <Select
                       label="Capture Quality"
                       selectedKeys={[config.qualitySettings]}
                       onSelectionChange={(keys) => {
                         const selected = Array.from(keys)[0] as string;
-                        setConfig(prev => ({ ...prev, qualitySettings: selected }));
+                        setConfig((prev) => ({
+                          ...prev,
+                          qualitySettings: selected,
+                        }));
                       }}
                     >
                       {qualityOptions.map((option) => (
-                        <SelectItem key={option.key}>
-                          {option.label}
-                        </SelectItem>
+                        <SelectItem key={option.key}>{option.label}</SelectItem>
                       ))}
                     </Select>
                   </CardBody>
@@ -163,8 +189,17 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                   <CardBody>
                     <div className="flex items-start space-x-3">
                       <div className="w-5 h-5 text-blue-500 mt-0.5">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        <svg
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                          role="img"
+                          aria-label="Information icon"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                            clipRule="evenodd"
+                          />
                         </svg>
                       </div>
                       <div>
@@ -172,8 +207,9 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
                           Security & Privacy
                         </h4>
                         <p className="text-sm text-blue-700 dark:text-blue-200 mt-1">
-                          All captured data is encrypted locally using device-specific keys. 
-                          Your work session data never leaves your device unencrypted.
+                          All captured data is encrypted locally using
+                          device-specific keys. Your work session data never
+                          leaves your device unencrypted.
                         </p>
                       </div>
                     </div>
@@ -188,7 +224,11 @@ export function SessionConfigModal({ isOpen, onOpenChange, onStartSession }: Ses
               <Button
                 color="primary"
                 onPress={handleStartSession}
-                isDisabled={!config.captureScreen && !config.captureKeystrokes && !config.captureMouse}
+                isDisabled={
+                  !config.captureScreen &&
+                  !config.captureKeystrokes &&
+                  !config.captureMouse
+                }
               >
                 Start Session
               </Button>

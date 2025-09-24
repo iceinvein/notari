@@ -1,26 +1,29 @@
-import { useState, useEffect } from "react";
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Button,
-  Input,
-  Progress,
+  Card,
+  CardBody,
+  CardHeader,
   Chip,
   Divider,
+  Input,
+  Progress,
   Spinner,
 } from "@heroui/react";
-import { VerificationReport } from "./VerificationReport";
-import { TrustScoreVisualization } from "./TrustScoreVisualization";
+import { useEffect, useState } from "react";
 import type { VerificationResult } from "../../types";
+import { TrustScoreVisualization } from "./TrustScoreVisualization";
+import { VerificationReport } from "./VerificationReport";
 
 export function VerificationResults() {
   const [verificationUrl, setVerificationUrl] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
   const [verificationProgress, setVerificationProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState("");
-  const [verificationResult, setVerificationResult] = useState<VerificationResult | null>(null);
-  const [recentVerifications, setRecentVerifications] = useState<VerificationResult[]>([]);
+  const [verificationResult, setVerificationResult] =
+    useState<VerificationResult | null>(null);
+  const [recentVerifications, setRecentVerifications] = useState<
+    VerificationResult[]
+  >([]);
 
   // Mock recent verifications
   useEffect(() => {
@@ -30,10 +33,26 @@ export function VerificationResults() {
         trustScore: 95,
         verificationTime: Date.now() - 3600000,
         checks: [
-          { type: "signature", status: "passed", message: "Cryptographic signature valid" },
-          { type: "hash", status: "passed", message: "Content integrity verified" },
-          { type: "blockchain", status: "passed", message: "Blockchain anchor confirmed" },
-          { type: "timestamp", status: "passed", message: "Timestamp verification successful" },
+          {
+            type: "signature",
+            status: "passed",
+            message: "Cryptographic signature valid",
+          },
+          {
+            type: "hash",
+            status: "passed",
+            message: "Content integrity verified",
+          },
+          {
+            type: "blockchain",
+            status: "passed",
+            message: "Blockchain anchor confirmed",
+          },
+          {
+            type: "timestamp",
+            status: "passed",
+            message: "Timestamp verification successful",
+          },
         ],
         warnings: [],
         errors: [],
@@ -43,10 +62,26 @@ export function VerificationResults() {
         trustScore: 87,
         verificationTime: Date.now() - 7200000,
         checks: [
-          { type: "signature", status: "passed", message: "Cryptographic signature valid" },
-          { type: "hash", status: "passed", message: "Content integrity verified" },
-          { type: "blockchain", status: "warning", message: "Blockchain confirmation pending" },
-          { type: "timestamp", status: "passed", message: "Timestamp verification successful" },
+          {
+            type: "signature",
+            status: "passed",
+            message: "Cryptographic signature valid",
+          },
+          {
+            type: "hash",
+            status: "passed",
+            message: "Content integrity verified",
+          },
+          {
+            type: "blockchain",
+            status: "warning",
+            message: "Blockchain confirmation pending",
+          },
+          {
+            type: "timestamp",
+            status: "passed",
+            message: "Timestamp verification successful",
+          },
         ],
         warnings: ["Blockchain confirmation still pending"],
         errors: [],
@@ -75,7 +110,7 @@ export function VerificationResults() {
 
     for (const step of steps) {
       setCurrentStep(step.message);
-      await new Promise(resolve => setTimeout(resolve, step.duration));
+      await new Promise((resolve) => setTimeout(resolve, step.duration));
       progress += progressIncrement;
       setVerificationProgress(Math.min(progress, 100));
     }
@@ -89,58 +124,69 @@ export function VerificationResults() {
         {
           type: "signature",
           status: "passed",
-          message: "Cryptographic signature is valid and matches the proof pack content",
-          details: { algorithm: "ECDSA-P256", keyId: "key-123" }
+          message:
+            "Cryptographic signature is valid and matches the proof pack content",
+          details: { algorithm: "ECDSA-P256", keyId: "key-123" },
         },
         {
           type: "hash",
           status: "passed",
           message: "Content integrity hash verification successful",
-          details: { algorithm: "SHA-256", expectedHash: "abc123...", actualHash: "abc123..." }
+          details: {
+            algorithm: "SHA-256",
+            expectedHash: "abc123...",
+            actualHash: "abc123...",
+          },
         },
         {
           type: "blockchain",
           status: Math.random() > 0.2 ? "passed" : "warning",
-          message: Math.random() > 0.2 
-            ? "Blockchain anchor confirmed on Arweave network" 
-            : "Blockchain anchor found but confirmation pending",
-          details: { 
-            network: "Arweave", 
-            transactionId: "tx-456", 
+          message:
+            Math.random() > 0.2
+              ? "Blockchain anchor confirmed on Arweave network"
+              : "Blockchain anchor found but confirmation pending",
+          details: {
+            network: "Arweave",
+            transactionId: "tx-456",
             blockHeight: 1234567,
-            confirmations: Math.random() > 0.2 ? 15 : 2
-          }
+            confirmations: Math.random() > 0.2 ? 15 : 2,
+          },
         },
         {
           type: "timestamp",
           status: "passed",
           message: "Timestamp verification successful",
-          details: { 
+          details: {
             createdAt: new Date().toISOString(),
             tolerance: "±5 minutes",
-            verified: true
-          }
+            verified: true,
+          },
         },
         {
           type: "integrity",
           status: Math.random() > 0.1 ? "passed" : "warning",
-          message: Math.random() > 0.1 
-            ? "All integrity checks passed" 
-            : "Minor integrity warnings detected",
-          details: { 
+          message:
+            Math.random() > 0.1
+              ? "All integrity checks passed"
+              : "Minor integrity warnings detected",
+          details: {
             totalChecks: 15,
             passed: Math.random() > 0.1 ? 15 : 14,
-            warnings: Math.random() > 0.1 ? 0 : 1
-          }
+            warnings: Math.random() > 0.1 ? 0 : 1,
+          },
         },
       ],
-      warnings: Math.random() > 0.7 ? ["Some blockchain confirmations are still pending"] : [],
-      errors: Math.random() > 0.9 ? ["Minor timestamp discrepancy detected"] : [],
+      warnings:
+        Math.random() > 0.7
+          ? ["Some blockchain confirmations are still pending"]
+          : [],
+      errors:
+        Math.random() > 0.9 ? ["Minor timestamp discrepancy detected"] : [],
     };
 
     setCurrentStep("Verification complete!");
     setVerificationResult(mockResult);
-    setRecentVerifications(prev => [mockResult, ...prev.slice(0, 4)]);
+    setRecentVerifications((prev) => [mockResult, ...prev.slice(0, 4)]);
     setIsVerifying(false);
   };
 
@@ -151,10 +197,14 @@ export function VerificationResults() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "passed": return "success";
-      case "warning": return "warning";
-      case "failed": return "danger";
-      default: return "default";
+      case "passed":
+        return "success";
+      case "warning":
+        return "warning";
+      case "failed":
+        return "danger";
+      default:
+        return "default";
     }
   };
 
@@ -183,8 +233,20 @@ export function VerificationResults() {
               onValueChange={setVerificationUrl}
               className="flex-1"
               startContent={
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                <svg
+                  className="w-4 h-4 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                  role="img"
+                  aria-label="Search icon"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"
+                  />
                 </svg>
               }
             />
@@ -198,7 +260,8 @@ export function VerificationResults() {
             </Button>
           </div>
           <p className="text-sm text-gray-500 mt-2">
-            Paste a verification URL or drag and drop a proof pack file to verify its authenticity
+            Paste a verification URL or drag and drop a proof pack file to
+            verify its authenticity
           </p>
         </CardBody>
       </Card>
@@ -209,7 +272,9 @@ export function VerificationResults() {
           <CardBody className="text-center py-8">
             <Spinner size="lg" className="mb-4" />
             <h3 className="text-lg font-semibold mb-2">Verifying Proof Pack</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">{currentStep}</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              {currentStep}
+            </p>
             <Progress
               value={verificationProgress}
               color="primary"
@@ -242,17 +307,30 @@ export function VerificationResults() {
             <CardBody>
               <div className="space-y-4">
                 {verificationResult.checks.map((check, index) => (
-                  <div key={index} className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center mt-0.5 ${
-                      check.status === "passed" ? "bg-green-100 text-green-600" :
-                      check.status === "warning" ? "bg-yellow-100 text-yellow-600" :
-                      "bg-red-100 text-red-600"
-                    }`}>
-                      {check.status === "passed" ? "✓" : check.status === "warning" ? "⚠" : "✗"}
+                  <div
+                    key={`check-${check.type}-${index}`}
+                    className="flex items-start space-x-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                  >
+                    <div
+                      className={`w-6 h-6 rounded-full flex items-center justify-center mt-0.5 ${
+                        check.status === "passed"
+                          ? "bg-green-100 text-green-600"
+                          : check.status === "warning"
+                            ? "bg-yellow-100 text-yellow-600"
+                            : "bg-red-100 text-red-600"
+                      }`}
+                    >
+                      {check.status === "passed"
+                        ? "✓"
+                        : check.status === "warning"
+                          ? "⚠"
+                          : "✗"}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-medium capitalize">{check.type} Check</span>
+                        <span className="font-medium capitalize">
+                          {check.type} Check
+                        </span>
                         <Chip
                           size="sm"
                           color={getStatusColor(check.status)}
@@ -268,7 +346,10 @@ export function VerificationResults() {
                         <div className="mt-2 text-xs text-gray-500 font-mono">
                           {Object.entries(check.details).map(([key, value]) => (
                             <div key={key}>
-                              {key}: {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                              {key}:{" "}
+                              {typeof value === "object"
+                                ? JSON.stringify(value)
+                                : String(value)}
                             </div>
                           ))}
                         </div>
@@ -279,14 +360,18 @@ export function VerificationResults() {
               </div>
 
               {/* Warnings and Errors */}
-              {(verificationResult.warnings.length > 0 || verificationResult.errors.length > 0) && (
+              {(verificationResult.warnings.length > 0 ||
+                verificationResult.errors.length > 0) && (
                 <>
                   <Divider className="my-4" />
                   {verificationResult.warnings.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="font-medium text-yellow-600">Warnings</h4>
                       {verificationResult.warnings.map((warning, index) => (
-                        <div key={index} className="flex items-center space-x-2 text-sm text-yellow-600">
+                        <div
+                          key={index}
+                          className="flex items-center space-x-2 text-sm text-yellow-600"
+                        >
                           <span>⚠</span>
                           <span>{warning}</span>
                         </div>
@@ -297,7 +382,10 @@ export function VerificationResults() {
                     <div className="space-y-2">
                       <h4 className="font-medium text-red-600">Errors</h4>
                       {verificationResult.errors.map((error, index) => (
-                        <div key={index} className="flex items-center space-x-2 text-sm text-red-600">
+                        <div
+                          key={index}
+                          className="flex items-center space-x-2 text-sm text-red-600"
+                        >
                           <span>✗</span>
                           <span>{error}</span>
                         </div>
@@ -323,9 +411,14 @@ export function VerificationResults() {
           <CardBody>
             <div className="space-y-3">
               {recentVerifications.map((result, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg"
+                >
                   <div className="flex items-center space-x-3">
-                    <div className={`w-3 h-3 rounded-full ${result.isValid ? "bg-green-500" : "bg-red-500"}`} />
+                    <div
+                      className={`w-3 h-3 rounded-full ${result.isValid ? "bg-green-500" : "bg-red-500"}`}
+                    />
                     <div>
                       <div className="font-medium">
                         Trust Score: {result.trustScore}%

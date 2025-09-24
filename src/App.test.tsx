@@ -11,8 +11,6 @@ describe("App", () => {
       </HeroUIProvider>,
     );
     expect(screen.getByRole("heading", { name: "Notari" })).toBeInTheDocument();
-    expect(
-      screen.getByText("Proof-of-Work System"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Proof-of-Work System")).toBeInTheDocument();
   });
 });

@@ -1,24 +1,28 @@
-import { useState, useEffect } from "react";
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Button,
-  Progress,
+  Card,
+  CardBody,
+  CardHeader,
   Chip,
   Divider,
+  Progress,
   useDisclosure,
 } from "@heroui/react";
+import { useEffect, useState } from "react";
+import type { SessionStatus, WorkSession } from "../../types";
 import { SessionCard } from "./SessionCard";
-import { SessionControls } from "./SessionControls";
 import { SessionConfigModal } from "./SessionConfigModal";
-import type { WorkSession, SessionStatus } from "../../types";
+import { SessionControls } from "./SessionControls";
 
 export function SessionManagement() {
   const [sessions, setSessions] = useState<WorkSession[]>([]);
   const [activeSession, setActiveSession] = useState<WorkSession | null>(null);
 
-  const { isOpen: isConfigOpen, onOpen: onConfigOpen, onOpenChange: onConfigOpenChange } = useDisclosure();
+  const {
+    isOpen: isConfigOpen,
+    onOpen: onConfigOpen,
+    onOpenChange: onConfigOpenChange,
+  } = useDisclosure();
 
   // Mock data for demonstration
   useEffect(() => {
@@ -71,33 +75,43 @@ export function SessionManagement() {
     if (activeSession) {
       setActiveSession(null);
       // Update session status to completed
-      setSessions(prev => prev.map(session => 
-        session.id === activeSession.id 
-          ? { ...session, status: "completed" as SessionStatus, endTime: Date.now() }
-          : session
-      ));
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === activeSession.id
+            ? {
+                ...session,
+                status: "completed" as SessionStatus,
+                endTime: Date.now(),
+              }
+            : session,
+        ),
+      );
     }
   };
 
   const handlePauseSession = () => {
     if (activeSession) {
       setActiveSession({ ...activeSession, status: "paused" as SessionStatus });
-      setSessions(prev => prev.map(session => 
-        session.id === activeSession.id 
-          ? { ...session, status: "paused" as SessionStatus }
-          : session
-      ));
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === activeSession.id
+            ? { ...session, status: "paused" as SessionStatus }
+            : session,
+        ),
+      );
     }
   };
 
   const handleResumeSession = () => {
     if (activeSession) {
       setActiveSession({ ...activeSession, status: "active" as SessionStatus });
-      setSessions(prev => prev.map(session => 
-        session.id === activeSession.id 
-          ? { ...session, status: "active" as SessionStatus }
-          : session
-      ));
+      setSessions((prev) =>
+        prev.map((session) =>
+          session.id === activeSession.id
+            ? { ...session, status: "active" as SessionStatus }
+            : session,
+        ),
+      );
     }
   };
 
@@ -139,7 +153,9 @@ export function SessionManagement() {
                 <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
                 <h3 className="text-lg font-semibold">Active Session</h3>
                 <Chip
-                  color={activeSession.status === "active" ? "success" : "warning"}
+                  color={
+                    activeSession.status === "active" ? "success" : "warning"
+                  }
                   variant="flat"
                   size="sm"
                 >
@@ -175,24 +191,35 @@ export function SessionManagement() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardBody className="text-center">
-            <div className="text-2xl font-bold text-primary">{sessions.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Sessions</div>
+            <div className="text-2xl font-bold text-primary">
+              {sessions.length}
+            </div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Total Sessions
+            </div>
           </CardBody>
         </Card>
         <Card>
           <CardBody className="text-center">
             <div className="text-2xl font-bold text-success">
-              {sessions.reduce((acc, session) => acc + getSessionDuration(session), 0)}
+              {sessions.reduce(
+                (acc, session) => acc + getSessionDuration(session),
+                0,
+              )}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Minutes</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Total Minutes
+            </div>
           </CardBody>
         </Card>
         <Card>
           <CardBody className="text-center">
             <div className="text-2xl font-bold text-warning">
-              {sessions.filter(s => s.status === "completed").length}
+              {sessions.filter((s) => s.status === "completed").length}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Completed
+            </div>
           </CardBody>
         </Card>
       </div>
@@ -226,7 +253,7 @@ export function SessionManagement() {
             updatedAt: Date.now(),
           };
           setActiveSession(newSession);
-          setSessions(prev => [newSession, ...prev]);
+          setSessions((prev) => [newSession, ...prev]);
           onConfigOpenChange();
         }}
       />

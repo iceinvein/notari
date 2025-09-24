@@ -1,10 +1,10 @@
 import {
-  Card,
-  CardHeader,
-  CardBody,
   Button,
-  Divider,
+  Card,
+  CardBody,
+  CardHeader,
   Chip,
+  Divider,
 } from "@heroui/react";
 import type { VerificationResult } from "../../types";
 
@@ -44,7 +44,9 @@ export function VerificationReport({ result }: VerificationReportProps) {
     };
 
     if (format === "json") {
-      const blob = new Blob([JSON.stringify(reportContent, null, 2)], { type: "application/json" });
+      const blob = new Blob([JSON.stringify(reportContent, null, 2)], {
+        type: "application/json",
+      });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -83,11 +85,7 @@ export function VerificationReport({ result }: VerificationReportProps) {
             >
               Download PDF
             </Button>
-            <Button
-              size="sm"
-              color="primary"
-              onPress={shareReport}
-            >
+            <Button size="sm" color="primary" onPress={shareReport}>
               Share Report
             </Button>
           </div>
@@ -101,33 +99,47 @@ export function VerificationReport({ result }: VerificationReportProps) {
               <h4 className="font-semibold mb-2">Report Information</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Report ID:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Report ID:
+                  </span>
                   <span className="font-mono">{reportData.reportId}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Generated:</span>
-                  <span>{new Date(result.verificationTime).toLocaleString()}</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Generated:
+                  </span>
+                  <span>
+                    {new Date(result.verificationTime).toLocaleString()}
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Duration:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Duration:
+                  </span>
                   <span>{reportData.verificationDuration}ms</span>
                 </div>
               </div>
             </div>
-            
+
             <div>
               <h4 className="font-semibold mb-2">Verifier Information</h4>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Version:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Version:
+                  </span>
                   <span>{reportData.verifierInfo.version}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Platform:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Platform:
+                  </span>
                   <span>{reportData.verifierInfo.platform}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Location:</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Location:
+                  </span>
                   <span>{reportData.verifierInfo.location}</span>
                 </div>
               </div>
@@ -144,16 +156,21 @@ export function VerificationReport({ result }: VerificationReportProps) {
                 <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
                   {result.trustScore}%
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Trust Score</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Trust Score
+                </div>
               </div>
-              
+
               <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                  {result.checks.filter(c => c.status === "passed").length}/{result.checks.length}
+                  {result.checks.filter((c) => c.status === "passed").length}/
+                  {result.checks.length}
                 </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">Checks Passed</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Checks Passed
+                </div>
               </div>
-              
+
               <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <Chip
                   color={result.isValid ? "success" : "danger"}
@@ -175,25 +192,34 @@ export function VerificationReport({ result }: VerificationReportProps) {
               <div>
                 <h5 className="font-medium mb-2">Cryptographic Algorithms</h5>
                 <div className="flex flex-wrap gap-2">
-                  {reportData.technicalDetails.cryptographicAlgorithms.map((algo) => (
-                    <Chip key={algo} size="sm" variant="flat">
-                      {algo}
-                    </Chip>
-                  ))}
+                  {reportData.technicalDetails.cryptographicAlgorithms.map(
+                    (algo) => (
+                      <Chip key={algo} size="sm" variant="flat">
+                        {algo}
+                      </Chip>
+                    ),
+                  )}
                 </div>
               </div>
-              
+
               <div>
                 <h5 className="font-medium mb-2">Blockchain Networks</h5>
                 <div className="flex flex-wrap gap-2">
-                  {reportData.technicalDetails.blockchainNetworks.map((network) => (
-                    <Chip key={network} size="sm" variant="flat" color="primary">
-                      {network}
-                    </Chip>
-                  ))}
+                  {reportData.technicalDetails.blockchainNetworks.map(
+                    (network) => (
+                      <Chip
+                        key={network}
+                        size="sm"
+                        variant="flat"
+                        color="primary"
+                      >
+                        {network}
+                      </Chip>
+                    ),
+                  )}
                 </div>
               </div>
-              
+
               <div>
                 <h5 className="font-medium mb-2">Verification Protocol</h5>
                 <Chip variant="flat" color="secondary">
@@ -210,14 +236,22 @@ export function VerificationReport({ result }: VerificationReportProps) {
             <h4 className="font-semibold mb-3">Detailed Check Results</h4>
             <div className="space-y-3">
               {result.checks.map((check, index) => (
-                <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div
+                  key={`check-${check.type}-${index}`}
+                  className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
+                >
                   <div className="flex items-center justify-between mb-2">
-                    <h5 className="font-medium capitalize">{check.type} Verification</h5>
+                    <h5 className="font-medium capitalize">
+                      {check.type} Verification
+                    </h5>
                     <Chip
                       size="sm"
                       color={
-                        check.status === "passed" ? "success" :
-                        check.status === "warning" ? "warning" : "danger"
+                        check.status === "passed"
+                          ? "success"
+                          : check.status === "warning"
+                            ? "warning"
+                            : "danger"
                       }
                       variant="flat"
                     >
@@ -245,21 +279,35 @@ export function VerificationReport({ result }: VerificationReportProps) {
                 <h4 className="font-semibold mb-3">Issues and Warnings</h4>
                 <div className="space-y-3">
                   {result.warnings.map((warning, index) => (
-                    <div key={index} className="flex items-start space-x-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                    <div
+                      key={`warning-${index}-${warning.slice(0, 20)}`}
+                      className="flex items-start space-x-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg"
+                    >
                       <span className="text-yellow-600 mt-0.5">⚠</span>
                       <div>
-                        <div className="font-medium text-yellow-800 dark:text-yellow-200">Warning</div>
-                        <div className="text-sm text-yellow-700 dark:text-yellow-300">{warning}</div>
+                        <div className="font-medium text-yellow-800 dark:text-yellow-200">
+                          Warning
+                        </div>
+                        <div className="text-sm text-yellow-700 dark:text-yellow-300">
+                          {warning}
+                        </div>
                       </div>
                     </div>
                   ))}
-                  
+
                   {result.errors.map((error, index) => (
-                    <div key={index} className="flex items-start space-x-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                    <div
+                      key={`error-${index}-${error.slice(0, 20)}`}
+                      className="flex items-start space-x-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg"
+                    >
                       <span className="text-red-600 mt-0.5">✗</span>
                       <div>
-                        <div className="font-medium text-red-800 dark:text-red-200">Error</div>
-                        <div className="text-sm text-red-700 dark:text-red-300">{error}</div>
+                        <div className="font-medium text-red-800 dark:text-red-200">
+                          Error
+                        </div>
+                        <div className="text-sm text-red-700 dark:text-red-300">
+                          {error}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -272,11 +320,13 @@ export function VerificationReport({ result }: VerificationReportProps) {
           <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
             <h5 className="font-medium mb-2">Legal Disclaimer</h5>
             <p className="text-xs text-gray-600 dark:text-gray-400">
-              This verification report is generated by the Notari verification system and represents 
-              the cryptographic and technical validation of the submitted proof pack at the time of 
-              verification. This report does not constitute legal advice or guarantee the authenticity 
-              of the underlying work or content. Users should consult with legal professionals for 
-              matters requiring legal validation.
+              This verification report is generated by the Notari verification
+              system and represents the cryptographic and technical validation
+              of the submitted proof pack at the time of verification. This
+              report does not constitute legal advice or guarantee the
+              authenticity of the underlying work or content. Users should
+              consult with legal professionals for matters requiring legal
+              validation.
             </p>
           </div>
         </div>
