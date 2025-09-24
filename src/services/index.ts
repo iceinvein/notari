@@ -6,4 +6,5 @@ export * from "./capture/CaptureEngine";
 export * from "./crypto/CryptoManager";
 export * from "./proofPack/ProofPackAssembler";
 export * from "./redaction/RedactionEngine";
+export * from "./session/SessionManager";
 export * from "./verification/VerificationAPI";

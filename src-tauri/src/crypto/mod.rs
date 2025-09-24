@@ -2,11 +2,13 @@ pub mod encryption;
 pub mod keychain;
 pub mod keys;
 pub mod signatures;
+pub mod manager;
 
 pub use encryption::*;
 pub use keychain::*;
 pub use keys::*;
 pub use signatures::*;
+pub use manager::{CryptoManager, EncryptedData};
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

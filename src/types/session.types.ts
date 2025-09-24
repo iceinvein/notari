@@ -1,46 +1,66 @@
-// Session management types
-export type SessionId = string;
-export type SessionStatus = "active" | "paused" | "completed" | "failed";
-
 export interface SessionConfig {
   captureScreen: boolean;
   captureKeystrokes: boolean;
   captureMouse: boolean;
-  privacyFilters: PrivacyFilter[];
-  qualitySettings: CaptureQuality;
+  privacyFilters: string[];
+  qualitySettings: string;
 }
 
-export interface PrivacyFilter {
-  type: "application" | "window" | "region";
-  pattern: string;
-  action: "exclude" | "blur" | "redact";
-}
-
-export interface CaptureQuality {
-  screenResolution: "full" | "half" | "quarter";
-  frameRate: number;
-  compressionLevel: number;
+export enum SessionStatus {
+  Active = 'active',
+  Paused = 'paused',
+  Completed = 'completed',
+  Failed = 'failed',
 }
 
 export interface WorkSession {
-  id: SessionId;
+  id: string;
   userId: string;
   startTime: number;
   endTime?: number;
   status: SessionStatus;
   captureConfig: SessionConfig;
-  encryptedData: EncryptedBlob;
-  checksums: string[];
+  encryptedDataPath?: string;
+  integrityHash?: string;
+  tamperEvidence?: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
-export interface EncryptedBlob {
-  data: ArrayBuffer;
-  iv: ArrayBuffer;
-  keyId: string;
-  algorithm: string;
+export interface SessionIntegrityLog {
+  id?: number;
+  sessionId: string;
+  eventType: string;
+  eventData?: string;
+  timestamp: number;
+  signature?: string;
 }
 
-export interface TimeRange {
-  start: number;
-  end: number;
+export interface CreateSessionRequest {
+  userId: string;
+  config: SessionConfig;
+}
+
+export interface SessionResponse {
+  success: boolean;
+  session?: WorkSession;
+  error?: string;
+}
+
+export interface SessionListResponse {
+  success: boolean;
+  sessions: WorkSession[];
+  error?: string;
+}
+
+export interface IntegrityResponse {
+  success: boolean;
+  isValid: boolean;
+  logs: SessionIntegrityLog[];
+  error?: string;
+}
+
+export interface StatusResponse {
+  success: boolean;
+  error?: string;
 }

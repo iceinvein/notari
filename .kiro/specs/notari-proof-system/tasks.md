@@ -28,7 +28,7 @@
   - Write unit tests for Rust capture module and integration tests for Tauri commands
   - _Requirements: 1.1, 1.3, 9.1, 9.2_
 
-- [ ] 4. Create session management and local storage
+- [x] 4. Create session management and local storage
   - Add SQLite dependencies to Cargo.toml (rusqlite, sqlx)
   - Implement database schema and migrations for sessions, proof packs, and user data
   - Create Rust session management module with lifecycle operations (start, pause, resume, stop)

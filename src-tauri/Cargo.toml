@@ -38,6 +38,16 @@ image = "0.25"
 rdev = "0.4"
 async-trait = "0.1"
 
+# Database dependencies
+rusqlite = { version = "0.32", features = ["bundled", "chrono", "uuid"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid", "migrate"] }
+hex = "0.4"
+sha2 = "0.10"
+
+# Test dependencies
+[dev-dependencies]
+tempfile = "3.8"
+
 # Platform-specific dependencies
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.58", features = [
