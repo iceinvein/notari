@@ -35,10 +35,15 @@ export interface AnchorVerification {
   verificationTime: number;
 }
 
+export interface MerkleNode {
+  hash: string;
+  isLeft: boolean;
+}
+
 export interface MerkleProof {
-  leaf: string;
-  proof: string[];
   root: string;
+  leaf: string;
+  path: MerkleNode[];
   index: number;
 }
 

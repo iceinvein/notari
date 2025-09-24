@@ -5,6 +5,7 @@ mod storage;
 mod ai;
 mod redaction;
 mod blockchain;
+mod verification;
 
 use commands::crypto::{self as crypto_commands, CryptoState};
 use commands::capture::{self as capture_commands, init_capture_state};
@@ -13,6 +14,7 @@ use commands::ai::{self as ai_commands, init_ai_state};
 use commands::proof_pack as proof_pack_commands;
 use commands::redaction as redaction_commands;
 use commands::blockchain::{self as blockchain_commands, init_blockchain_state};
+use commands::verification::{self as verification_commands, init_verification_state};
 use storage::{Database, SessionStore};
 use crypto::CryptoManager;
 use std::sync::Arc;
@@ -51,6 +53,7 @@ pub fn run() {
         .manage(database)
         .manage(init_ai_state())
         .manage(init_blockchain_state())
+        .manage(init_verification_state())
         .invoke_handler(tauri::generate_handler![
             greet,
             crypto_commands::generate_device_key,
@@ -108,7 +111,20 @@ pub fn run() {
             blockchain_commands::create_transaction_config,
             blockchain_commands::create_anchor_metadata,
             blockchain_commands::get_blockchain_status,
-            blockchain_commands::estimate_transaction_cost
+            blockchain_commands::estimate_transaction_cost,
+            verification_commands::initialize_verification_engine,
+            verification_commands::verify_proof_pack,
+            verification_commands::batch_verify_proof_packs,
+            verification_commands::start_async_verification,
+            verification_commands::get_verification_status,
+            verification_commands::generate_verification_merkle_proof,
+            verification_commands::get_verification_analytics,
+            verification_commands::get_proof_pack_verification_history,
+            verification_commands::get_verification_stats,
+            verification_commands::get_verification_audit_trail,
+            verification_commands::generate_verification_report,
+            verification_commands::cleanup_verification_data,
+            verification_commands::get_verification_engine_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -5,3 +5,4 @@ pub mod ai;
 pub mod proof_pack;
 pub mod redaction;
 pub mod blockchain;
+pub mod verification;
