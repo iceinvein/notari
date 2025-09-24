@@ -1,13 +1,13 @@
-import { HeroUIProvider } from "@heroui/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import "./App.css";
+import { Provider } from "./provider";
+import "@/styles/globals.css";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <HeroUIProvider>
+    <Provider>
       <App />
-    </HeroUIProvider>
+    </Provider>
   </React.StrictMode>,
 );
