@@ -23,6 +23,11 @@ pub async fn run_migrations(pool: &SqlitePool) -> Result<(), Box<dyn std::error:
         record_migration(pool, "001_initial_schema").await?;
     }
 
+    if current_version < 2 {
+        apply_migration_002(pool).await?;
+        record_migration(pool, "002_proof_pack_updates").await?;
+    }
+
     Ok(())
 }
 
@@ -170,6 +175,44 @@ async fn apply_migration_001(pool: &SqlitePool) -> Result<(), Box<dyn std::error
         .await?;
     
     sqlx::query("CREATE INDEX idx_integrity_logs_session_id ON session_integrity_logs(session_id)")
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+async fn apply_migration_002(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
+    // Update proof_packs table to match the new schema
+    sqlx::query(
+        r#"
+        DROP TABLE IF EXISTS proof_packs;
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    sqlx::query(
+        r#"
+        CREATE TABLE proof_packs (
+            id TEXT PRIMARY KEY,
+            version TEXT NOT NULL,
+            creator TEXT NOT NULL,
+            created INTEGER NOT NULL,
+            total_duration INTEGER NOT NULL DEFAULT 0,
+            title TEXT,
+            description TEXT,
+            sessions TEXT NOT NULL,
+            metadata_json TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    // Create index for better performance
+    sqlx::query("CREATE INDEX idx_proof_packs_creator ON proof_packs(creator)")
         .execute(pool)
         .await?;
 

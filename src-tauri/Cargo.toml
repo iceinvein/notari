@@ -47,6 +47,11 @@ sha2 = "0.10"
 # AI/ML dependencies (statistical analysis)
 ndarray = "0.16"
 
+# System information dependencies
+hostname = "0.4"
+iana-time-zone = "0.1"
+sys-locale = "0.3"
+
 # Test dependencies
 [dev-dependencies]
 tempfile = "3.8"

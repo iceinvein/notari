@@ -8,6 +8,7 @@ use commands::crypto::{self as crypto_commands, CryptoState};
 use commands::capture::{self as capture_commands, init_capture_state};
 use commands::session as session_commands;
 use commands::ai::{self as ai_commands, init_ai_state};
+use commands::proof_pack as proof_pack_commands;
 use storage::{Database, SessionStore};
 use crypto::CryptoManager;
 use std::sync::Arc;
@@ -27,16 +28,23 @@ async fn init_session_store() -> Arc<Mutex<SessionStore>> {
     Arc::new(Mutex::new(session_store))
 }
 
+async fn init_database() -> Database {
+    let db_path = "notari.db";
+    Database::new(db_path).await.expect("Failed to initialize database")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
     let session_store = rt.block_on(init_session_store());
+    let database = rt.block_on(init_database());
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(CryptoState::default())
         .manage(init_capture_state())
         .manage(session_store)
+        .manage(database)
         .manage(init_ai_state())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -72,7 +80,10 @@ pub fn run() {
             ai_commands::initialize_ai_processor,
             ai_commands::analyze_session_data,
             ai_commands::get_ai_processor_status,
-            ai_commands::generate_work_summary
+            ai_commands::generate_work_summary,
+            proof_pack_commands::get_system_context,
+            proof_pack_commands::store_proof_pack_metadata,
+            proof_pack_commands::get_proof_pack
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
