@@ -18,7 +18,7 @@
   - Write comprehensive unit tests using Vitest for TypeScript layer and Rust tests for backend
   - _Requirements: 1.2, 1.5, 4.2, 4.3_
 
-- [ ] 3. Build cross-platform capture engine core
+- [x] 3. Build cross-platform capture engine core
   - Add platform-specific dependencies to Cargo.toml (windows-capture, core-graphics for macOS)
   - Implement Rust capture module with platform-specific screen capture APIs
   - Create keyboard and mouse event monitoring with privacy filtering in Rust
