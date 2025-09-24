@@ -4,6 +4,7 @@ mod capture;
 mod storage;
 mod ai;
 mod redaction;
+mod blockchain;
 
 use commands::crypto::{self as crypto_commands, CryptoState};
 use commands::capture::{self as capture_commands, init_capture_state};
@@ -11,6 +12,7 @@ use commands::session as session_commands;
 use commands::ai::{self as ai_commands, init_ai_state};
 use commands::proof_pack as proof_pack_commands;
 use commands::redaction as redaction_commands;
+use commands::blockchain::{self as blockchain_commands, init_blockchain_state};
 use storage::{Database, SessionStore};
 use crypto::CryptoManager;
 use std::sync::Arc;
@@ -48,6 +50,7 @@ pub fn run() {
         .manage(session_store)
         .manage(database)
         .manage(init_ai_state())
+        .manage(init_blockchain_state())
         .invoke_handler(tauri::generate_handler![
             greet,
             crypto_commands::generate_device_key,
@@ -93,7 +96,19 @@ pub fn run() {
             redaction_commands::validate_redaction_integrity_backend,
             redaction_commands::verify_redacted_pack,
             redaction_commands::get_redaction_capabilities,
-            redaction_commands::generate_separate_hashes
+            redaction_commands::generate_separate_hashes,
+            blockchain_commands::initialize_blockchain_anchor,
+            blockchain_commands::anchor_hash,
+            blockchain_commands::anchor_batch,
+            blockchain_commands::verify_anchor,
+            blockchain_commands::generate_merkle_proof,
+            blockchain_commands::verify_merkle_proof,
+            blockchain_commands::get_supported_networks,
+            blockchain_commands::get_network_stats,
+            blockchain_commands::create_transaction_config,
+            blockchain_commands::create_anchor_metadata,
+            blockchain_commands::get_blockchain_status,
+            blockchain_commands::estimate_transaction_cost
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

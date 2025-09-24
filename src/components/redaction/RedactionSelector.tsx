@@ -1,6 +1,14 @@
-import React, { useState, useRef, useCallback } from 'react';
-import { Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from '@heroui/react';
-import type { RedactionArea, Rectangle } from '../../types/redaction.types';
+import {
+  Button,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+} from "@heroui/react";
+import type React from "react";
+import { useCallback, useId, useRef, useState } from "react";
+import type { Rectangle, RedactionArea } from "../../types/redaction.types";
 
 interface RedactionSelectorProps {
   isOpen: boolean;
@@ -29,66 +37,129 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
     startPoint: null,
     currentArea: null,
   });
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState("");
+  const reasonInputId = useId();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
 
-  const handleMouseDown = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+  const handleMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+      const rect = canvas.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
 
-    setSelectionState({
-      isSelecting: true,
-      startPoint: { x, y },
-      currentArea: null,
-    });
-  }, []);
+      setSelectionState({
+        isSelecting: true,
+        startPoint: { x, y },
+        currentArea: null,
+      });
+    },
+    [],
+  );
 
-  const handleMouseMove = useCallback((event: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!selectionState.isSelecting || !selectionState.startPoint) return;
+  const drawCanvas = useCallback(
+    (currentSelection?: Rectangle) => {
+      const canvas = canvasRef.current;
+      const image = imageRef.current;
+      if (!canvas || !image) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    const rect = canvas.getBoundingClientRect();
-    const currentX = event.clientX - rect.left;
-    const currentY = event.clientY - rect.top;
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    const area: Rectangle = {
-      x: Math.min(selectionState.startPoint.x, currentX),
-      y: Math.min(selectionState.startPoint.y, currentY),
-      width: Math.abs(currentX - selectionState.startPoint.x),
-      height: Math.abs(currentY - selectionState.startPoint.y),
-    };
+      // Draw the image
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
 
-    setSelectionState(prev => ({
-      ...prev,
-      currentArea: area,
-    }));
+      // Draw existing redaction areas
+      ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
+      ctx.strokeStyle = "rgba(255, 0, 0, 0.8)";
+      ctx.lineWidth = 2;
 
-    // Redraw canvas with current selection
-    drawCanvas(area);
-  }, [selectionState.isSelecting, selectionState.startPoint]);
+      redactionAreas.forEach((area) => {
+        if (area.coordinates) {
+          const { x, y, width, height } = area.coordinates;
+          ctx.fillRect(x, y, width, height);
+          ctx.strokeRect(x, y, width, height);
+        }
+      });
+
+      // Draw current selection
+      if (currentSelection) {
+        ctx.fillStyle = "rgba(255, 255, 0, 0.3)";
+        ctx.strokeStyle = "rgba(255, 255, 0, 0.8)";
+        ctx.fillRect(
+          currentSelection.x,
+          currentSelection.y,
+          currentSelection.width,
+          currentSelection.height,
+        );
+        ctx.strokeRect(
+          currentSelection.x,
+          currentSelection.y,
+          currentSelection.width,
+          currentSelection.height,
+        );
+      }
+    },
+    [redactionAreas],
+  );
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!selectionState.isSelecting || !selectionState.startPoint) return;
+
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const currentX = event.clientX - rect.left;
+      const currentY = event.clientY - rect.top;
+
+      const area: Rectangle = {
+        x: Math.min(selectionState.startPoint.x, currentX),
+        y: Math.min(selectionState.startPoint.y, currentY),
+        width: Math.abs(currentX - selectionState.startPoint.x),
+        height: Math.abs(currentY - selectionState.startPoint.y),
+      };
+
+      setSelectionState((prev) => ({
+        ...prev,
+        currentArea: area,
+      }));
+
+      // Redraw canvas with current selection
+      drawCanvas(area);
+    },
+    [
+      selectionState.isSelecting,
+      selectionState.startPoint, // Redraw canvas with current selection
+      drawCanvas,
+    ],
+  );
 
   const handleMouseUp = useCallback(() => {
     if (!selectionState.isSelecting || !selectionState.currentArea) return;
 
     // Only add areas with meaningful size
-    if (selectionState.currentArea.width > 10 && selectionState.currentArea.height > 10) {
+    if (
+      selectionState.currentArea.width > 10 &&
+      selectionState.currentArea.height > 10
+    ) {
       const newArea: RedactionArea = {
         id: `redaction-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        type: 'rectangle',
+        type: "rectangle",
         coordinates: selectionState.currentArea,
         sessionId,
         timestamp: Date.now(),
-        reason: reason || 'Sensitive information',
+        reason: reason || "Sensitive information",
       };
 
-      setRedactionAreas(prev => [...prev, newArea]);
+      setRedactionAreas((prev) => [...prev, newArea]);
     }
 
     setSelectionState({
@@ -99,43 +170,13 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
 
     // Redraw canvas without current selection
     drawCanvas();
-  }, [selectionState.isSelecting, selectionState.currentArea, sessionId, reason]);
-
-  const drawCanvas = useCallback((currentSelection?: Rectangle) => {
-    const canvas = canvasRef.current;
-    const image = imageRef.current;
-    if (!canvas || !image) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Draw the image
-    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-    // Draw existing redaction areas
-    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
-    ctx.lineWidth = 2;
-
-    redactionAreas.forEach(area => {
-      if (area.coordinates) {
-        const { x, y, width, height } = area.coordinates;
-        ctx.fillRect(x, y, width, height);
-        ctx.strokeRect(x, y, width, height);
-      }
-    });
-
-    // Draw current selection
-    if (currentSelection) {
-      ctx.fillStyle = 'rgba(255, 255, 0, 0.3)';
-      ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)';
-      ctx.fillRect(currentSelection.x, currentSelection.y, currentSelection.width, currentSelection.height);
-      ctx.strokeRect(currentSelection.x, currentSelection.y, currentSelection.width, currentSelection.height);
-    }
-  }, [redactionAreas]);
+  }, [
+    selectionState.isSelecting,
+    selectionState.currentArea,
+    sessionId,
+    reason, // Redraw canvas without current selection
+    drawCanvas,
+  ]);
 
   const handleImageLoad = useCallback(() => {
     const canvas = canvasRef.current;
@@ -150,7 +191,7 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
   }, [drawCanvas]);
 
   const removeRedactionArea = useCallback((areaId: string) => {
-    setRedactionAreas(prev => prev.filter(area => area.id !== areaId));
+    setRedactionAreas((prev) => prev.filter((area) => area.id !== areaId));
   }, []);
 
   const handleComplete = useCallback(() => {
@@ -160,13 +201,13 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
 
   const handleCancel = useCallback(() => {
     setRedactionAreas([]);
-    setReason('');
+    setReason("");
     onClose();
   }, [onClose]);
 
   return (
-    <Modal 
-      isOpen={isOpen} 
+    <Modal
+      isOpen={isOpen}
       onClose={handleCancel}
       size="5xl"
       scrollBehavior="inside"
@@ -178,9 +219,10 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
         <ModalBody>
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
-              Click and drag to select areas you want to redact. Selected areas will be hidden from verifiers while maintaining proof integrity.
+              Click and drag to select areas you want to redact. Selected areas
+              will be hidden from verifiers while maintaining proof integrity.
             </div>
-            
+
             <div className="relative border border-gray-300 rounded-lg overflow-hidden">
               <img
                 ref={imageRef}
@@ -200,10 +242,14 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium">
+              <label
+                htmlFor={reasonInputId}
+                className="block text-sm font-medium"
+              >
                 Redaction Reason (Optional)
               </label>
               <input
+                id={reasonInputId}
                 type="text"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
@@ -214,12 +260,18 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
 
             {redactionAreas.length > 0 && (
               <div className="space-y-2">
-                <h3 className="text-sm font-medium">Selected Redaction Areas ({redactionAreas.length})</h3>
+                <h3 className="text-sm font-medium">
+                  Selected Redaction Areas ({redactionAreas.length})
+                </h3>
                 <div className="space-y-1 max-h-32 overflow-y-auto">
                   {redactionAreas.map((area, index) => (
-                    <div key={area.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                    <div
+                      key={area.id}
+                      className="flex items-center justify-between p-2 bg-gray-50 rounded"
+                    >
                       <span className="text-sm">
-                        Area {index + 1}: {area.coordinates?.width}×{area.coordinates?.height}px
+                        Area {index + 1}: {area.coordinates?.width}×
+                        {area.coordinates?.height}px
                         {area.reason && ` - ${area.reason}`}
                       </span>
                       <Button
@@ -241,8 +293,8 @@ export const RedactionSelector: React.FC<RedactionSelectorProps> = ({
           <Button variant="light" onPress={handleCancel}>
             Cancel
           </Button>
-          <Button 
-            color="primary" 
+          <Button
+            color="primary"
             onPress={handleComplete}
             isDisabled={redactionAreas.length === 0}
           >

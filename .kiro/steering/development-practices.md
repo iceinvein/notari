@@ -21,7 +21,10 @@ When working with any library or creating new functionality:
 2. Query Context7 for current documentation and examples
 3. Review the recommended patterns and best practices
 4. Implement following the documented patterns
-5. Test using the patterns shown in Context7 examples
+5. Run `pnpm typecheck` to ensure TypeScript compilation is clean
+6. Run `pnpm lint` to ensure code follows linting rules (use `pnpm lint:fix` for auto-fixes)
+7. Test using the patterns shown in Context7 examples
+8. Run `pnpm typecheck` and `pnpm lint` again before committing
 
 ### Key Libraries to Always Check
 - **React**: Hook patterns, component lifecycle, performance optimizations
@@ -47,3 +50,45 @@ When working with any library or creating new functionality:
 - Implement proper error handling as shown in library documentation
 - Follow security best practices documented for each library
 - Write tests that match the patterns shown in Context7 examples
+- **Always run `pnpm typecheck` before committing code** - Ensure TypeScript compilation is clean
+- **Always run `pnpm lint` before committing code** - Ensure code follows linting rules
+- Run type checking and linting regularly during development to catch issues early
+- Use `pnpm lint:fix` to automatically fix linting issues when possible
+- For legitimate exceptions, use `// biome-ignore lint/rule-name: reason` comments with proper justification
+
+### Development Commands
+```bash
+# Type check TypeScript code
+pnpm typecheck
+
+# Run type checking in watch mode
+pnpm typecheck --watch
+
+# Lint code with Biome
+pnpm lint
+
+# Auto-fix linting issues
+pnpm lint:fix
+
+# Other common commands
+npm run dev          # Start development server
+npm run test         # Run tests
+npm run format       # Format code
+```
+
+### Pre-Commit Checklist
+Before committing code, ensure the following commands pass without errors:
+
+```bash
+# 1. Type checking
+pnpm typecheck
+
+# 2. Linting
+pnpm lint
+
+# 3. Tests (if applicable)
+npm run test
+
+# Quick check all at once
+pnpm typecheck && pnpm lint && npm run test
+```

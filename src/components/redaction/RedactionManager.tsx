@@ -1,8 +1,14 @@
-import React, { useState, useCallback } from 'react';
-import { Button, Card, CardBody, CardHeader, Divider } from '@heroui/react';
-import { RedactionSelector } from './RedactionSelector';
-import type { ProofPack, RedactionArea, RedactionPlan, RedactedProofPack } from '../../types';
-import { useRedactionEngine } from '../../hooks/useRedactionEngine';
+import { Button, Card, CardBody, CardHeader, Divider } from "@heroui/react";
+import type React from "react";
+import { useCallback, useState } from "react";
+import { useRedactionEngine } from "../../hooks/useRedactionEngine";
+import type {
+  ProofPack,
+  RedactedProofPack,
+  RedactionArea,
+  RedactionPlan,
+} from "../../types";
+import { RedactionSelector } from "./RedactionSelector";
 
 interface RedactionManagerProps {
   proofPack: ProofPack;
@@ -15,10 +21,13 @@ export const RedactionManager: React.FC<RedactionManagerProps> = ({
 }) => {
   const [isSelectingRedactions, setIsSelectingRedactions] = useState(false);
   const [currentSessionIndex, setCurrentSessionIndex] = useState(0);
-  const [redactionPlan, setRedactionPlan] = useState<RedactionPlan | null>(null);
+  const [redactionPlan, setRedactionPlan] = useState<RedactionPlan | null>(
+    null,
+  );
   const [isProcessing, setIsProcessing] = useState(false);
-  
-  const { markForRedaction, applyRedactions, validateRedactionIntegrity } = useRedactionEngine();
+
+  const { markForRedaction, applyRedactions, validateRedactionIntegrity } =
+    useRedactionEngine();
 
   const sessions = proofPack.evidence.sessions;
   const currentSession = sessions[currentSessionIndex];
@@ -27,53 +36,59 @@ export const RedactionManager: React.FC<RedactionManagerProps> = ({
     setIsSelectingRedactions(true);
   }, []);
 
-  const handleRedactionAreasSelected = useCallback(async (areas: RedactionArea[]) => {
-    setIsSelectingRedactions(false);
-    
-    if (areas.length === 0) return;
+  const handleRedactionAreasSelected = useCallback(
+    async (areas: RedactionArea[]) => {
+      setIsSelectingRedactions(false);
 
-    try {
-      setIsProcessing(true);
-      
-      // Create redaction plan
-      const plan = await markForRedaction(proofPack, areas);
-      setRedactionPlan(plan);
-      
-      // Show warnings if any
-      if (plan.warnings.length > 0) {
-        console.warn('Redaction warnings:', plan.warnings);
+      if (areas.length === 0) return;
+
+      try {
+        setIsProcessing(true);
+
+        // Create redaction plan
+        const plan = await markForRedaction(proofPack, areas);
+        setRedactionPlan(plan);
+
+        // Show warnings if any
+        if (plan.warnings.length > 0) {
+          console.warn("Redaction warnings:", plan.warnings);
+        }
+      } catch (error) {
+        console.error("Failed to create redaction plan:", error);
+      } finally {
+        setIsProcessing(false);
       }
-      
-    } catch (error) {
-      console.error('Failed to create redaction plan:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [proofPack, markForRedaction]);
+    },
+    [proofPack, markForRedaction],
+  );
 
   const handleApplyRedactions = useCallback(async () => {
     if (!redactionPlan) return;
 
     try {
       setIsProcessing(true);
-      
+
       const redactedPack = await applyRedactions(redactionPlan);
-      
+
       // Validate the redacted pack integrity
       const isValid = await validateRedactionIntegrity(redactedPack);
-      
+
       if (!isValid) {
-        throw new Error('Redaction integrity validation failed');
+        throw new Error("Redaction integrity validation failed");
       }
-      
+
       onRedactionComplete(redactedPack);
-      
     } catch (error) {
-      console.error('Failed to apply redactions:', error);
+      console.error("Failed to apply redactions:", error);
     } finally {
       setIsProcessing(false);
     }
-  }, [redactionPlan, applyRedactions, validateRedactionIntegrity, onRedactionComplete]);
+  }, [
+    redactionPlan,
+    applyRedactions,
+    validateRedactionIntegrity,
+    onRedactionComplete,
+  ]);
 
   const handleCancelRedaction = useCallback(() => {
     setRedactionPlan(null);
@@ -81,13 +96,13 @@ export const RedactionManager: React.FC<RedactionManagerProps> = ({
 
   const handleNextSession = useCallback(() => {
     if (currentSessionIndex < sessions.length - 1) {
-      setCurrentSessionIndex(prev => prev + 1);
+      setCurrentSessionIndex((prev) => prev + 1);
     }
   }, [currentSessionIndex, sessions.length]);
 
   const handlePreviousSession = useCallback(() => {
     if (currentSessionIndex > 0) {
-      setCurrentSessionIndex(prev => prev - 1);
+      setCurrentSessionIndex((prev) => prev - 1);
     }
   }, [currentSessionIndex]);
 
@@ -122,8 +137,10 @@ export const RedactionManager: React.FC<RedactionManagerProps> = ({
         <CardBody>
           <div className="space-y-4">
             <div className="text-sm text-gray-600">
-              Select sensitive areas in your proof pack content to redact them while maintaining verification integrity.
-              Redacted areas will be hidden from verifiers but cryptographic proofs will confirm their existence.
+              Select sensitive areas in your proof pack content to redact them
+              while maintaining verification integrity. Redacted areas will be
+              hidden from verifiers but cryptographic proofs will confirm their
+              existence.
             </div>
 
             {/* Session Navigation */}
@@ -149,7 +166,7 @@ export const RedactionManager: React.FC<RedactionManagerProps> = ({
                   Next
                 </Button>
               </div>
-              
+
               <Button
                 color="primary"
                 onPress={handleStartRedaction}
@@ -169,7 +186,8 @@ export const RedactionManager: React.FC<RedactionManagerProps> = ({
                   Session content would be displayed here
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
-                  Timestamp: {new Date(currentSession.timestamp).toLocaleString()}
+                  Timestamp:{" "}
+                  {new Date(currentSession.timestamp).toLocaleString()}
                 </div>
               </div>
             </div>
@@ -184,37 +202,57 @@ export const RedactionManager: React.FC<RedactionManagerProps> = ({
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div>
-                        <span className="font-medium">Areas to redact:</span> {redactionPlan.areas.length}
+                        <span className="font-medium">Areas to redact:</span>{" "}
+                        {redactionPlan.areas.length}
                       </div>
                       <div>
-                        <span className="font-medium">Verification capability:</span>{' '}
-                        <span className={`capitalize ${
-                          redactionPlan.estimatedImpact.verificationCapability === 'full' 
-                            ? 'text-green-600' 
-                            : redactionPlan.estimatedImpact.verificationCapability === 'partial'
-                            ? 'text-yellow-600'
-                            : 'text-red-600'
-                        }`}>
+                        <span className="font-medium">
+                          Verification capability:
+                        </span>{" "}
+                        <span
+                          className={`capitalize ${
+                            redactionPlan.estimatedImpact
+                              .verificationCapability === "full"
+                              ? "text-green-600"
+                              : redactionPlan.estimatedImpact
+                                    .verificationCapability === "partial"
+                                ? "text-yellow-600"
+                                : "text-red-600"
+                          }`}
+                        >
                           {redactionPlan.estimatedImpact.verificationCapability}
                         </span>
                       </div>
                       <div>
-                        <span className="font-medium">Affected sessions:</span> {redactionPlan.estimatedImpact.affectedSessions.length}
+                        <span className="font-medium">Affected sessions:</span>{" "}
+                        {redactionPlan.estimatedImpact.affectedSessions.length}
                       </div>
                       <div>
-                        <span className="font-medium">Critical data removed:</span>{' '}
-                        <span className={redactionPlan.estimatedImpact.criticalDataRemoved ? 'text-red-600' : 'text-green-600'}>
-                          {redactionPlan.estimatedImpact.criticalDataRemoved ? 'Yes' : 'No'}
+                        <span className="font-medium">
+                          Critical data removed:
+                        </span>{" "}
+                        <span
+                          className={
+                            redactionPlan.estimatedImpact.criticalDataRemoved
+                              ? "text-red-600"
+                              : "text-green-600"
+                          }
+                        >
+                          {redactionPlan.estimatedImpact.criticalDataRemoved
+                            ? "Yes"
+                            : "No"}
                         </span>
                       </div>
                     </div>
 
                     {redactionPlan.warnings.length > 0 && (
                       <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                        <h4 className="text-sm font-medium text-yellow-800 mb-1">Warnings:</h4>
+                        <h4 className="text-sm font-medium text-yellow-800 mb-1">
+                          Warnings:
+                        </h4>
                         <ul className="text-sm text-yellow-700 space-y-1">
-                          {redactionPlan.warnings.map((warning, index) => (
-                            <li key={index}>• {warning}</li>
+                          {redactionPlan.warnings.map((warning) => (
+                            <li key={warning}>• {warning}</li>
                           ))}
                         </ul>
                       </div>

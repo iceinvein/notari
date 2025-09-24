@@ -68,7 +68,7 @@
   - Write unit tests for redaction integrity, privacy preservation, and UI interactions
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 8. Develop blockchain anchoring service
+- [x] 8. Develop blockchain anchoring service
   - Add blockchain client dependencies to Cargo.toml (arweave-rs, web3, ethers-rs)
   - Implement BlockchainAnchor service with adapter pattern for multiple networks
   - Create Arweave integration module for primary anchoring with cost optimization

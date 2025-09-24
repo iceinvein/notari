@@ -48,6 +48,14 @@ blake3 = "1.5"
 # AI/ML dependencies (statistical analysis)
 ndarray = "0.16"
 
+# Blockchain dependencies
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
+url = "2.5"
+ethers = { version = "2.0", features = ["rustls"] }
+web3 = "0.19"
+arweave-rs = "0.2"
+futures = "0.3"
+
 # System information dependencies
 hostname = "0.4"
 iana-time-zone = "0.1"
