@@ -1,3 +1,155 @@
 @import "tailwindcss";
 
 @config "../../tailwind.config.js";
+
+/* Tray Animation Variables */
+:root {
+  --tray-animation-duration: 300ms;
+  --tray-animation-enabled: 1;
+  --tray-animation-easing: cubic-bezier(0.4, 0, 0.2, 1);
+  --tray-animation-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Performance optimizations for animations */
+.tray-animate {
+  will-change: transform, opacity;
+}
+
+.tray-animate-complete {
+  will-change: auto;
+}
+
+/* Smooth transitions for tray components */
+.tray-transition {
+  transition-duration: var(--tray-animation-duration);
+  transition-timing-function: var(--tray-animation-easing);
+}
+
+/* Custom animation classes */
+@keyframes tray-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes tray-fade-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes tray-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes tray-slide-out-left {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes tray-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tray-scale-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+/* Utility classes for tray animations */
+.animate-tray-fade-in {
+  animation: tray-fade-in var(--tray-animation-duration)
+    var(--tray-animation-easing) forwards;
+}
+
+.animate-tray-fade-out {
+  animation: tray-fade-out var(--tray-animation-duration)
+    var(--tray-animation-easing) forwards;
+}
+
+.animate-tray-slide-in-right {
+  animation: tray-slide-in-right var(--tray-animation-duration)
+    var(--tray-animation-easing) forwards;
+}
+
+.animate-tray-slide-out-left {
+  animation: tray-slide-out-left var(--tray-animation-duration)
+    var(--tray-animation-easing) forwards;
+}
+
+.animate-tray-scale-in {
+  animation: tray-scale-in var(--tray-animation-duration)
+    var(--tray-animation-spring) forwards;
+}
+
+.animate-tray-scale-out {
+  animation: tray-scale-out var(--tray-animation-duration)
+    var(--tray-animation-spring) forwards;
+}
+
+/* Disable animations when performance is limited */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --tray-animation-duration: 0ms;
+    --tray-animation-enabled: 0;
+  }
+
+  .tray-animate {
+    will-change: auto;
+  }
+
+  * {
+    animation-duration: 0ms !important;
+    transition-duration: 0ms !important;
+  }
+}
+
+/* High performance mode - disable complex animations */
+.tray-performance-mode {
+  --tray-animation-duration: 150ms;
+}
+
+.tray-performance-mode .tray-animate {
+  will-change: auto;
+}
+
+.tray-performance-mode * {
+  animation-duration: 150ms !important;
+  transition-duration: 150ms !important;
+}

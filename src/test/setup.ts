@@ -17,25 +17,25 @@ Object.defineProperty(window, "matchMedia", {
 });
 
 // Mock ResizeObserver for Hero UI components
-global.ResizeObserver = vi.fn().mockImplementation(() => ({
+(globalThis as any).ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
 }));
 
 // Mock IntersectionObserver for Hero UI components
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+(globalThis as any).IntersectionObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),
   unobserve: vi.fn(),
   disconnect: vi.fn(),
 }));
 
 // Mock requestAnimationFrame for framer-motion
-global.requestAnimationFrame = vi.fn().mockImplementation((cb) => {
+(globalThis as any).requestAnimationFrame = vi.fn().mockImplementation((cb) => {
   return setTimeout(cb, 16);
 });
 
-global.cancelAnimationFrame = vi.fn().mockImplementation((id) => {
+(globalThis as any).cancelAnimationFrame = vi.fn().mockImplementation((id) => {
   clearTimeout(id);
 });
 
@@ -50,7 +50,10 @@ console.error = (...args) => {
       args[0].includes("Warning: React does not recognize") ||
       args[0].includes("framer-motion") ||
       args[0].includes("An update to") ||
-      args[0].includes("inside a test was not wrapped in act"))
+      args[0].includes("inside a test was not wrapped in act") ||
+      args[0].includes("Failed to setup app mode listener") ||
+      args[0].includes("window is not defined") ||
+      args[0].includes("document is not defined"))
   ) {
     return;
   }

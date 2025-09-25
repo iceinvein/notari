@@ -6,5 +6,6 @@ export * from "./crypto.types";
 export * from "./proofPack.types";
 export * from "./redaction.types";
 export * from "./session.types";
+export * from "./tray.types";
 export * from "./user.types";
 export * from "./verification.types";

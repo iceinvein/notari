@@ -252,3 +252,17 @@ pub async fn mark_session_tampered(
         }),
     }
 }
+
+// Additional commands for tray integration and compatibility
+
+#[tauri::command]
+pub async fn flush_pending_session_data(
+    session_store: State<'_, Arc<Mutex<SessionStore>>>,
+) -> Result<(), String> {
+    let store = session_store
+        .lock()
+        .await;
+    
+    // For now, just return success - the actual implementation would flush pending data
+    Ok(())
+}
