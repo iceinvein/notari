@@ -1,0 +1,46 @@
+{
+  "name": "notari",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Tamper-evident proof-of-work verification through cryptographically secure session capture",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "format": "biome format .",
+    "format:fix": "biome format --write .",
+    "check": "biome check .",
+    "check:fix": "biome check --write .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@heroui/button": "2.2.26",
+    "@heroui/card": "^2.2.24",
+    "@heroui/divider": "^2.2.19",
+    "@heroui/system": "2.4.22",
+    "@heroui/theme": "2.4.22",
+    "@tailwindcss/postcss": "4.1.11",
+    "@tailwindcss/vite": "4.1.11",
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-shell": "^2.3.1",
+    "clsx": "2.1.1",
+    "framer-motion": "11.18.2",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwindcss": "4.1.11"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.4",
+    "@types/node": "20.5.7",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "@vitejs/plugin-react": "4.7.0",
+    "postcss": "8.5.6",
+    "typescript": "5.6.3",
+    "vite": "6.0.11",
+    "vite-tsconfig-paths": "5.1.4"
+  },
+  "packageManager": "pnpm@10.17.1+sha512.17c560fca4867ae9473a3899ad84a88334914f379be46d455cbf92e5cf4b39d34985d452d2583baf19967fa76cb5c17bc9e245529d0b98745721aa7200ecaf7a"
+}
