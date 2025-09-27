@@ -32,12 +32,6 @@
     "security": {
       "csp": null
     },
-    "trayIcon": {
-      "iconPath": "icons/icon.png",
-      "iconAsTemplate": true,
-      "menuOnLeftClick": false,
-      "tooltip": "Notari"
-    },
     "macOSPrivateApi": true
   },
   "bundle": {

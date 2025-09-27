@@ -8,7 +8,7 @@ export default defineConfig({
   plugins: [react(), tsconfigPaths(), tailwindcss()],
   server: {
     port: 5173,
-    strictPort: true,
+    strictPort: false,
     watch: {
       // 3. tell vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
