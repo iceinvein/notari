@@ -8,7 +8,6 @@ import OnboardingMode from "./modes/OnboardingMode";
 
 const Popover: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
-
   // Dev mode state
   const [isDevMode, setIsDevMode] = useState(() => {
     // Check if dev mode is enabled via localStorage or environment
@@ -115,7 +114,7 @@ const Popover: React.FC = () => {
   return (
     <div
       ref={containerRef}
-      className="w-full h-full outline-none animate-in fade-in-0 slide-in-from-top-2 duration-200 rounded-xl overflow-hidden bg-gray-900/95 backdrop-blur-md shadow-2xl border border-gray-700/50"
+      className="w-full h-full outline-none animate-in fade-in-0 slide-in-from-top-2 duration-200 rounded-xl overflow-hidden bg-background/95 backdrop-blur-md shadow-2xl border border-divider"
       tabIndex={-1}
     >
       {renderCurrentMode()}
