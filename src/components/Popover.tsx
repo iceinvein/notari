@@ -5,6 +5,7 @@ import DevModeSelector, { type AppMode } from "./DevModeSelector";
 import LoggedInMode from "./modes/LoggedInMode";
 import LoginMode from "./modes/LoginMode";
 import OnboardingMode from "./modes/OnboardingMode";
+import RecordMode from "./modes/RecordMode";
 
 const Popover: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,6 +86,24 @@ const Popover: React.FC = () => {
     // console.log("Starting new session...");
   };
 
+  const handleRecordOnly = () => {
+    setCurrentMode("record");
+  };
+
+  const handleStartRecording = () => {
+    // TODO: Implement recording start logic
+    // console.log("Starting recording session...");
+  };
+
+  const handleVerifyFile = () => {
+    // TODO: Implement file verification logic
+    // console.log("Verifying file...");
+  };
+
+  const handleBackToLogin = () => {
+    setCurrentMode("login");
+  };
+
   // Render the appropriate mode
   const renderCurrentMode = () => {
     if (isDevMode) {
@@ -99,15 +118,23 @@ const Popover: React.FC = () => {
 
     switch (currentMode) {
       case "login":
-        return <LoginMode onLogin={handleLogin} onSignUp={handleSignUp} />;
+        return <LoginMode onLogin={handleLogin} onSignUp={handleSignUp} onRecordOnly={handleRecordOnly} />;
       case "onboarding":
         return (
           <OnboardingMode onComplete={handleOnboardingComplete} onBack={handleOnboardingBack} />
         );
       case "logged-in":
         return <LoggedInMode onLogout={handleLogout} onStartSession={handleStartSession} />;
+      case "record":
+        return (
+          <RecordMode
+            onStartRecording={handleStartRecording}
+            onVerifyFile={handleVerifyFile}
+            onBackToLogin={handleBackToLogin}
+          />
+        );
       default:
-        return <LoginMode onLogin={handleLogin} onSignUp={handleSignUp} />;
+        return <LoginMode onLogin={handleLogin} onSignUp={handleSignUp} onRecordOnly={handleRecordOnly} />;
     }
   };
 
