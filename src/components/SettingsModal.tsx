@@ -3,7 +3,7 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Tab, Tabs } from "@heroui/tabs";
-import { FileText, Info, Palette, Settings, Shield, Smartphone } from "lucide-react";
+import { FileText, Info, Palette, Settings, Smartphone } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
@@ -79,7 +79,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 			<Modal
 				isOpen={isOpen}
 				onClose={onClose}
-				size="2xl"
 				scrollBehavior="inside"
 				classNames={{
 					base: "bg-background",
@@ -89,12 +88,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 				}}
 			>
 				<ModalContent>
-					<ModalHeader className="flex items-center space-x-3">
+					<ModalHeader className="flex items-center space-x-3 px-4">
 						<Settings className="w-5 h-5 text-primary" />
 						<span className="text-lg font-semibold">Settings</span>
 					</ModalHeader>
 
-					<ModalBody>
+					<ModalBody className="px-4">
 						<Tabs
 							selectedKey={selectedTab}
 							onSelectionChange={(key) => setSelectedTab(key as string)}
@@ -193,8 +192,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 								<div className="space-y-4 pt-4">
 									<Card className="bg-content1">
 										<CardBody className="text-center space-y-4">
-											<div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mx-auto">
-												<Shield className="w-8 h-8 text-primary-foreground" />
+											<div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto">
+												<img src="/notari.png" alt="Notari Logo" className="w-full h-full object-contain" />
 											</div>
 											<div>
 												<h3 className="text-lg font-semibold text-foreground">Notari</h3>
@@ -235,12 +234,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 				}}
 			>
 				<ModalContent>
-					<ModalHeader className="flex items-center space-x-3">
+					<ModalHeader className="flex items-center space-x-3 px-4">
 						<Settings className="w-5 h-5 text-warning" />
 						<span className="text-lg font-semibold">Reset Applications</span>
 					</ModalHeader>
 
-					<ModalBody>
+					<ModalBody className="px-4">
 						<div className="space-y-4">
 							<p className="text-foreground">
 								Are you sure you want to reset to default applications?
