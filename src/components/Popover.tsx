@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-
+import DevMode from "./DevMode";
 import DevModeSelector, { type AppMode } from "./DevModeSelector";
 import LoggedInMode from "./modes/LoggedInMode";
 import LoginMode from "./modes/LoginMode";
@@ -21,9 +21,10 @@ const Popover: React.FC = () => {
 		return savedMode || "login";
 	});
 
-	// Keyboard shortcut to toggle dev mode (Ctrl+Shift+D)
+	// Keyboard shortcuts
 	useEffect(() => {
 		const handleKeyDown = (event: KeyboardEvent) => {
+			// Ctrl+Shift+D: Toggle dev mode
 			if (event.ctrlKey && event.shiftKey && event.key === "D") {
 				event.preventDefault();
 				setIsDevMode((prev) => {
@@ -31,6 +32,11 @@ const Popover: React.FC = () => {
 					localStorage.setItem("notari-dev-mode", newDevMode.toString());
 					return newDevMode;
 				});
+			}
+			// Ctrl+Shift+L: Go to dev logs (even in production)
+			else if (event.ctrlKey && event.shiftKey && event.key === "L") {
+				event.preventDefault();
+				setCurrentMode("dev-logs");
 			}
 		};
 
@@ -139,6 +145,8 @@ const Popover: React.FC = () => {
 						onBackToLogin={handleBackToLogin}
 					/>
 				);
+			case "dev-logs":
+				return <DevMode onBack={() => setCurrentMode("login")} />;
 			default:
 				return (
 					<LoginMode

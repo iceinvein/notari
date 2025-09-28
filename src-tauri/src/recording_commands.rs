@@ -1,4 +1,5 @@
 use crate::window_manager::{create_window_manager, PermissionStatus, WindowInfo};
+use crate::dev_logger::{DEV_LOGGER, LogEntry};
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::State;
@@ -56,8 +57,14 @@ pub async fn request_recording_permission(
 pub async fn get_available_windows(
     state: State<'_, WindowManagerState>,
 ) -> Result<Vec<WindowInfo>, String> {
+    DEV_LOGGER.log("info", "Frontend requested available windows", "backend");
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
-    manager.get_windows()
+    let windows = manager.get_windows();
+    match &windows {
+        Ok(window_list) => DEV_LOGGER.log("info", &format!("Returning {} windows to frontend", window_list.len()), "backend"),
+        Err(e) => DEV_LOGGER.log("error", &format!("Failed to get windows: {}", e), "backend"),
+    }
+    windows
 }
 
 /// Get thumbnail for a specific window
@@ -66,9 +73,18 @@ pub async fn get_window_thumbnail(
     window_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<Option<String>, String> {
+    DEV_LOGGER.log("info", &format!("Frontend requested thumbnail for window: {}", window_id), "backend");
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
-    manager.get_window_thumbnail(&window_id)
+    let result = manager.get_window_thumbnail(&window_id);
+    match &result {
+        Ok(Some(thumbnail)) => DEV_LOGGER.log("info", &format!("Thumbnail generated successfully for {}, length: {}", window_id, thumbnail.len()), "backend"),
+        Ok(None) => DEV_LOGGER.log("warn", &format!("No thumbnail generated for {}", window_id), "backend"),
+        Err(e) => DEV_LOGGER.log("error", &format!("Thumbnail generation failed for {}: {}", window_id, e), "backend"),
+    }
+    result
 }
+
+
 
 /// Open system settings for permission management
 #[tauri::command]
@@ -92,7 +108,7 @@ pub async fn start_window_recording(
         start_time: chrono::Utc::now().to_rfc3339(),
         status: RecordingStatus::Preparing,
     };
-    
+
     log::info!("Starting recording session: {:?}", session);
     Ok(session)
 }
@@ -115,6 +131,28 @@ pub async fn get_recording_status(
     // TODO: Implement actual status tracking in Phase 2
     log::info!("Getting status for recording session: {}", session_id);
     Ok(RecordingStatus::Stopped)
+}
+
+// Dev Logger Commands
+
+/// Add a log entry from the frontend
+#[tauri::command]
+pub async fn dev_log_add(level: String, message: String) -> Result<(), String> {
+    DEV_LOGGER.log(&level, &message, "frontend");
+    Ok(())
+}
+
+/// Get all dev logs
+#[tauri::command]
+pub async fn dev_log_get() -> Result<Vec<LogEntry>, String> {
+    Ok(DEV_LOGGER.get_logs())
+}
+
+/// Clear all dev logs
+#[tauri::command]
+pub async fn dev_log_clear() -> Result<(), String> {
+    DEV_LOGGER.clear_logs();
+    Ok(())
 }
 
 #[cfg(test)]

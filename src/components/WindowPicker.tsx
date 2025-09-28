@@ -12,7 +12,8 @@ import {
 	Smartphone,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useDevLogger } from "../hooks/useDevLogger";
 
 interface WindowInfo {
 	id: string;
@@ -45,6 +46,9 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 	const [permission, setPermission] = useState<PermissionStatus | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set());
+	const { logInfo, logWarn, logError } = useDevLogger();
+
 	const checkPermission = async () => {
 		try {
 			const status = await invoke<PermissionStatus>("check_recording_permission");
@@ -80,6 +84,9 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 			const windowList = await invoke<WindowInfo[]>("get_available_windows");
 			setWindows(windowList);
 			setError(null);
+
+			// Load thumbnails for windows that support it
+			loadThumbnails(windowList);
 		} catch (err) {
 			const errorMsg = `Failed to load windows: ${err}`;
 			setError(errorMsg);
@@ -88,6 +95,40 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 		}
 	};
 
+	const loadThumbnails = useCallback(
+		async (windowList: WindowInfo[]) => {
+			// Only load thumbnails for windows with CoreGraphics IDs (cg_*)
+			const thumbnailWindows = windowList.filter((w) => w.id.startsWith("cg_"));
+
+			logInfo(`Loading thumbnails for ${thumbnailWindows.length} windows`);
+
+			for (const window of thumbnailWindows) {
+				if (!window.thumbnail) {
+					setLoadingThumbnails((prev) => new Set(prev).add(window.id));
+
+					try {
+						const thumbnail = await invoke<string | null>("get_window_thumbnail", {
+							windowId: window.id,
+						});
+
+						if (thumbnail) {
+							setWindows((prev) => prev.map((w) => (w.id === window.id ? { ...w, thumbnail } : w)));
+						}
+					} catch (err) {
+						logWarn(`Failed to load thumbnail for window ${window.id}: ${err}`);
+					} finally {
+						setLoadingThumbnails((prev) => {
+							const newSet = new Set(prev);
+							newSet.delete(window.id);
+							return newSet;
+						});
+					}
+				}
+			}
+		},
+		[logInfo, logWarn]
+	);
+
 	const refreshWindows = async () => {
 		await loadWindows();
 	};
@@ -95,11 +136,14 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 	useEffect(() => {
 		const checkPermissionInternal = async () => {
 			try {
+				logInfo("Checking recording permissions...");
 				const status = await invoke<PermissionStatus>("check_recording_permission");
+				logInfo(`Permission status: granted=${status.granted}, can_request=${status.can_request}`);
 				setPermission(status);
 				return status;
 			} catch (err) {
 				const errorMsg = `Failed to check permission: ${err}`;
+				logError(errorMsg);
 				setError(errorMsg);
 				return null;
 			}
@@ -107,12 +151,18 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 
 		const loadWindowsInternal = async () => {
 			try {
+				logInfo("Starting to load windows...");
 				setLoading(true);
 				const windowList = await invoke<WindowInfo[]>("get_available_windows");
+				logInfo(`Loaded ${windowList.length} windows from backend`);
 				setWindows(windowList);
 				setError(null);
+
+				// Load thumbnails for windows with CoreGraphics IDs
+				await loadThumbnails(windowList);
 			} catch (err) {
 				const errorMsg = `Failed to load windows: ${err}`;
+				logError(errorMsg);
 				setError(errorMsg);
 			} finally {
 				setLoading(false);
@@ -120,16 +170,19 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 		};
 
 		const initialize = async () => {
+			logInfo("WindowPicker initializing...");
 			const permissionStatus = await checkPermissionInternal();
 			if (permissionStatus?.granted) {
+				logInfo("Permissions granted, loading windows...");
 				await loadWindowsInternal();
 			} else {
+				logWarn("Permissions not granted, skipping window loading");
 				setLoading(false);
 			}
 		};
 
 		initialize();
-	}, []);
+	}, [loadThumbnails, logInfo, logError, logWarn]);
 
 	const handleWindowSelect = (window: WindowInfo) => {
 		onWindowSelect(window);
@@ -247,15 +300,17 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 							<p className="text-sm text-foreground-500">Choose a window to record</p>
 						</div>
 					</div>
-					<Button
-						variant="light"
-						size="md"
-						onPress={refreshWindows}
-						isIconOnly
-						className="hover:bg-content2"
-					>
-						<RefreshCw className="w-5 h-5" />
-					</Button>
+					<div className="flex space-x-2">
+						<Button
+							variant="light"
+							size="md"
+							onPress={refreshWindows}
+							isIconOnly
+							className="hover:bg-content2"
+						>
+							<RefreshCw className="w-5 h-5" />
+						</Button>
+					</div>
 				</div>
 			</div>
 			<div className="w-full h-px bg-divider"></div>
@@ -292,11 +347,25 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 									className="group relative w-full p-4 rounded-xl border border-default-200 bg-content1 hover:bg-content2 hover:border-primary/30 transition-all duration-300 cursor-pointer hover:shadow-lg hover:scale-[1.02] text-left"
 								>
 									<div className="flex items-start space-x-4">
-										{/* App Icon */}
+										{/* Thumbnail or App Icon */}
 										<div className="relative">
-											<div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
-												<Smartphone className="w-6 h-6 text-primary" />
-											</div>
+											{window.thumbnail ? (
+												<div className="w-20 h-16 rounded-xl overflow-hidden border border-default-200 bg-content2">
+													<img
+														src={window.thumbnail}
+														alt={`${window.title} thumbnail`}
+														className="w-full h-full object-cover"
+													/>
+												</div>
+											) : loadingThumbnails.has(window.id) ? (
+												<div className="w-20 h-16 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+													<Spinner size="sm" color="primary" />
+												</div>
+											) : (
+												<div className="w-20 h-16 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
+													<Smartphone className="w-8 h-8 text-primary" />
+												</div>
+											)}
 											{window.is_minimized && (
 												<div className="absolute -top-1 -right-1 w-5 h-5 bg-warning rounded-full flex items-center justify-center">
 													<Minimize2 className="w-3 h-3 text-warning-foreground" />

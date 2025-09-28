@@ -4,7 +4,7 @@ import { Divider } from "@heroui/divider";
 import type React from "react";
 import ThemeToggle from "./ThemeToggle";
 
-export type AppMode = "login" | "onboarding" | "logged-in" | "record";
+export type AppMode = "login" | "onboarding" | "logged-in" | "record" | "dev-logs";
 
 interface DevModeSelectorProps {
 	currentMode: AppMode;
@@ -41,6 +41,12 @@ const DevModeSelector: React.FC<DevModeSelectorProps> = ({
 			label: "Record Mode",
 			description: "Local recording without login",
 			color: "bg-purple-600",
+		},
+		{
+			key: "dev-logs",
+			label: "Dev Logs",
+			description: "Debug logging and testing",
+			color: "bg-red-600",
 		},
 	];
 

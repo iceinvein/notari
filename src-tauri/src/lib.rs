@@ -6,6 +6,7 @@ use tauri::{
 
 mod window_manager;
 mod recording_commands;
+mod dev_logger;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -17,10 +18,14 @@ pub fn run() {
             recording_commands::request_recording_permission,
             recording_commands::get_available_windows,
             recording_commands::get_window_thumbnail,
+
             recording_commands::open_system_settings,
             recording_commands::start_window_recording,
             recording_commands::stop_recording,
             recording_commands::get_recording_status,
+            recording_commands::dev_log_add,
+            recording_commands::dev_log_get,
+            recording_commands::dev_log_clear,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

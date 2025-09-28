@@ -1,4 +1,5 @@
 use super::{PermissionStatus, WindowBounds, WindowInfo, WindowManager};
+use crate::dev_logger::DEV_LOGGER;
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, TCFType};
 use core_foundation::dictionary::CFDictionary;
@@ -16,17 +17,145 @@ impl MacOSWindowManager {
         Self
     }
 
+    /// Parse window ID to extract CGWindowID
+    fn parse_window_id(&self, window_id: &str) -> Option<u32> {
+        // Window IDs from CoreGraphics are in format "cg_<number>"
+        if window_id.starts_with("cg_") {
+            window_id[3..].parse().ok()
+        } else {
+            None
+        }
+    }
+
+    /// Create a thumbnail for a specific window using screencapture command
+    fn create_window_thumbnail(&self, window_id: u32) -> Result<Option<String>, String> {
+        DEV_LOGGER.log("info", &format!("Creating thumbnail for window ID: {}", window_id), "backend");
+
+        // Use screencapture command to capture window thumbnail
+        // This is more reliable than CoreGraphics for unsigned apps
+        let temp_file = format!("/tmp/notari_thumb_{}.png", window_id);
+        DEV_LOGGER.log("info", &format!("Temp file path: {}", temp_file), "backend");
+
+        let output = std::process::Command::new("screencapture")
+            .arg(format!("-l{}", window_id))
+            .arg("-t")
+            .arg("png")
+            .arg("-x") // No sound
+            .arg(&temp_file)
+            .output()
+            .map_err(|e| {
+                let error_msg = format!("Failed to execute screencapture: {}", e);
+                log::error!("{}", error_msg);
+                error_msg
+            })?;
+
+        if !output.status.success() {
+            DEV_LOGGER.log("warn", &format!("screencapture failed: {}", String::from_utf8_lossy(&output.stderr)), "backend");
+        }
+
+        if !output.status.success() {
+            return Ok(None);
+        }
+
+        // Read the captured image file
+        log::info!("Reading captured image file: {}", temp_file);
+        match std::fs::read(&temp_file) {
+            Ok(image_data) => {
+                log::info!("Successfully read {} bytes from temp file", image_data.len());
+
+                // Clean up temp file
+                let _ = std::fs::remove_file(&temp_file);
+
+                // Create thumbnail from the captured image
+                let result = self.create_thumbnail_from_data(&image_data);
+                match &result {
+                    Ok(Some(thumbnail)) => log::info!("Successfully created thumbnail (length: {})", thumbnail.len()),
+                    Ok(None) => log::warn!("Thumbnail creation returned None"),
+                    Err(e) => log::error!("Thumbnail creation failed: {}", e),
+                }
+                result
+            }
+            Err(e) => {
+                log::error!("Failed to read temp file {}: {}", temp_file, e);
+                Ok(None)
+            },
+        }
+    }
+
+    /// Create a thumbnail from image data
+    fn create_thumbnail_from_data(&self, image_data: &[u8]) -> Result<Option<String>, String> {
+        use image::io::Reader as ImageReader;
+        use std::io::Cursor;
+
+        // Load image from data
+        let img = ImageReader::new(Cursor::new(image_data))
+            .with_guessed_format()
+            .map_err(|e| format!("Failed to guess image format: {}", e))?
+            .decode()
+            .map_err(|e| format!("Failed to decode image: {}", e))?;
+
+        // Resize to thumbnail size
+        let max_dimension = 300;
+        let (width, height) = (img.width(), img.height());
+
+        let (thumb_width, thumb_height) = if width > height {
+            if width > max_dimension {
+                let ratio = max_dimension as f32 / width as f32;
+                (max_dimension, (height as f32 * ratio) as u32)
+            } else {
+                (width, height)
+            }
+        } else {
+            if height > max_dimension {
+                let ratio = max_dimension as f32 / height as f32;
+                ((width as f32 * ratio) as u32, max_dimension)
+            } else {
+                (width, height)
+            }
+        };
+
+        let thumbnail = img.resize(thumb_width, thumb_height, image::imageops::FilterType::Lanczos3);
+
+        // Convert to PNG and encode as base64
+        let mut png_data = Vec::new();
+        thumbnail
+            .write_to(&mut Cursor::new(&mut png_data), image::ImageFormat::Png)
+            .map_err(|e| format!("Failed to encode PNG: {}", e))?;
+
+        use base64::{Engine as _, engine::general_purpose};
+        let base64_string = general_purpose::STANDARD.encode(&png_data);
+        Ok(Some(format!("data:image/png;base64,{}", base64_string)))
+    }
+
     /// Test if we can access screen recording by trying to get window information
     fn test_screen_recording_access(&self) -> bool {
-        // Try to run a simple system command that requires screen recording permission
-        // This is a practical approach since the CGPreflightScreenCaptureAccess API
-        // isn't easily accessible from Rust
+        // Try to capture a small area of the screen to test permissions
+        // This is more reliable than the -l flag which requires a window ID
+        let temp_file = "/tmp/notari_permission_test.png";
+
         match std::process::Command::new("screencapture")
-            .arg("-l")  // List windows
+            .arg("-R")  // Capture rectangle
+            .arg("0,0,1,1")  // Tiny 1x1 pixel area
+            .arg("-t")
+            .arg("png")
+            .arg("-x")  // No sound
+            .arg(temp_file)
             .output()
         {
-            Ok(output) => output.status.success(),
-            Err(_) => false
+            Ok(output) => {
+                let success = output.status.success();
+                // Clean up test file
+                let _ = std::fs::remove_file(temp_file);
+
+                DEV_LOGGER.log("info", &format!("Permission test result: success={}, stderr={}",
+                    success, String::from_utf8_lossy(&output.stderr)), "backend");
+
+                success
+            },
+            Err(e) => {
+                DEV_LOGGER.log("error", &format!("Permission test command failed: {}", e), "backend");
+                false
+            }
         }
     }
 
@@ -76,6 +205,7 @@ impl MacOSWindowManager {
                     let window_name = self.get_cf_str(&dict, "kCGWindowName");
                     let layer = self.get_cf_i32(&dict, "kCGWindowLayer").unwrap_or_default();
                     let is_on_screen = self.get_cf_i32(&dict, "kCGWindowIsOnscreen").unwrap_or(0) != 0;
+                    let window_id = self.get_cf_i32(&dict, "kCGWindowNumber").unwrap_or_default();
 
                     // Filter out system windows and non-recordable apps
                     if !self.is_recordable_app(&owner_name) {
@@ -105,7 +235,7 @@ impl MacOSWindowManager {
                     };
 
                     let window_info = WindowInfo {
-                        id: format!("macos_cg_{}", i),
+                        id: format!("cg_{}", window_id),
                         title,
                         application: owner_name,
                         is_minimized: false,
@@ -117,6 +247,9 @@ impl MacOSWindowManager {
                         },
                         thumbnail: None,
                     };
+
+                    DEV_LOGGER.log("info", &format!("Found window: id={}, title={}, app={}, cg_window_id={}",
+                              window_info.id, window_info.title, window_info.application, window_id), "backend");
 
                     windows.push(window_info);
                 }
@@ -370,12 +503,12 @@ impl MacOSWindowManager {
 
 impl WindowManager for MacOSWindowManager {
     fn check_permission(&self) -> PermissionStatus {
-        log::info!("Checking macOS screen recording permission");
+        DEV_LOGGER.log("info", "Checking macOS screen recording permission", "backend");
 
         // Test if we have screen recording permission by trying to access screen capture
         let has_permission = self.test_screen_recording_access();
 
-        log::info!("Permission check result: has_permission={}", has_permission);
+        DEV_LOGGER.log("info", &format!("Permission check result: has_permission={}", has_permission), "backend");
 
         if has_permission {
             let status = PermissionStatus {
@@ -384,14 +517,14 @@ impl WindowManager for MacOSWindowManager {
                 system_settings_required: false,
                 message: "Screen recording permission is granted.".to_string(),
             };
-            log::info!("Returning granted permission status: {:?}", status);
+            DEV_LOGGER.log("info", &format!("Returning granted permission status: {:?}", status), "backend");
             status
         } else {
             // For unsigned apps, the screencapture command may fail even with permissions granted
             // In development/testing, we'll assume permission is granted if the command fails
             // This is a common issue with unsigned Tauri apps
-            log::warn!("screencapture command failed - this is likely due to code signing issues");
-            log::info!("Assuming permission is granted for unsigned app (development mode)");
+            DEV_LOGGER.log("warn", "screencapture command failed - this is likely due to code signing issues", "backend");
+            DEV_LOGGER.log("info", "Assuming permission is granted for unsigned app (development mode)", "backend");
 
             let status = PermissionStatus {
                 granted: true, // Assume granted for unsigned apps
@@ -399,7 +532,7 @@ impl WindowManager for MacOSWindowManager {
                 system_settings_required: false,
                 message: "Screen recording permission assumed granted (unsigned app - code signing required for production).".to_string(),
             };
-            log::info!("Returning assumed granted permission status: {:?}", status);
+            DEV_LOGGER.log("info", &format!("Returning assumed granted permission status: {:?}", status), "backend");
             status
         }
     }
@@ -408,7 +541,7 @@ impl WindowManager for MacOSWindowManager {
         // On macOS, we can't programmatically request screen recording permission
         // We need to guide the user to System Preferences
         self.open_system_settings()?;
-        
+
         // Return false because user needs to manually grant permission
         Ok(false)
     }
@@ -431,10 +564,27 @@ impl WindowManager for MacOSWindowManager {
 
 
 
-    fn get_window_thumbnail(&self, _window_id: &str) -> Result<Option<String>, String> {
-        // TODO: Implement thumbnail generation using CGWindowListCreateImage
-        Ok(None)
+    fn get_window_thumbnail(&self, window_id: &str) -> Result<Option<String>, String> {
+        log::info!("Getting thumbnail for window ID: {}", window_id);
+
+        // Parse window ID to get the CGWindowID
+        let cg_window_id = match self.parse_window_id(window_id) {
+            Some(id) => {
+                log::info!("Parsed window ID {} to CoreGraphics ID: {}", window_id, id);
+                id
+            },
+            None => {
+                log::warn!("Could not parse window ID: {} (expected format: cg_<number>)", window_id);
+                return Ok(None);
+            },
+        };
+
+        // Create thumbnail using CoreGraphics
+        log::info!("Creating thumbnail for CoreGraphics window ID: {}", cg_window_id);
+        self.create_window_thumbnail(cg_window_id)
     }
+
+
 
     fn open_system_settings(&self) -> Result<(), String> {
         // For Phase 1, we'll use a simple command to open System Preferences
