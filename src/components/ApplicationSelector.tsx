@@ -8,7 +8,7 @@ import { Switch } from "@heroui/switch";
 import { Plus, Search, Trash2, X } from "lucide-react";
 import type React from "react";
 import { useMemo, useState } from "react";
-import { useApplicationPreferences } from "../hooks/useApplicationPreferences";
+import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import { COMMON_APPLICATIONS } from "../types/preferences";
 
 interface ApplicationSelectorProps {
@@ -34,7 +34,7 @@ const ApplicationSelector: React.FC<ApplicationSelectorProps> = ({
 		removeApplication,
 		toggleApplication,
 		getEnabledApplications,
-	} = useApplicationPreferences();
+	} = useApplicationPreferencesQuery();
 
 	const [searchQuery, setSearchQuery] = useState("");
 	const [customAppName, setCustomAppName] = useState("");
@@ -60,13 +60,25 @@ const ApplicationSelector: React.FC<ApplicationSelectorProps> = ({
 	const handleAddCustomApp = async () => {
 		if (!customAppName.trim()) return;
 
-		await addApplication(customAppName.trim());
+		const newApp = {
+			name: customAppName.trim(),
+			enabled: true,
+			addedAt: new Date().toISOString(),
+			isDefault: false,
+		};
+		await addApplication(newApp);
 		setCustomAppName("");
 		setShowAddCustomInput(false);
 	};
 
 	const handleAddFromList = async (appName: string) => {
-		await addApplication(appName);
+		const newApp = {
+			name: appName,
+			enabled: true,
+			addedAt: new Date().toISOString(),
+			isDefault: false,
+		};
+		await addApplication(newApp);
 	};
 
 	const enabledCount = getEnabledApplications().length;

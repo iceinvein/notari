@@ -1,34 +1,22 @@
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
-import { invoke } from "@tauri-apps/api/core";
-import { ExternalLink, Lock, Minimize2, Monitor, RefreshCw, Smartphone } from "lucide-react";
+import { ExternalLink, Lock, Minimize2, Monitor, RefreshCw } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useApplicationPreferences } from "../hooks/useApplicationPreferences";
-import { useDevLogger } from "../hooks/useDevLogger";
+import { useMemo, useEffect } from "react";
+import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
+import { recordingLogger } from "../utils/logger";
+import {
+	useOpenSystemSettingsMutation,
+	useRecordingPermissionQuery,
+	useRefreshWindows,
+	useRequestRecordingPermissionMutation,
+	useWindowsQuery,
+} from "../lib/tauri-queries";
+import type { WindowInfo } from "../types/window";
 import AppHeader from "./AppHeader";
-
-interface WindowInfo {
-	id: string;
-	title: string;
-	application: string;
-	is_minimized: boolean;
-	bounds: {
-		x: number;
-		y: number;
-		width: number;
-		height: number;
-	};
-	thumbnail?: string;
-}
-
-interface PermissionStatus {
-	granted: boolean;
-	can_request: boolean;
-	system_settings_required: boolean;
-	message: string;
-}
+import ErrorBoundary from "./ErrorBoundary";
+import WindowThumbnail from "./WindowThumbnail";
 
 interface WindowPickerProps {
 	onWindowSelect: (window: WindowInfo) => void;
@@ -36,153 +24,73 @@ interface WindowPickerProps {
 }
 
 const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) => {
-	const [windows, setWindows] = useState<WindowInfo[]>([]);
-	const [permission, setPermission] = useState<PermissionStatus | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set());
-	const { logInfo, logWarn, logError } = useDevLogger();
-	const { isApplicationAllowed } = useApplicationPreferences();
+	return (
+		<ErrorBoundary>
+			<WindowPickerContent onWindowSelect={onWindowSelect} onBack={onBack} />
+		</ErrorBoundary>
+	);
+};
 
-	// Filter windows based on user preferences
+const WindowPickerContent: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) => {
+	// All hooks must be called unconditionally at the top level
+	const { isApplicationAllowed } = useApplicationPreferencesQuery();
+
+	// React Query hooks - always call these
+	const { data: windows = [], isLoading: windowsLoading, error: windowsError } = useWindowsQuery();
+	const {
+		data: permission,
+		isLoading: permissionLoading,
+		error: permissionError,
+	} = useRecordingPermissionQuery();
+
+	const requestPermissionMutation = useRequestRecordingPermissionMutation();
+	const openSystemSettingsMutation = useOpenSystemSettingsMutation();
+	const refreshWindows = useRefreshWindows();
+
+	// Filter windows based on user preferences - memoize with stable dependencies
 	const filteredWindows = useMemo(() => {
-		return windows.filter((window) => isApplicationAllowed(window.application));
+		if (!windows || !isApplicationAllowed) return [];
+		return windows.filter((window) => {
+			try {
+				return isApplicationAllowed(window.application);
+			} catch (e) {
+				console.error('Error filtering window:', e);
+				return false;
+			}
+		});
 	}, [windows, isApplicationAllowed]);
 
-	const checkPermission = async () => {
-		try {
-			const status = await invoke<PermissionStatus>("check_recording_permission");
-			setPermission(status);
-			return status;
-		} catch (err) {
-			const errorMsg = `Failed to check permission: ${err}`;
-			setError(errorMsg);
-			return null;
-		}
-	};
+	// Combine loading states
+	const loading = windowsLoading || permissionLoading;
+	const error = windowsError || permissionError;
 
 	const requestPermission = async () => {
 		try {
-			setLoading(true);
-			const granted = await invoke<boolean>("request_recording_permission");
+			recordingLogger.info("Requesting recording permission...");
+			const granted = await requestPermissionMutation.mutateAsync();
 			if (!granted) {
 				// Open system settings if needed
-				await invoke("open_system_settings");
+				recordingLogger.info("Permission not granted, opening system settings...");
+				await openSystemSettingsMutation.mutateAsync();
 			}
-			// Recheck permission after request
-			await checkPermission();
 		} catch (err) {
-			setError(`Failed to request permission: ${err}`);
-		} finally {
-			setLoading(false);
+			recordingLogger.error(`Failed to request permission: ${err}`);
 		}
 	};
 
-	const loadWindows = async () => {
-		try {
-			setLoading(true);
-			const windowList = await invoke<WindowInfo[]>("get_available_windows");
-			setWindows(windowList);
-			setError(null);
-
-			// Load thumbnails for windows that support it
-			loadThumbnails(windowList);
-		} catch (err) {
-			const errorMsg = `Failed to load windows: ${err}`;
-			setError(errorMsg);
-		} finally {
-			setLoading(false);
-		}
+	const handleRefreshWindows = () => {
+		recordingLogger.info("Refreshing windows list...");
+		refreshWindows();
 	};
 
-	const loadThumbnails = useCallback(
-		async (windowList: WindowInfo[]) => {
-			// Only load thumbnails for windows with CoreGraphics IDs (cg_*)
-			const thumbnailWindows = windowList.filter((w) => w.id.startsWith("cg_"));
-
-			logInfo(`Loading thumbnails for ${thumbnailWindows.length} windows`);
-
-			for (const window of thumbnailWindows) {
-				if (!window.thumbnail) {
-					setLoadingThumbnails((prev) => new Set(prev).add(window.id));
-
-					try {
-						const thumbnail = await invoke<string | null>("get_window_thumbnail", {
-							windowId: window.id,
-						});
-
-						if (thumbnail) {
-							setWindows((prev) => prev.map((w) => (w.id === window.id ? { ...w, thumbnail } : w)));
-						}
-					} catch (err) {
-						logWarn(`Failed to load thumbnail for window ${window.id}: ${err}`);
-					} finally {
-						setLoadingThumbnails((prev) => {
-							const newSet = new Set(prev);
-							newSet.delete(window.id);
-							return newSet;
-						});
-					}
-				}
-			}
-		},
-		[logInfo, logWarn]
-	);
-
-	const refreshWindows = async () => {
-		await loadWindows();
-	};
-
+	// Log permission status when it changes - use useEffect to avoid conditional calls
 	useEffect(() => {
-		const checkPermissionInternal = async () => {
-			try {
-				logInfo("Checking recording permissions...");
-				const status = await invoke<PermissionStatus>("check_recording_permission");
-				logInfo(`Permission status: granted=${status.granted}, can_request=${status.can_request}`);
-				setPermission(status);
-				return status;
-			} catch (err) {
-				const errorMsg = `Failed to check permission: ${err}`;
-				logError(errorMsg);
-				setError(errorMsg);
-				return null;
-			}
-		};
-
-		const loadWindowsInternal = async () => {
-			try {
-				logInfo("Starting to load windows...");
-				setLoading(true);
-				const windowList = await invoke<WindowInfo[]>("get_available_windows");
-				logInfo(`Loaded ${windowList.length} windows from backend`);
-				setWindows(windowList);
-				setError(null);
-
-				// Load thumbnails for windows with CoreGraphics IDs
-				await loadThumbnails(windowList);
-			} catch (err) {
-				const errorMsg = `Failed to load windows: ${err}`;
-				logError(errorMsg);
-				setError(errorMsg);
-			} finally {
-				setLoading(false);
-			}
-		};
-
-		const initialize = async () => {
-			logInfo("WindowPicker initializing...");
-			const permissionStatus = await checkPermissionInternal();
-			if (permissionStatus?.granted) {
-				logInfo("Permissions granted, loading windows...");
-				await loadWindowsInternal();
-			} else {
-				logWarn("Permissions not granted, skipping window loading");
-				setLoading(false);
-			}
-		};
-
-		initialize();
-	}, [loadThumbnails, logInfo, logError, logWarn]);
+		if (permission) {
+			recordingLogger.info(
+				`Permission status: granted=${permission.granted}, can_request=${permission.can_request}`
+			);
+		}
+	}, [permission]);
 
 	const handleWindowSelect = (window: WindowInfo) => {
 		onWindowSelect(window);
@@ -208,12 +116,12 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 				<div className="w-full h-px bg-divider"></div>
 				<div className="flex-1 pt-6 px-4 pb-4">
 					<div className="space-y-4">
-						<p className="text-danger text-sm">{error}</p>
+						<p className="text-danger text-sm">{error?.message || String(error)}</p>
 						<div className="flex space-x-2">
 							<Button variant="bordered" size="sm" onPress={onBack}>
 								Back
 							</Button>
-							<Button color="primary" size="sm" onPress={refreshWindows}>
+							<Button color="primary" size="sm" onPress={handleRefreshWindows}>
 								Retry
 							</Button>
 						</div>
@@ -291,7 +199,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 						<Button
 							variant="light"
 							size="md"
-							onPress={refreshWindows}
+							onPress={handleRefreshWindows}
 							isIconOnly
 							className="hover:bg-content2"
 						>
@@ -320,7 +228,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 								color="primary"
 								variant="flat"
 								size="md"
-								onPress={refreshWindows}
+								onPress={handleRefreshWindows}
 								startContent={<RefreshCw className="w-4 h-4" />}
 							>
 								Refresh Windows
@@ -340,23 +248,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 									<div className="flex items-start space-x-4">
 										{/* Thumbnail or App Icon */}
 										<div className="relative">
-											{window.thumbnail ? (
-												<div className="w-20 h-16 rounded-xl overflow-hidden border border-default-200 bg-content2">
-													<img
-														src={window.thumbnail}
-														alt={`${window.title} thumbnail`}
-														className="w-full h-full object-cover"
-													/>
-												</div>
-											) : loadingThumbnails.has(window.id) ? (
-												<div className="w-20 h-16 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
-													<Spinner size="sm" color="primary" />
-												</div>
-											) : (
-												<div className="w-20 h-16 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl flex items-center justify-center border border-primary/20">
-													<Smartphone className="w-8 h-8 text-primary" />
-												</div>
-											)}
+											<WindowThumbnail window={window} />
 											{window.is_minimized && (
 												<div className="absolute -top-1 -right-1 w-5 h-5 bg-warning rounded-full flex items-center justify-center">
 													<Minimize2 className="w-3 h-3 text-warning-foreground" />

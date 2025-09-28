@@ -1,19 +1,14 @@
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import DevMode from "./DevMode";
-import DevModeSelector, { type AppMode } from "./DevModeSelector";
 import LoggedInMode from "./modes/LoggedInMode";
 import LoginMode from "./modes/LoginMode";
 import OnboardingMode from "./modes/OnboardingMode";
 import RecordMode from "./modes/RecordMode";
 
+export type AppMode = "login" | "onboarding" | "logged-in" | "record";
+
 const Popover: React.FC = () => {
 	const containerRef = useRef<HTMLDivElement>(null);
-	// Dev mode state
-	const [isDevMode, setIsDevMode] = useState(() => {
-		// Check if dev mode is enabled via localStorage or environment
-		return localStorage.getItem("notari-dev-mode") === "true" || import.meta.env.DEV;
-	});
 
 	// App mode state
 	const [currentMode, setCurrentMode] = useState<AppMode>(() => {
@@ -21,28 +16,7 @@ const Popover: React.FC = () => {
 		return savedMode || "login";
 	});
 
-	// Keyboard shortcuts
-	useEffect(() => {
-		const handleKeyDown = (event: KeyboardEvent) => {
-			// Ctrl+Shift+D: Toggle dev mode
-			if (event.ctrlKey && event.shiftKey && event.key === "D") {
-				event.preventDefault();
-				setIsDevMode((prev) => {
-					const newDevMode = !prev;
-					localStorage.setItem("notari-dev-mode", newDevMode.toString());
-					return newDevMode;
-				});
-			}
-			// Ctrl+Shift+L: Go to dev logs (even in production)
-			else if (event.ctrlKey && event.shiftKey && event.key === "L") {
-				event.preventDefault();
-				setCurrentMode("dev-logs");
-			}
-		};
 
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, []);
 
 	// Focus management
 	useEffect(() => {
@@ -56,15 +30,7 @@ const Popover: React.FC = () => {
 		localStorage.setItem("notari-current-mode", currentMode);
 	}, [currentMode]);
 
-	// Mode change handlers
-	const handleModeChange = (mode: AppMode) => {
-		setCurrentMode(mode);
-	};
 
-	const handleDisableDevMode = () => {
-		setIsDevMode(false);
-		localStorage.setItem("notari-dev-mode", "false");
-	};
 
 	// App flow handlers
 	const handleLogin = () => {
@@ -108,16 +74,6 @@ const Popover: React.FC = () => {
 
 	// Render the appropriate mode
 	const renderCurrentMode = () => {
-		if (isDevMode) {
-			return (
-				<DevModeSelector
-					currentMode={currentMode}
-					onModeChange={handleModeChange}
-					onDisableDevMode={handleDisableDevMode}
-				/>
-			);
-		}
-
 		switch (currentMode) {
 			case "login":
 				return (
@@ -137,8 +93,6 @@ const Popover: React.FC = () => {
 				return (
 					<RecordMode onStartRecording={handleStartRecording} onVerifyFile={handleVerifyFile} />
 				);
-			case "dev-logs":
-				return <DevMode onBack={() => setCurrentMode("login")} />;
 			default:
 				return (
 					<LoginMode

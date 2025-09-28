@@ -3,13 +3,12 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Tab, Tabs } from "@heroui/tabs";
-import { Bug, FileText, Info, Palette, Settings, Shield, Smartphone } from "lucide-react";
+import { FileText, Info, Palette, Settings, Shield, Smartphone } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { useApplicationPreferences } from "../hooks/useApplicationPreferences";
+import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import { preferencesLogger } from "../utils/logger";
 import ApplicationSelector from "./ApplicationSelector";
-import DevMode from "./DevMode";
 import LogViewer from "./LogViewer";
 import ThemeToggle from "./ThemeToggle";
 
@@ -20,12 +19,9 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 	const [selectedTab, setSelectedTab] = useState("applications");
-	const [devModeEnabled, setDevModeEnabled] = useState(() => {
-		return localStorage.getItem("notari-dev-mode") === "true";
-	});
 	const [clickCount, setClickCount] = useState(0);
 	const [showResetConfirm, setShowResetConfirm] = useState(false);
-	const { resetToDefaults } = useApplicationPreferences();
+	const { resetToDefaults } = useApplicationPreferencesQuery();
 
 	// Debug: Check if resetToDefaults is available
 	useEffect(() => {
@@ -70,7 +66,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 		setClickCount(newCount);
 
 		if (newCount >= 7) {
-			setDevModeEnabled(true);
 			localStorage.setItem("notari-dev-mode", "true");
 			setClickCount(0);
 		}
@@ -185,22 +180,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 									<LogViewer />
 								</div>
 							</Tab>
-
-							{devModeEnabled && (
-								<Tab
-									key="developer"
-									title={
-										<div className="flex items-center space-x-2">
-											<Bug className="w-4 h-4" />
-											<span>Developer</span>
-										</div>
-									}
-								>
-									<div className="pt-4">
-										<DevMode onBack={() => {}} />
-									</div>
-								</Tab>
-							)}
 
 							<Tab
 								key="about"
