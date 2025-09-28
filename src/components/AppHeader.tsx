@@ -1,6 +1,6 @@
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
-import { ArrowLeft, Settings, Shield } from "lucide-react";
+import { ArrowLeft, Settings } from "lucide-react";
 import type { ReactNode } from "react";
 
 type AppHeaderProps = {
@@ -44,8 +44,8 @@ export default function AppHeader({
 							<ArrowLeft className="w-4 h-4" />
 						</Button>
 					) : (
-						<div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-							<Shield className="w-4 h-4 text-primary-foreground" />
+						<div className="w-8 h-8 rounded-full flex items-center justify-center">
+							<img src="/notari.png" alt="Notari Logo" className="w-8 h-8" />
 						</div>
 					)}
 					<div>
