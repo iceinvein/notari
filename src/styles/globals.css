@@ -5,12 +5,12 @@
 /* Make body transparent for rounded window effect */
 html,
 body {
-  background: transparent !important;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
+	background: transparent !important;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
 }
 
 #root {
-  background: transparent !important;
+	background: transparent !important;
 }
