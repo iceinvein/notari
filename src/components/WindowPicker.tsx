@@ -227,7 +227,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 
 	return (
 		<div className="w-full h-full flex flex-col bg-background">
-			<div className="flex-shrink-0 pb-4 px-6 pt-6">
+			<div className="flex-shrink-0 pb-4 px-2 pt-6">
 				<div className="flex items-center justify-between w-full">
 					<div className="flex items-center space-x-4">
 						<Button
@@ -259,7 +259,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 				</div>
 			</div>
 			<div className="w-full h-px bg-divider"></div>
-			<div className="flex-1 pt-6 px-6 pb-6 flex flex-col min-h-0">
+			<div className="flex-1 pt-6 px-2 pb-6 flex flex-col min-h-0">
 				{windows.length === 0 ? (
 					<div className="flex-1 flex items-center justify-center">
 						<div className="text-center">
@@ -283,7 +283,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 					</div>
 				) : (
 					<div className="flex-1 min-h-0 flex flex-col">
-						<div className="flex-1 space-y-3 overflow-y-auto pr-1">
+						<div className="flex-1 space-y-3 px-2 overflow-y-auto pb-4">
 							{windows.map((window) => (
 								<button
 									key={window.id}
