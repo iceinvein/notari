@@ -118,7 +118,13 @@ const Popover: React.FC = () => {
 
     switch (currentMode) {
       case "login":
-        return <LoginMode onLogin={handleLogin} onSignUp={handleSignUp} onRecordOnly={handleRecordOnly} />;
+        return (
+          <LoginMode
+            onLogin={handleLogin}
+            onSignUp={handleSignUp}
+            onRecordOnly={handleRecordOnly}
+          />
+        );
       case "onboarding":
         return (
           <OnboardingMode onComplete={handleOnboardingComplete} onBack={handleOnboardingBack} />
@@ -134,7 +140,13 @@ const Popover: React.FC = () => {
           />
         );
       default:
-        return <LoginMode onLogin={handleLogin} onSignUp={handleSignUp} onRecordOnly={handleRecordOnly} />;
+        return (
+          <LoginMode
+            onLogin={handleLogin}
+            onSignUp={handleSignUp}
+            onRecordOnly={handleRecordOnly}
+          />
+        );
     }
   };
 

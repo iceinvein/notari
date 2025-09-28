@@ -3,7 +3,23 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Divider } from "@heroui/divider";
 import type React from "react";
+import { useState } from "react";
 import ThemeToggle from "../ThemeToggle";
+import WindowPicker from "../WindowPicker";
+
+interface WindowInfo {
+  id: string;
+  title: string;
+  application: string;
+  is_minimized: boolean;
+  bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  thumbnail?: string;
+}
 
 interface RecordModeProps {
   onStartRecording: () => void;
@@ -11,11 +27,34 @@ interface RecordModeProps {
   onBackToLogin: () => void;
 }
 
-const RecordMode: React.FC<RecordModeProps> = ({ 
-  onStartRecording, 
-  onVerifyFile, 
-  onBackToLogin 
+type RecordView = "main" | "window-picker";
+
+const RecordMode: React.FC<RecordModeProps> = ({
+  onStartRecording,
+  onVerifyFile,
+  onBackToLogin,
 }) => {
+  const [currentView, setCurrentView] = useState<RecordView>("main");
+  const [_selectedWindow, setSelectedWindow] = useState<WindowInfo | null>(null);
+
+  const handleStartRecording = () => {
+    setCurrentView("window-picker");
+  };
+
+  const handleWindowSelect = (window: WindowInfo) => {
+    setSelectedWindow(window);
+    // TODO: Start actual recording with selected window
+    onStartRecording();
+    setCurrentView("main");
+  };
+
+  const handleBackToMain = () => {
+    setCurrentView("main");
+  };
+
+  if (currentView === "window-picker") {
+    return <WindowPicker onWindowSelect={handleWindowSelect} onBack={handleBackToMain} />;
+  }
   return (
     <Card className="w-full h-full bg-transparent shadow-none border-none rounded-xl">
       <CardHeader className="pb-3 px-4 pt-6">
@@ -61,7 +100,7 @@ const RecordMode: React.FC<RecordModeProps> = ({
                 color="primary"
                 size="lg"
                 className="w-full font-medium transition-all duration-200 hover:scale-105 active:scale-95"
-                onPress={onStartRecording}
+                onPress={handleStartRecording}
                 startContent={
                   <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
                     <div className="w-2 h-2 rounded-full bg-white"></div>
@@ -76,9 +115,7 @@ const RecordMode: React.FC<RecordModeProps> = ({
                 size="lg"
                 className="w-full font-medium transition-all duration-200 hover:scale-105 active:scale-95"
                 onPress={onVerifyFile}
-                startContent={
-                  <span className="text-lg">🔍</span>
-                }
+                startContent={<span className="text-lg">🔍</span>}
               >
                 Verify Existing File
               </Button>
@@ -115,19 +152,10 @@ const RecordMode: React.FC<RecordModeProps> = ({
 
           {/* Footer Actions */}
           <div className="flex space-x-2">
-            <Button
-              variant="light"
-              size="sm"
-              className="flex-1 text-xs"
-              onPress={onBackToLogin}
-            >
+            <Button variant="light" size="sm" className="flex-1 text-xs" onPress={onBackToLogin}>
               Back to Login
             </Button>
-            <Button
-              variant="light"
-              size="sm"
-              className="flex-1 text-xs"
-            >
+            <Button variant="light" size="sm" className="flex-1 text-xs">
               Settings
             </Button>
           </div>
