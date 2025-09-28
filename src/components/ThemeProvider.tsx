@@ -1,7 +1,7 @@
-import type React from "react";
+import type { ReactNode } from "react";
 
-interface ThemeProviderProps {
-	children: React.ReactNode;
+type ThemeProviderProps = {
+	children: ReactNode;
 }
 
 const THEME_KEY = "notari_theme";
@@ -38,6 +38,6 @@ const applyThemeImmediately = () => {
 // Apply theme immediately
 applyThemeImmediately();
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+export function ThemeProvider({ children }: ThemeProviderProps) {
 	return <>{children}</>;
-};
+}

@@ -2,16 +2,15 @@ import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Input } from "@heroui/input";
-import type React from "react";
 import AppHeader from "../AppHeader";
 
-interface LoginModeProps {
+type LoginModeProps = {
 	onLogin: () => void;
 	onSignUp: () => void;
 	onRecordOnly: () => void;
 }
 
-const LoginMode: React.FC<LoginModeProps> = ({ onLogin, onSignUp, onRecordOnly }) => {
+export default function LoginMode({ onLogin, onSignUp, onRecordOnly }: LoginModeProps) {
 	return (
 		<Card className="w-full h-full bg-transparent shadow-none border-none rounded-xl">
 			<CardHeader className="pb-3 px-4 pt-6">
@@ -95,6 +94,4 @@ const LoginMode: React.FC<LoginModeProps> = ({ onLogin, onSignUp, onRecordOnly }
 			</CardBody>
 		</Card>
 	);
-};
-
-export default LoginMode;
+}

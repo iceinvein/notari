@@ -6,12 +6,11 @@ import { Input } from "@heroui/input";
 import { Spinner } from "@heroui/spinner";
 import { Switch } from "@heroui/switch";
 import { Plus, Search, Trash2, X } from "lucide-react";
-import type React from "react";
 import { useMemo, useState } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import { COMMON_APPLICATIONS } from "../types/preferences";
 
-interface ApplicationSelectorProps {
+type ApplicationSelectorProps = {
 	title?: string;
 	description?: string;
 	showAddCustom?: boolean;
@@ -19,13 +18,13 @@ interface ApplicationSelectorProps {
 	onComplete?: () => void;
 }
 
-const ApplicationSelector: React.FC<ApplicationSelectorProps> = ({
+export default function ApplicationSelector({
 	title = "Select Applications to Record",
 	description = "Choose which applications you want to allow for recording sessions.",
 	showAddCustom = true,
 	compact = false,
 	onComplete,
-}) => {
+}: ApplicationSelectorProps) {
 	const {
 		preferences,
 		loading,
@@ -275,6 +274,4 @@ const ApplicationSelector: React.FC<ApplicationSelectorProps> = ({
 			)}
 		</div>
 	);
-};
-
-export default ApplicationSelector;
+}

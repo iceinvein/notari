@@ -4,7 +4,6 @@ import { Divider } from "@heroui/divider";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Tab, Tabs } from "@heroui/tabs";
 import { FileText, Info, Palette, Settings, Smartphone } from "lucide-react";
-import type React from "react";
 import { useEffect, useState } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import { preferencesLogger } from "../utils/logger";
@@ -12,12 +11,12 @@ import ApplicationSelector from "./ApplicationSelector";
 import LogViewer from "./LogViewer";
 import ThemeToggle from "./ThemeToggle";
 
-interface SettingsModalProps {
+type SettingsModalProps = {
 	isOpen: boolean;
 	onClose: () => void;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
+export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 	const [selectedTab, setSelectedTab] = useState("applications");
 	const [clickCount, setClickCount] = useState(0);
 	const [showResetConfirm, setShowResetConfirm] = useState(false);
@@ -272,6 +271,4 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
 			</Modal>
 		</>
 	);
-};
-
-export default SettingsModal;
+}

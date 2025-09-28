@@ -1,4 +1,4 @@
-export interface WindowInfo {
+export type WindowInfo = {
 	id: string;
 	title: string;
 	application: string;
@@ -12,7 +12,7 @@ export interface WindowInfo {
 	thumbnail?: string;
 }
 
-export interface PermissionStatus {
+export type PermissionStatus = {
 	granted: boolean;
 	can_request: boolean;
 	system_settings_required: boolean;

@@ -1,9 +1,9 @@
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import { ArrowLeft, Settings, Shield } from "lucide-react";
-import type React from "react";
+import type { ReactNode } from "react";
 
-interface AppHeaderProps {
+type AppHeaderProps = {
 	title: string;
 	subtitle?: string;
 	showBackButton?: boolean;
@@ -15,10 +15,10 @@ interface AppHeaderProps {
 		color: "default" | "primary" | "secondary" | "success" | "warning" | "danger";
 		variant?: "solid" | "bordered" | "light" | "flat" | "faded" | "shadow" | "dot";
 	};
-	rightContent?: React.ReactNode;
+	rightContent?: ReactNode;
 }
 
-const AppHeader: React.FC<AppHeaderProps> = ({
+export default function AppHeader({
 	title,
 	subtitle,
 	showBackButton = false,
@@ -27,7 +27,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 	onSettings,
 	statusChip,
 	rightContent,
-}) => {
+}: AppHeaderProps) {
 	return (
 		<div className="flex flex-col w-full">
 			<div className="flex items-center justify-between">
@@ -87,6 +87,4 @@ const AppHeader: React.FC<AppHeaderProps> = ({
 			</div>
 		</div>
 	);
-};
-
-export default AppHeader;
+}

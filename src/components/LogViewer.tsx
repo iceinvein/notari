@@ -2,17 +2,16 @@ import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
 import { Check, Copy, Search, Trash2, X } from "lucide-react";
-import type React from "react";
 import { useMemo, useState } from "react";
 
 import { useLogger } from "../hooks/useLogger";
 import { LogLevel } from "../utils/logger";
 
-interface LogViewerProps {
+type LogViewerProps = {
 	onClose?: () => void;
 }
 
-const LogViewer: React.FC<LogViewerProps> = ({ onClose }) => {
+export default function LogViewer({ onClose }: LogViewerProps) {
 	const { logs, clearLogs } = useLogger();
 	const [searchTerm, setSearchTerm] = useState("");
 	const [selectedLevel, setSelectedLevel] = useState<string>("all");
@@ -217,6 +216,4 @@ const LogViewer: React.FC<LogViewerProps> = ({ onClose }) => {
 			</div>
 		</div>
 	);
-};
-
-export default LogViewer;
+}

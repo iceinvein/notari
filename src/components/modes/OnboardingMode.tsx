@@ -2,16 +2,15 @@ import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Progress } from "@heroui/progress";
-import type React from "react";
 import { useState } from "react";
 import ApplicationSelector from "../ApplicationSelector";
 
-interface OnboardingModeProps {
+type OnboardingModeProps = {
 	onComplete: () => void;
 	onBack: () => void;
 }
 
-const OnboardingMode: React.FC<OnboardingModeProps> = ({ onComplete, onBack }) => {
+export default function OnboardingMode({ onComplete, onBack }: OnboardingModeProps) {
 	const [currentStep, setCurrentStep] = useState(0);
 
 	const steps = [
@@ -163,6 +162,4 @@ const OnboardingMode: React.FC<OnboardingModeProps> = ({ onComplete, onBack }) =
 			</CardBody>
 		</Card>
 	);
-};
-
-export default OnboardingMode;
+}

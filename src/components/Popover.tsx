@@ -1,4 +1,3 @@
-import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import LoggedInMode from "./modes/LoggedInMode";
 import LoginMode from "./modes/LoginMode";
@@ -7,7 +6,7 @@ import RecordMode from "./modes/RecordMode";
 
 export type AppMode = "login" | "onboarding" | "logged-in" | "record";
 
-const Popover: React.FC = () => {
+export default function Popover() {
 	const containerRef = useRef<HTMLDivElement>(null);
 
 	// App mode state
@@ -113,6 +112,4 @@ const Popover: React.FC = () => {
 			{renderCurrentMode()}
 		</div>
 	);
-};
-
-export default Popover;
+}

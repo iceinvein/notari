@@ -1,13 +1,12 @@
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
-import type React from "react";
 import { useState } from "react";
 import AppHeader from "../AppHeader";
 import SettingsModal from "../SettingsModal";
 import WindowPicker from "../WindowPicker";
 
-interface WindowInfo {
+type WindowInfo = {
 	id: string;
 	title: string;
 	application: string;
@@ -21,14 +20,14 @@ interface WindowInfo {
 	thumbnail?: string;
 }
 
-interface RecordModeProps {
+type RecordModeProps = {
 	onStartRecording: () => void;
 	onVerifyFile: () => void;
 }
 
 type RecordView = "main" | "window-picker";
 
-const RecordMode: React.FC<RecordModeProps> = ({ onStartRecording, onVerifyFile }) => {
+export default function RecordMode({ onStartRecording, onVerifyFile }: RecordModeProps) {
 	const [currentView, setCurrentView] = useState<RecordView>("main");
 	const [_selectedWindow, setSelectedWindow] = useState<WindowInfo | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
@@ -143,6 +142,4 @@ const RecordMode: React.FC<RecordModeProps> = ({ onStartRecording, onVerifyFile 
 			<SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
 		</>
 	);
-};
-
-export default RecordMode;
+}

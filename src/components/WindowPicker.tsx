@@ -2,7 +2,6 @@ import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { ExternalLink, Lock, Minimize2, Monitor, RefreshCw } from "lucide-react";
-import type React from "react";
 import { useMemo, useEffect } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import { recordingLogger } from "../utils/logger";
@@ -18,20 +17,20 @@ import AppHeader from "./AppHeader";
 import ErrorBoundary from "./ErrorBoundary";
 import WindowThumbnail from "./WindowThumbnail";
 
-interface WindowPickerProps {
+type WindowPickerProps = {
 	onWindowSelect: (window: WindowInfo) => void;
 	onBack: () => void;
 }
 
-const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) => {
+export default function WindowPicker({ onWindowSelect, onBack }: WindowPickerProps) {
 	return (
 		<ErrorBoundary>
 			<WindowPickerContent onWindowSelect={onWindowSelect} onBack={onBack} />
 		</ErrorBoundary>
 	);
-};
+}
 
-const WindowPickerContent: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) => {
+function WindowPickerContent({ onWindowSelect, onBack }: WindowPickerProps) {
 	// All hooks must be called unconditionally at the top level
 	const { isApplicationAllowed } = useApplicationPreferencesQuery();
 
@@ -300,6 +299,4 @@ const WindowPickerContent: React.FC<WindowPickerProps> = ({ onWindowSelect, onBa
 			</div>
 		</div>
 	);
-};
-
-export default WindowPicker;
+}

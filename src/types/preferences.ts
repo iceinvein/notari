@@ -1,4 +1,4 @@
-export interface ApplicationPreference {
+export type ApplicationPreference = {
 	name: string; // Display name
 	enabled: boolean;
 	addedAt: string;
@@ -6,7 +6,7 @@ export interface ApplicationPreference {
 	aliases?: string[]; // Alternative names this app might be detected as
 }
 
-export interface UserPreferences {
+export type UserPreferences = {
 	allowedApplications: ApplicationPreference[];
 	version: number;
 	lastUpdated: string;

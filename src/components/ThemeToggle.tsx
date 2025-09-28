@@ -1,9 +1,9 @@
 import { Switch } from "@heroui/react";
 import { useTheme } from "@heroui/use-theme";
-import type React from "react";
+import type { SVGProps } from "react";
 import { useEffect, useState } from "react";
 
-const MoonIcon = (props: React.SVGProps<SVGSVGElement>) => {
+const MoonIcon = (props: SVGProps<SVGSVGElement>) => {
 	return (
 		<svg
 			aria-hidden="true"
@@ -22,7 +22,7 @@ const MoonIcon = (props: React.SVGProps<SVGSVGElement>) => {
 	);
 };
 
-const SunIcon = (props: React.SVGProps<SVGSVGElement>) => {
+const SunIcon = (props: SVGProps<SVGSVGElement>) => {
 	return (
 		<svg
 			aria-hidden="true"
@@ -41,7 +41,7 @@ const SunIcon = (props: React.SVGProps<SVGSVGElement>) => {
 	);
 };
 
-const SystemIcon = (props: React.SVGProps<SVGSVGElement>) => {
+const SystemIcon = (props: SVGProps<SVGSVGElement>) => {
 	return (
 		<svg
 			aria-hidden="true"
@@ -61,7 +61,7 @@ const SystemIcon = (props: React.SVGProps<SVGSVGElement>) => {
 	);
 };
 
-interface ThemeToggleProps {
+type ThemeToggleProps = {
 	size?: "sm" | "md" | "lg";
 	className?: string;
 	variant?: "compact" | "full";
@@ -69,11 +69,11 @@ interface ThemeToggleProps {
 
 const THEME_KEY = "notari_theme";
 
-const ThemeToggle: React.FC<ThemeToggleProps> = ({
+export default function ThemeToggle({
 	size = "md",
 	className = "",
 	variant = "full",
-}) => {
+}: ThemeToggleProps) {
 	const { setTheme } = useTheme();
 	const [currentTheme, setCurrentTheme] = useState<"light" | "dark" | "system">("system");
 
@@ -216,6 +216,4 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({
 			</div>
 		</div>
 	);
-};
-
-export default ThemeToggle;
+}

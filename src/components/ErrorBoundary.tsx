@@ -5,13 +5,13 @@ import { AlertTriangle, Copy, RefreshCw } from "lucide-react";
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { appLogger } from "../utils/logger";
 
-interface Props {
+type Props = {
 	children: ReactNode;
 	fallback?: ReactNode;
 	showDetails?: boolean;
 }
 
-interface State {
+type State = {
 	hasError: boolean;
 	error?: Error;
 	errorInfo?: ErrorInfo;

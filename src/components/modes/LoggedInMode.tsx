@@ -3,15 +3,14 @@ import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Divider } from "@heroui/divider";
-import type React from "react";
 import AppHeader from "../AppHeader";
 
-interface LoggedInModeProps {
+type LoggedInModeProps = {
 	onLogout: () => void;
 	onStartSession: () => void;
 }
 
-const LoggedInMode: React.FC<LoggedInModeProps> = ({ onLogout, onStartSession }) => {
+export default function LoggedInMode({ onLogout, onStartSession }: LoggedInModeProps) {
 	return (
 		<Card className="w-full h-full bg-transparent shadow-none border-none rounded-xl">
 			<CardHeader className="pb-3 px-4 pt-6">
@@ -102,6 +101,4 @@ const LoggedInMode: React.FC<LoggedInModeProps> = ({ onLogout, onStartSession })
 			</CardBody>
 		</Card>
 	);
-};
-
-export default LoggedInMode;
+}

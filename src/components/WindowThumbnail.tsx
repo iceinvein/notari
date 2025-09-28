@@ -1,14 +1,13 @@
 import { Monitor } from "lucide-react";
-import type React from "react";
 import { useWindowThumbnailQuery } from "../lib/tauri-queries";
 import type { WindowInfo } from "../types/window";
 
-interface WindowThumbnailProps {
+type WindowThumbnailProps = {
 	window: WindowInfo;
 	className?: string;
 }
 
-const WindowThumbnail: React.FC<WindowThumbnailProps> = ({ window, className = "" }) => {
+export default function WindowThumbnail({ window, className = "" }: WindowThumbnailProps) {
 	// Fetch thumbnail using React Query
 	const { data: fetchedThumbnail, isLoading } = useWindowThumbnailQuery(window.id);
 
@@ -52,6 +51,4 @@ const WindowThumbnail: React.FC<WindowThumbnailProps> = ({ window, className = "
 			<Monitor className="w-6 h-6 text-primary/60" />
 		</div>
 	);
-};
-
-export default WindowThumbnail;
+}
