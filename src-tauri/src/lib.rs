@@ -4,9 +4,24 @@ use tauri::{
     Manager, PhysicalPosition,
 };
 
+mod window_manager;
+mod recording_commands;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_store::Builder::new().build())
+        .manage(recording_commands::WindowManagerState::new())
+        .invoke_handler(tauri::generate_handler![
+            recording_commands::check_recording_permission,
+            recording_commands::request_recording_permission,
+            recording_commands::get_available_windows,
+            recording_commands::get_window_thumbnail,
+            recording_commands::open_system_settings,
+            recording_commands::start_window_recording,
+            recording_commands::stop_recording,
+            recording_commands::get_recording_status,
+        ])
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
