@@ -469,33 +469,21 @@ impl MacOSWindowManager {
     }
 
     fn is_recordable_app(&self, app_name: &str) -> bool {
+        // Basic validation: app name should not be empty or too short
         if app_name.is_empty() || app_name.len() <= 2 {
             return false;
         }
 
-        // STRICT whitelist: Only the most commonly recorded app types
-        let recordable_apps = [
-            // Browsers (most common recording target)
-            "Safari", "Google Chrome", "Firefox", "Brave Browser", "Microsoft Edge", "Arc",
-            // Code Editors (common for tutorials/demos)
-            "Visual Studio Code", "Code", "Xcode",
-            // Communication (meetings/demos)
-            "Slack", "Discord", "Microsoft Teams", "Zoom",
-            // Design Tools (creative work)
-            "Figma", "Sketch", "Photoshop", "Illustrator",
-            // Media Players (content)
-            "VLC", "QuickTime Player", "IINA",
-            // Productivity (documents/presentations)
-            "Microsoft Word", "Microsoft Excel", "Microsoft PowerPoint", "Pages", "Numbers", "Keynote",
-            "Notion", "Obsidian",
-            // Terminal (development demos)
-            "Terminal", "iTerm2", "Warp",
-            // Essential System Apps
-            "Finder", "Preview", "Calculator"
+        // Filter out obvious system processes and background services
+        let system_apps = [
+            "WindowServer", "Dock", "SystemUIServer", "ControlCenter", "NotificationCenter",
+            "Spotlight", "loginwindow", "UserEventAgent", "CoreServicesUIAgent",
+            "AirPlayUIAgent", "WiFiAgent", "BluetoothUIAgent"
         ];
 
-        // Only allow apps in the strict whitelist
-        recordable_apps.contains(&app_name)
+        // Allow all applications except system processes
+        // Frontend will handle user preference filtering
+        !system_apps.contains(&app_name)
     }
 
 

@@ -2,18 +2,12 @@ import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { invoke } from "@tauri-apps/api/core";
-import {
-	ArrowLeft,
-	ExternalLink,
-	Lock,
-	Minimize2,
-	Monitor,
-	RefreshCw,
-	Smartphone,
-} from "lucide-react";
+import { ExternalLink, Lock, Minimize2, Monitor, RefreshCw, Smartphone } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useApplicationPreferences } from "../hooks/useApplicationPreferences";
 import { useDevLogger } from "../hooks/useDevLogger";
+import AppHeader from "./AppHeader";
 
 interface WindowInfo {
 	id: string;
@@ -48,6 +42,12 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 	const [error, setError] = useState<string | null>(null);
 	const [loadingThumbnails, setLoadingThumbnails] = useState<Set<string>>(new Set());
 	const { logInfo, logWarn, logError } = useDevLogger();
+	const { isApplicationAllowed } = useApplicationPreferences();
+
+	// Filter windows based on user preferences
+	const filteredWindows = useMemo(() => {
+		return windows.filter((window) => isApplicationAllowed(window.application));
+	}, [windows, isApplicationAllowed]);
 
 	const checkPermission = async () => {
 		try {
@@ -281,26 +281,13 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 	return (
 		<div className="w-full h-full flex flex-col bg-background">
 			<div className="flex-shrink-0 pb-4 px-2 pt-6">
-				<div className="flex items-center justify-between w-full">
-					<div className="flex items-center space-x-4">
-						<Button
-							variant="light"
-							size="md"
-							onPress={onBack}
-							isIconOnly
-							className="hover:bg-content2"
-						>
-							<ArrowLeft className="w-5 h-5" />
-						</Button>
-						<div className="w-12 h-12 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg">
-							<Monitor className="w-6 h-6 text-primary-foreground" />
-						</div>
-						<div>
-							<h2 className="text-xl font-bold text-foreground">Select Window</h2>
-							<p className="text-sm text-foreground-500">Choose a window to record</p>
-						</div>
-					</div>
-					<div className="flex space-x-2">
+				<AppHeader
+					title="Select Window"
+					subtitle="Choose a window to record"
+					showBackButton={true}
+					onBack={onBack}
+					showSettingsButton={false}
+					rightContent={
 						<Button
 							variant="light"
 							size="md"
@@ -310,20 +297,24 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 						>
 							<RefreshCw className="w-5 h-5" />
 						</Button>
-					</div>
-				</div>
+					}
+				/>
 			</div>
 			<div className="w-full h-px bg-divider"></div>
 			<div className="flex-1 pt-6 px-2 pb-6 flex flex-col min-h-0">
-				{windows.length === 0 ? (
+				{filteredWindows.length === 0 ? (
 					<div className="flex-1 flex items-center justify-center">
 						<div className="text-center">
 							<div className="w-16 h-16 bg-default-100 rounded-full flex items-center justify-center mx-auto mb-4">
 								<Monitor className="w-8 h-8 text-default-400" />
 							</div>
-							<h3 className="text-lg font-semibold text-foreground mb-2">No windows found</h3>
+							<h3 className="text-lg font-semibold text-foreground mb-2">
+								{windows.length === 0 ? "No windows found" : "No allowed windows"}
+							</h3>
 							<p className="text-foreground-500 text-sm mb-6">
-								Make sure you have applications open and try refreshing
+								{windows.length === 0
+									? "Make sure you have applications open and try refreshing"
+									: `${windows.length} window${windows.length !== 1 ? "s" : ""} available, but none match your allowed applications. Check Settings to manage your application list.`}
 							</p>
 							<Button
 								color="primary"
@@ -339,7 +330,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 				) : (
 					<div className="flex-1 min-h-0 flex flex-col">
 						<div className="flex-1 space-y-3 px-2 overflow-y-auto pb-4">
-							{windows.map((window) => (
+							{filteredWindows.map((window) => (
 								<button
 									key={window.id}
 									type="button"
@@ -409,7 +400,7 @@ const WindowPicker: React.FC<WindowPickerProps> = ({ onWindowSelect, onBack }) =
 						{/* Footer */}
 						<div className="flex-shrink-0 flex justify-between items-center pt-6 border-t border-default-100">
 							<p className="text-xs text-foreground-400">
-								{windows.length} window{windows.length !== 1 ? "s" : ""} available
+								{filteredWindows.length} window{filteredWindows.length !== 1 ? "s" : ""} available
 							</p>
 						</div>
 					</div>

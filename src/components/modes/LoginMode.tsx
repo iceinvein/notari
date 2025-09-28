@@ -3,7 +3,7 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Input } from "@heroui/input";
 import type React from "react";
-import ThemeToggle from "../ThemeToggle";
+import AppHeader from "../AppHeader";
 
 interface LoginModeProps {
 	onLogin: () => void;
@@ -15,17 +15,12 @@ const LoginMode: React.FC<LoginModeProps> = ({ onLogin, onSignUp, onRecordOnly }
 	return (
 		<Card className="w-full h-full bg-transparent shadow-none border-none rounded-xl">
 			<CardHeader className="pb-3 px-4 pt-6">
-				<div className="flex flex-col w-full">
-					<div className="flex justify-between items-start mb-4">
-						<div className="flex-1 text-center">
-							<h2 className="text-2xl font-bold text-foreground">Welcome Back</h2>
-							<p className="text-sm text-foreground-500 mt-1">Sign in to your Notari account</p>
-						</div>
-						<div className="ml-4">
-							<ThemeToggle variant="compact" size="sm" />
-						</div>
-					</div>
-				</div>
+				<AppHeader
+					title="Welcome Back"
+					subtitle="Sign in to your Notari account"
+					showBackButton={false}
+					showSettingsButton={false}
+				/>
 			</CardHeader>
 			<Divider />
 			<CardBody className="pt-6 px-4 pb-4">

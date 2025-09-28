@@ -4,6 +4,7 @@ import { Divider } from "@heroui/divider";
 import { Progress } from "@heroui/progress";
 import type React from "react";
 import { useState } from "react";
+import ApplicationSelector from "../ApplicationSelector";
 
 interface OnboardingModeProps {
 	onComplete: () => void;
@@ -67,6 +68,19 @@ const OnboardingMode: React.FC<OnboardingModeProps> = ({ onComplete, onBack }) =
 							</div>
 						</div>
 					</div>
+				</div>
+			),
+		},
+		{
+			title: "Choose Applications",
+			content: (
+				<div className="space-y-4">
+					<ApplicationSelector
+						title="Select Applications to Record"
+						description="Choose which applications you want to allow for recording. Chrome and VSCode are enabled by default for work creation."
+						showAddCustom={true}
+						compact={false}
+					/>
 				</div>
 			),
 		},

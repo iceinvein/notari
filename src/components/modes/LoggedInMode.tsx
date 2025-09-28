@@ -4,7 +4,7 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Divider } from "@heroui/divider";
 import type React from "react";
-import ThemeToggle from "../ThemeToggle";
+import AppHeader from "../AppHeader";
 
 interface LoggedInModeProps {
 	onLogout: () => void;
@@ -15,28 +15,19 @@ const LoggedInMode: React.FC<LoggedInModeProps> = ({ onLogout, onStartSession })
 	return (
 		<Card className="w-full h-full bg-transparent shadow-none border-none rounded-xl">
 			<CardHeader className="pb-3 px-4 pt-6">
-				<div className="flex flex-col w-full">
-					<div className="flex items-center justify-between">
-						<div className="flex items-center space-x-3">
-							<Avatar size="sm" name="User" className="bg-blue-600 text-white" />
-							<div>
-								<h2 className="text-lg font-bold text-foreground">Welcome back!</h2>
-								<p className="text-xs text-foreground-500">User</p>
-							</div>
-						</div>
-						<Chip
-							size="sm"
-							color="success"
-							variant="dot"
-							classNames={{
-								base: "bg-green-500/20 border-green-500/50",
-								content: "text-green-400 text-xs",
-							}}
-						>
-							Online
-						</Chip>
-					</div>
-				</div>
+				<AppHeader
+					title="Welcome back!"
+					subtitle="User"
+					showBackButton={false}
+					showSettingsButton={true}
+					onSettings={() => {}} // TODO: Add settings handler
+					statusChip={{
+						text: "Online",
+						color: "success",
+						variant: "dot",
+					}}
+					rightContent={<Avatar size="sm" name="User" className="bg-blue-600 text-white" />}
+				/>
 			</CardHeader>
 			<Divider />
 			<CardBody className="pt-6 px-4 pb-4">
@@ -94,11 +85,6 @@ const LoggedInMode: React.FC<LoggedInModeProps> = ({ onLogout, onStartSession })
 						>
 							Start New Session
 						</Button>
-
-						{/* Theme Toggle */}
-						<div className="mb-4">
-							<ThemeToggle variant="full" size="md" />
-						</div>
 
 						<div className="flex space-x-2">
 							<Button variant="bordered" size="sm" className="flex-1 text-xs">

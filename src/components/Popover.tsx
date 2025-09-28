@@ -106,10 +106,6 @@ const Popover: React.FC = () => {
 		// console.log("Verifying file...");
 	};
 
-	const handleBackToLogin = () => {
-		setCurrentMode("login");
-	};
-
 	// Render the appropriate mode
 	const renderCurrentMode = () => {
 		if (isDevMode) {
@@ -139,11 +135,7 @@ const Popover: React.FC = () => {
 				return <LoggedInMode onLogout={handleLogout} onStartSession={handleStartSession} />;
 			case "record":
 				return (
-					<RecordMode
-						onStartRecording={handleStartRecording}
-						onVerifyFile={handleVerifyFile}
-						onBackToLogin={handleBackToLogin}
-					/>
+					<RecordMode onStartRecording={handleStartRecording} onVerifyFile={handleVerifyFile} />
 				);
 			case "dev-logs":
 				return <DevMode onBack={() => setCurrentMode("login")} />;
