@@ -32,7 +32,6 @@ export const useWindowThumbnailQuery = (windowId: string, enabled = true) => {
 	});
 };
 
-
 // Recording Permission Queries
 export const useRecordingPermissionQuery = () => {
 	return useQuery({

@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 type ThemeProviderProps = {
 	children: ReactNode;
-}
+};
 
 const THEME_KEY = "notari_theme";
 

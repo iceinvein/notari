@@ -8,7 +8,7 @@ import AppHeader from "../AppHeader";
 type LoggedInModeProps = {
 	onLogout: () => void;
 	onStartSession: () => void;
-}
+};
 
 export default function LoggedInMode({ onLogout, onStartSession }: LoggedInModeProps) {
 	return (

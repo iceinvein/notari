@@ -9,7 +9,7 @@ type Props = {
 	children: ReactNode;
 	fallback?: ReactNode;
 	showDetails?: boolean;
-}
+};
 
 type State = {
 	hasError: boolean;
@@ -17,7 +17,7 @@ type State = {
 	errorInfo?: ErrorInfo;
 	showDetails: boolean;
 	copySuccess: boolean;
-}
+};
 
 class ErrorBoundary extends Component<Props, State> {
 	public state: State = {
@@ -34,14 +34,10 @@ class ErrorBoundary extends Component<Props, State> {
 		console.error("ErrorBoundary caught an error:", error, errorInfo);
 
 		// Log error using main logger
-		appLogger.error(
-			`React Error: ${error.message}`,
-			error,
-			{
-				componentStack: errorInfo.componentStack,
-				userAgent: navigator.userAgent,
-			}
-		);
+		appLogger.error(`React Error: ${error.message}`, error, {
+			componentStack: errorInfo.componentStack,
+			userAgent: navigator.userAgent,
+		});
 
 		// Also store in localStorage as backup
 		const errorData = {
@@ -52,9 +48,9 @@ class ErrorBoundary extends Component<Props, State> {
 		};
 
 		try {
-			localStorage.setItem('notari-last-error', JSON.stringify(errorData));
+			localStorage.setItem("notari-last-error", JSON.stringify(errorData));
 		} catch (e) {
-			console.error('Failed to store error in localStorage:', e);
+			console.error("Failed to store error in localStorage:", e);
 		}
 
 		this.setState({ errorInfo });
@@ -62,15 +58,15 @@ class ErrorBoundary extends Component<Props, State> {
 
 	private getErrorDetails = () => {
 		const { error, errorInfo } = this.state;
-		if (!error) return '';
+		if (!error) return "";
 
 		return `Error: ${error.message}
 
 Stack Trace:
-${error.stack || 'No stack trace available'}
+${error.stack || "No stack trace available"}
 
 Component Stack:
-${errorInfo?.componentStack || 'No component stack available'}
+${errorInfo?.componentStack || "No component stack available"}
 
 Timestamp: ${new Date().toISOString()}
 
@@ -83,7 +79,7 @@ User Agent: ${navigator.userAgent}`;
 			this.setState({ copySuccess: true });
 			setTimeout(() => this.setState({ copySuccess: false }), 2000);
 		} catch (e) {
-			console.error('Failed to copy error details:', e);
+			console.error("Failed to copy error details:", e);
 		}
 	};
 
@@ -112,7 +108,9 @@ User Agent: ${navigator.userAgent}`;
 									<Button
 										color="primary"
 										startContent={<RefreshCw className="w-4 h-4" />}
-										onPress={() => this.setState({ hasError: false, error: undefined, errorInfo: undefined })}
+										onPress={() =>
+											this.setState({ hasError: false, error: undefined, errorInfo: undefined })
+										}
 									>
 										Try Again
 									</Button>
@@ -120,7 +118,7 @@ User Agent: ${navigator.userAgent}`;
 										variant="bordered"
 										onPress={() => this.setState({ showDetails: !this.state.showDetails })}
 									>
-										{this.state.showDetails ? 'Hide Details' : 'Show Details'}
+										{this.state.showDetails ? "Hide Details" : "Show Details"}
 									</Button>
 									<Button
 										variant="bordered"
@@ -128,7 +126,7 @@ User Agent: ${navigator.userAgent}`;
 										onPress={this.copyErrorDetails}
 										color={this.state.copySuccess ? "success" : "default"}
 									>
-										{this.state.copySuccess ? 'Copied!' : 'Copy Error'}
+										{this.state.copySuccess ? "Copied!" : "Copy Error"}
 									</Button>
 								</div>
 
@@ -142,7 +140,8 @@ User Agent: ${navigator.userAgent}`;
 											className="font-mono text-xs"
 										/>
 										<p className="text-xs text-foreground-500">
-											This error has been saved to localStorage as 'notari-last-error' for debugging.
+											This error has been saved to localStorage as 'notari-last-error' for
+											debugging.
 										</p>
 									</div>
 								)}

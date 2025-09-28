@@ -8,7 +8,7 @@ type LoginModeProps = {
 	onLogin: () => void;
 	onSignUp: () => void;
 	onRecordOnly: () => void;
-}
+};
 
 export default function LoginMode({ onLogin, onSignUp, onRecordOnly }: LoginModeProps) {
 	return (

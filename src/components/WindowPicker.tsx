@@ -2,9 +2,8 @@ import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
 import { ExternalLink, Lock, Minimize2, Monitor, RefreshCw } from "lucide-react";
-import { useMemo, useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
-import { recordingLogger } from "../utils/logger";
 import {
 	useOpenSystemSettingsMutation,
 	useRecordingPermissionQuery,
@@ -13,6 +12,7 @@ import {
 	useWindowsQuery,
 } from "../lib/tauri-queries";
 import type { WindowInfo } from "../types/window";
+import { recordingLogger } from "../utils/logger";
 import AppHeader from "./AppHeader";
 import ErrorBoundary from "./ErrorBoundary";
 import WindowThumbnail from "./WindowThumbnail";
@@ -20,7 +20,7 @@ import WindowThumbnail from "./WindowThumbnail";
 type WindowPickerProps = {
 	onWindowSelect: (window: WindowInfo) => void;
 	onBack: () => void;
-}
+};
 
 export default function WindowPicker({ onWindowSelect, onBack }: WindowPickerProps) {
 	return (
@@ -53,7 +53,7 @@ function WindowPickerContent({ onWindowSelect, onBack }: WindowPickerProps) {
 			try {
 				return isApplicationAllowed(window.application);
 			} catch (e) {
-				console.error('Error filtering window:', e);
+				console.error("Error filtering window:", e);
 				return false;
 			}
 		});

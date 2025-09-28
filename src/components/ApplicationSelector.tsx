@@ -16,7 +16,7 @@ type ApplicationSelectorProps = {
 	showAddCustom?: boolean;
 	compact?: boolean;
 	onComplete?: () => void;
-}
+};
 
 export default function ApplicationSelector({
 	title = "Select Applications to Record",

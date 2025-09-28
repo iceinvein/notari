@@ -3,18 +3,19 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Tab, Tabs } from "@heroui/tabs";
-import { FileText, Info, Palette, Settings, Smartphone } from "lucide-react";
+import { FileText, Info, Palette, Settings, Smartphone, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import { preferencesLogger } from "../utils/logger";
 import ApplicationSelector from "./ApplicationSelector";
 import LogViewer from "./LogViewer";
+import RecordingPreferences from "./RecordingPreferences";
 import ThemeToggle from "./ThemeToggle";
 
 type SettingsModalProps = {
 	isOpen: boolean;
 	onClose: () => void;
-}
+};
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 	const [selectedTab, setSelectedTab] = useState("applications");
@@ -144,6 +145,20 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 							</Tab>
 
 							<Tab
+								key="recording"
+								title={
+									<div className="flex items-center space-x-2">
+										<Video className="w-4 h-4" />
+										<span>Recording</span>
+									</div>
+								}
+							>
+								<div className="pt-4">
+									<RecordingPreferences />
+								</div>
+							</Tab>
+
+							<Tab
 								key="appearance"
 								title={
 									<div className="flex items-center space-x-2">
@@ -192,7 +207,11 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 									<Card className="bg-content1">
 										<CardBody className="text-center space-y-4">
 											<div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto">
-												<img src="/notari.png" alt="Notari Logo" className="w-full h-full object-contain" />
+												<img
+													src="/notari.png"
+													alt="Notari Logo"
+													className="w-full h-full object-contain"
+												/>
 											</div>
 											<div>
 												<h3 className="text-lg font-semibold text-foreground">Notari</h3>

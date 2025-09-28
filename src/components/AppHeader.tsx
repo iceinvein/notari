@@ -16,7 +16,7 @@ type AppHeaderProps = {
 		variant?: "solid" | "bordered" | "light" | "flat" | "faded" | "shadow" | "dot";
 	};
 	rightContent?: ReactNode;
-}
+};
 
 export default function AppHeader({
 	title,

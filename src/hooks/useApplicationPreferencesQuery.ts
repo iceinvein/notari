@@ -16,45 +16,48 @@ export const useApplicationPreferencesQuery = () => {
 	const resetToDefaultsMutation = useResetToDefaultsMutation();
 	const { getEnabledApplications, isApplicationAllowed } = usePreferencesHelpers();
 
-	return useMemo(() => ({
-		preferences,
-		loading,
-		error: error ? String(error) : null,
+	return useMemo(
+		() => ({
+			preferences,
+			loading,
+			error: error ? String(error) : null,
 
-		// Mutations
-		addApplication: addApplicationMutation.mutateAsync,
-		removeApplication: removeApplicationMutation.mutateAsync,
-		toggleApplication: toggleApplicationMutation.mutateAsync,
-		resetToDefaults: resetToDefaultsMutation.mutateAsync,
+			// Mutations
+			addApplication: addApplicationMutation.mutateAsync,
+			removeApplication: removeApplicationMutation.mutateAsync,
+			toggleApplication: toggleApplicationMutation.mutateAsync,
+			resetToDefaults: resetToDefaultsMutation.mutateAsync,
 
-		// Helper functions
-		getEnabledApplications,
-		isApplicationAllowed,
+			// Helper functions
+			getEnabledApplications,
+			isApplicationAllowed,
 
-		// Mutation states for UI feedback
-		isAddingApplication: addApplicationMutation.isPending,
-		isRemovingApplication: removeApplicationMutation.isPending,
-		isTogglingApplication: toggleApplicationMutation.isPending,
-		isResettingToDefaults: resetToDefaultsMutation.isPending,
+			// Mutation states for UI feedback
+			isAddingApplication: addApplicationMutation.isPending,
+			isRemovingApplication: removeApplicationMutation.isPending,
+			isTogglingApplication: toggleApplicationMutation.isPending,
+			isResettingToDefaults: resetToDefaultsMutation.isPending,
 
-		// For backward compatibility, provide a reload function
-		reload: () => {
-			// React Query handles this automatically, but we can force a refetch if needed
-			// This is mainly for backward compatibility
-		},
-	}), [
-		preferences,
-		loading,
-		error,
-		addApplicationMutation.mutateAsync,
-		addApplicationMutation.isPending,
-		removeApplicationMutation.mutateAsync,
-		removeApplicationMutation.isPending,
-		toggleApplicationMutation.mutateAsync,
-		toggleApplicationMutation.isPending,
-		resetToDefaultsMutation.mutateAsync,
-		resetToDefaultsMutation.isPending,
-		getEnabledApplications,
-		isApplicationAllowed,
-	]);
+			// For backward compatibility, provide a reload function
+			reload: () => {
+				// React Query handles this automatically, but we can force a refetch if needed
+				// This is mainly for backward compatibility
+			},
+		}),
+		[
+			preferences,
+			loading,
+			error,
+			addApplicationMutation.mutateAsync,
+			addApplicationMutation.isPending,
+			removeApplicationMutation.mutateAsync,
+			removeApplicationMutation.isPending,
+			toggleApplicationMutation.mutateAsync,
+			toggleApplicationMutation.isPending,
+			resetToDefaultsMutation.mutateAsync,
+			resetToDefaultsMutation.isPending,
+			getEnabledApplications,
+			isApplicationAllowed,
+		]
+	);
 };

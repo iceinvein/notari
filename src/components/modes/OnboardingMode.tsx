@@ -8,7 +8,7 @@ import ApplicationSelector from "../ApplicationSelector";
 type OnboardingModeProps = {
 	onComplete: () => void;
 	onBack: () => void;
-}
+};
 
 export default function OnboardingMode({ onComplete, onBack }: OnboardingModeProps) {
 	const [currentStep, setCurrentStep] = useState(0);

@@ -1,8 +1,8 @@
 import { HeroUIProvider } from "@heroui/react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Popover from "@/components/Popover";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import ErrorBoundary from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/queryClient";
 
 function App() {

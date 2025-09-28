@@ -1,8 +1,16 @@
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
+
 import { useState } from "react";
+import {
+	useActiveRecordingSessionQuery,
+	useRecordingPreferencesQuery,
+	useStartRecordingMutation,
+} from "../../hooks/useRecordingSystem";
+import { isRecordingActive } from "../../types/recording";
 import AppHeader from "../AppHeader";
+import RecordingStatus from "../RecordingStatus";
 import SettingsModal from "../SettingsModal";
 import WindowPicker from "../WindowPicker";
 
@@ -18,12 +26,12 @@ type WindowInfo = {
 		height: number;
 	};
 	thumbnail?: string;
-}
+};
 
 type RecordModeProps = {
 	onStartRecording: () => void;
 	onVerifyFile: () => void;
-}
+};
 
 type RecordView = "main" | "window-picker";
 
@@ -32,15 +40,39 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 	const [_selectedWindow, setSelectedWindow] = useState<WindowInfo | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
 
+	// Recording system hooks
+	const { data: activeSession } = useActiveRecordingSessionQuery();
+	const { data: recordingPreferences } = useRecordingPreferencesQuery();
+	const startRecordingMutation = useStartRecordingMutation();
+
+	// Determine if recording is actually active based on session status
+	const hasActiveRecording = activeSession ? isRecordingActive(activeSession.status) : false;
+
 	const handleStartRecording = () => {
+		if (hasActiveRecording) {
+			// If there's already an active recording, don't allow starting another
+			return;
+		}
 		setCurrentView("window-picker");
 	};
 
-	const handleWindowSelect = (window: WindowInfo) => {
+	const handleWindowSelect = async (window: WindowInfo) => {
 		setSelectedWindow(window);
-		// TODO: Start actual recording with selected window
-		onStartRecording();
-		setCurrentView("main");
+
+		try {
+			// Start recording with the selected window
+			await startRecordingMutation.mutateAsync({
+				windowId: window.id,
+				preferences: recordingPreferences,
+			});
+
+			// Call the parent callback to indicate recording started
+			onStartRecording();
+			setCurrentView("main");
+		} catch (error) {
+			console.error("Failed to start recording:", error);
+			// Stay on window picker if recording failed
+		}
 	};
 
 	const handleBackToMain = () => {
@@ -76,12 +108,19 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 				<Divider />
 				<CardBody className="pt-6 px-4 pb-4">
 					<div className="space-y-6">
+						{/* Recording Status */}
+						{hasActiveRecording && <RecordingStatus />}
+
 						{/* Main Actions */}
 						<div className="space-y-4">
 							<div className="text-center space-y-2">
-								<h3 className="text-sm font-medium text-foreground">What would you like to do?</h3>
+								<h3 className="text-sm font-medium text-foreground">
+									{hasActiveRecording ? "Recording in Progress" : "What would you like to do?"}
+								</h3>
 								<p className="text-xs text-foreground-500">
-									Create tamper-evident proof of your work or verify existing files
+									{hasActiveRecording
+										? "Your recording session is active. Use the controls above to manage it."
+										: "Create tamper-evident proof of your work or verify existing files"}
 								</p>
 							</div>
 
@@ -91,13 +130,15 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 									size="lg"
 									className="w-full font-medium transition-all duration-200 hover:scale-105 active:scale-95"
 									onPress={handleStartRecording}
+									isDisabled={hasActiveRecording || startRecordingMutation.isPending}
+									isLoading={startRecordingMutation.isPending}
 									startContent={
 										<div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
 											<div className="w-2 h-2 rounded-full bg-white"></div>
 										</div>
 									}
 								>
-									Start Recording Session
+									{hasActiveRecording ? "Recording Active" : "Start Recording Session"}
 								</Button>
 
 								<Button

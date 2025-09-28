@@ -15,8 +15,6 @@ export default function Popover() {
 		return savedMode || "login";
 	});
 
-
-
 	// Focus management
 	useEffect(() => {
 		if (containerRef.current) {
@@ -28,8 +26,6 @@ export default function Popover() {
 	useEffect(() => {
 		localStorage.setItem("notari-current-mode", currentMode);
 	}, [currentMode]);
-
-
 
 	// App flow handlers
 	const handleLogin = () => {

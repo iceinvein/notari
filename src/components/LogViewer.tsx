@@ -9,7 +9,7 @@ import { LogLevel } from "../utils/logger";
 
 type LogViewerProps = {
 	onClose?: () => void;
-}
+};
 
 export default function LogViewer({ onClose }: LogViewerProps) {
 	const { logs, clearLogs } = useLogger();

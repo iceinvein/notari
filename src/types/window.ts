@@ -10,11 +10,11 @@ export type WindowInfo = {
 		height: number;
 	};
 	thumbnail?: string;
-}
+};
 
 export type PermissionStatus = {
 	granted: boolean;
 	can_request: boolean;
 	system_settings_required: boolean;
 	message: string;
-}
+};

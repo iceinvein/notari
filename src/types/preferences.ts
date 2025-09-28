@@ -4,13 +4,13 @@ export type ApplicationPreference = {
 	addedAt: string;
 	isDefault?: boolean;
 	aliases?: string[]; // Alternative names this app might be detected as
-}
+};
 
 export type UserPreferences = {
 	allowedApplications: ApplicationPreference[];
 	version: number;
 	lastUpdated: string;
-}
+};
 
 export const DEFAULT_APPLICATIONS: ApplicationPreference[] = [
 	{

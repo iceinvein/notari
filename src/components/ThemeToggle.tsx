@@ -65,7 +65,7 @@ type ThemeToggleProps = {
 	size?: "sm" | "md" | "lg";
 	className?: string;
 	variant?: "compact" | "full";
-}
+};
 
 const THEME_KEY = "notari_theme";
 

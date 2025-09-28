@@ -15,7 +15,7 @@ export type LogData =
 	| Record<string, unknown>
 	| unknown[];
 
-export interface LogEntry {
+export type LogEntry = {
 	id: string;
 	timestamp: string;
 	level: LogLevel;
@@ -23,7 +23,7 @@ export interface LogEntry {
 	message: string;
 	data?: LogData;
 	stack?: string;
-}
+};
 
 class Logger {
 	private logs: LogEntry[] = [];

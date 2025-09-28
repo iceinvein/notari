@@ -5,7 +5,7 @@ import type { WindowInfo } from "../types/window";
 type WindowThumbnailProps = {
 	window: WindowInfo;
 	className?: string;
-}
+};
 
 export default function WindowThumbnail({ window, className = "" }: WindowThumbnailProps) {
 	// Fetch thumbnail using React Query
@@ -25,7 +25,7 @@ export default function WindowThumbnail({ window, className = "" }: WindowThumbn
 					className="w-full h-full object-cover"
 					onError={(e) => {
 						// Hide broken images
-						e.currentTarget.style.display = 'none';
+						e.currentTarget.style.display = "none";
 					}}
 				/>
 			</div>
