@@ -1,13 +1,16 @@
 import { HeroUIProvider } from "@heroui/react";
 import Popover from "@/components/Popover";
+import { ThemeProvider } from "@/components/ThemeProvider";
 
 function App() {
   return (
-    <HeroUIProvider>
-      <div className="w-full h-screen">
-        <Popover />
-      </div>
-    </HeroUIProvider>
+    <ThemeProvider>
+      <HeroUIProvider>
+        <div className="w-full h-screen">
+          <Popover />
+        </div>
+      </HeroUIProvider>
+    </ThemeProvider>
   );
 }
 

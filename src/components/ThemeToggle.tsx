@@ -1,6 +1,7 @@
 import { Switch } from "@heroui/react";
 import { useTheme } from "@heroui/use-theme";
 import type React from "react";
+import { useEffect, useState } from "react";
 
 const MoonIcon = (props: React.SVGProps<SVGSVGElement>) => {
   return (
@@ -40,23 +41,98 @@ const SunIcon = (props: React.SVGProps<SVGSVGElement>) => {
   );
 };
 
+const SystemIcon = (props: React.SVGProps<SVGSVGElement>) => {
+  return (
+    <svg
+      aria-hidden="true"
+      focusable="false"
+      height="1em"
+      role="presentation"
+      viewBox="0 0 24 24"
+      width="1em"
+      {...props}
+    >
+      <g fill="currentColor">
+        <path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v7a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM6 6v7h12V6H6z" />
+        <path d="M7 16h10v1a1 1 0 01-1 1H8a1 1 0 01-1-1v-1z" />
+        <path d="M10 18h4v1h-4v-1z" />
+      </g>
+    </svg>
+  );
+};
+
 interface ThemeToggleProps {
   size?: "sm" | "md" | "lg";
   className?: string;
   variant?: "compact" | "full";
 }
 
+const THEME_KEY = "notari_theme";
+
 const ThemeToggle: React.FC<ThemeToggleProps> = ({
   size = "md",
   className = "",
   variant = "full",
 }) => {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme === "dark";
+  const { setTheme } = useTheme();
+  const [currentTheme, setCurrentTheme] = useState<"light" | "dark" | "system">("system");
+
+  // Load current theme from localStorage on mount
+  useEffect(() => {
+    const savedTheme = localStorage.getItem(THEME_KEY) as "light" | "dark" | "system" | null;
+    setCurrentTheme(savedTheme || "system");
+  }, []);
 
   const toggleTheme = () => {
-    setTheme(isDark ? "light" : "dark");
+    // Cycle through: light → dark → system → light...
+    let newTheme: "light" | "dark" | "system";
+    if (currentTheme === "light") {
+      newTheme = "dark";
+    } else if (currentTheme === "dark") {
+      newTheme = "system";
+    } else {
+      newTheme = "light";
+    }
+
+    setCurrentTheme(newTheme);
+
+    // Apply theme immediately
+    if (newTheme === "dark") {
+      document.documentElement.classList.add("dark");
+      setTheme("dark");
+    } else if (newTheme === "light") {
+      document.documentElement.classList.remove("dark");
+      setTheme("light");
+    } else {
+      // System theme
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (prefersDark) {
+        document.documentElement.classList.add("dark");
+        setTheme("dark");
+      } else {
+        document.documentElement.classList.remove("dark");
+        setTheme("light");
+      }
+    }
+
+    // Persist to localStorage
+    try {
+      localStorage.setItem(THEME_KEY, newTheme);
+    } catch {
+      // Silently fail if localStorage doesn't work
+    }
   };
+
+  // Determine display state
+  const getThemeDisplay = () => {
+    if (currentTheme === "system") {
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      return { mode: "system", isDark: prefersDark };
+    }
+    return { mode: currentTheme, isDark: currentTheme === "dark" };
+  };
+
+  const { isDark } = getThemeDisplay();
 
   if (variant === "compact") {
     return (
@@ -65,13 +141,16 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({
         color="secondary"
         isSelected={isDark}
         onValueChange={toggleTheme}
-        thumbIcon={({ isSelected, className: iconClassName }) =>
-          isSelected ? (
+        thumbIcon={({ isSelected, className: iconClassName }) => {
+          if (currentTheme === "system") {
+            return <SystemIcon className={iconClassName} />;
+          }
+          return isSelected ? (
             <MoonIcon className={iconClassName} />
           ) : (
             <SunIcon className={iconClassName} />
-          )
-        }
+          );
+        }}
         className={className}
         classNames={{
           wrapper: "bg-primary",
@@ -94,7 +173,9 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({
         {/* Icon and text content */}
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 bg-primary shadow-lg">
-            {isDark ? (
+            {currentTheme === "system" ? (
+              <SystemIcon className="w-5 h-5 text-primary-foreground" />
+            ) : isDark ? (
               <MoonIcon className="w-5 h-5 text-primary-foreground" />
             ) : (
               <SunIcon className="w-5 h-5 text-primary-foreground" />
@@ -103,10 +184,10 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({
 
           <div className="flex flex-col">
             <span className="font-semibold text-sm text-foreground transition-colors duration-300">
-              {isDark ? "Dark Mode" : "Light Mode"}
+              {currentTheme === "system" ? "System Theme" : isDark ? "Dark Mode" : "Light Mode"}
             </span>
             <span className="text-xs text-foreground-500 transition-colors duration-300">
-              Tap to switch
+              {currentTheme === "system" ? "Follows OS setting" : "Tap to switch"}
             </span>
           </div>
         </div>
@@ -115,19 +196,22 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({
         <Switch
           size={size}
           color="secondary"
-          isSelected={isDark}
+          isSelected={currentTheme === "system" ? false : isDark}
           onValueChange={toggleTheme}
-          thumbIcon={({ isSelected, className: iconClassName }) =>
-            isSelected ? (
+          thumbIcon={({ isSelected, className: iconClassName }) => {
+            if (currentTheme === "system") {
+              return <SystemIcon className={iconClassName} />;
+            }
+            return isSelected ? (
               <MoonIcon className={iconClassName} />
             ) : (
               <SunIcon className={iconClassName} />
-            )
-          }
+            );
+          }}
           classNames={{
             wrapper: "bg-primary",
           }}
-          aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
+          aria-label={`Switch to ${currentTheme === "system" ? "system" : isDark ? "light" : "dark"} mode`}
         />
       </div>
     </div>
