@@ -1,6 +1,8 @@
 import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
+import { invoke } from "@tauri-apps/api/core";
+import { AlertCircle } from "lucide-react";
 
 import { useState } from "react";
 import {
@@ -39,6 +41,7 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 	const [currentView, setCurrentView] = useState<RecordView>("main");
 	const [_selectedWindow, setSelectedWindow] = useState<WindowInfo | null>(null);
 	const [showSettings, setShowSettings] = useState(false);
+	const [startError, setStartError] = useState<string | null>(null);
 
 	// Recording system hooks
 	const { data: activeSession } = useActiveRecordingSessionQuery();
@@ -60,6 +63,7 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 		setSelectedWindow(window);
 
 		try {
+			setStartError(null);
 			// Start recording with the selected window
 			await startRecordingMutation.mutateAsync({
 				windowId: window.id,
@@ -71,6 +75,8 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 			setCurrentView("main");
 		} catch (error) {
 			console.error("Failed to start recording:", error);
+			const message = error instanceof Error ? error.message : String(error);
+			setStartError(message || "Failed to start recording");
 			// Stay on window picker if recording failed
 		}
 	};
@@ -80,8 +86,36 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 	};
 
 	if (currentView === "window-picker") {
+		const openScreenRecordingSettings = async () => {
+			try {
+				await invoke("open_system_settings");
+			} catch (e) {
+				console.error("Failed to open system settings:", e);
+			}
+		};
 		return (
 			<>
+				{startError && (
+					<div className="px-4">
+						<Card className="mb-3 border border-danger/20 bg-danger/10">
+							<CardBody className="flex items-start gap-3">
+								<AlertCircle className="w-5 h-5 text-danger mt-1" />
+								<div className="flex-1">
+									<p className="text-danger text-sm font-medium">Failed to start recording</p>
+									<p className="text-foreground-500 text-xs break-words">{startError}</p>
+									<div className="mt-2 flex gap-2">
+										<Button size="sm" color="danger" variant="flat" onPress={openScreenRecordingSettings}>
+											Open Screen Recording Settings
+										</Button>
+										<Button size="sm" variant="bordered" onPress={() => setStartError(null)}>
+											Dismiss
+										</Button>
+									</div>
+								</div>
+							</CardBody>
+						</Card>
+					</div>
+				)}
 				<WindowPicker onWindowSelect={handleWindowSelect} onBack={handleBackToMain} />
 				<SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
 			</>

@@ -14,6 +14,13 @@ Notari is a desktop application that combats false positives from AI detection t
 - [TypeScript](https://www.typescriptlang.org) - Type safety
 - [Rust](https://www.rust-lang.org) - Backend/native functionality
 
+## Prerequisites
+
+- Node.js 18+ and pnpm (repo is configured for pnpm)
+- Rust toolchain (stable)
+- macOS 12.3+ for ScreenCaptureKit-based recording
+- Xcode Command Line Tools on macOS (`xcode-select --install`)
+
 ## Development
 
 ### Install dependencies
@@ -36,12 +43,18 @@ This will start both the Vite development server and the Tauri application with 
 pnpm tauri build
 ```
 
+## Documentation
+
+- Screen recording architecture, commands, and Swift sidecar: [docs/recording.md](docs/recording.md)
+
 ## Features
 
-- **System Tray Integration**: Runs as a system tray application
-- **Popover Interface**: Clean, accessible popover UI inspired by modern desktop applications
-- **Keyboard Navigation**: Full keyboard accessibility with proper focus management
-- **Cross-platform**: Works on Windows, macOS, and Linux
+- System tray app with popover (click outside to close; app keeps running)
+- Unified header with back button and Settings; theme toggles consolidated in Settings
+- Screen/window recording on macOS via ScreenCaptureKit (Swift sidecar); window list + thumbnails
+- Permission-aware error UX with one-click "Open Screen Recording Settings"
+- Dev Logs tab in Settings; forwards sidecar "[sck]" logs from backend
+- Cross-platform scaffolding; screen recording is currently macOS-first
 
 ## License
 

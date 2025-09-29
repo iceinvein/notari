@@ -21,3 +21,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+
+# Rust/Tauri build artifacts
+/src-tauri/target
+
+# Swift ScreenCaptureKit sidecar binary (built by build.rs)
+/src-tauri/bin/sck-recorder*

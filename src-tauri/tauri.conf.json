@@ -44,6 +44,7 @@
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
+		"externalBin": ["bin/sck-recorder"],
 		"macOS": {
 			"signingIdentity": "Apple Development: Dik Rana (89XJ5N7N23)",
 			"hardenedRuntime": true,

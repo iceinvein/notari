@@ -1,14 +1,23 @@
 import { Button } from "@heroui/button";
 import { Input, Textarea } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
+import { invoke } from "@tauri-apps/api/core";
 import { Check, Copy, Search, Trash2, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useLogger } from "../hooks/useLogger";
-import { LogLevel } from "../utils/logger";
+import { LogLevel, logger } from "../utils/logger";
 
 type LogViewerProps = {
 	onClose?: () => void;
+};
+
+// Backend dev log entry shape from Rust
+type BackendLogEntry = {
+	timestamp: string; // ISO string
+	level: string; // "debug" | "info" | "warn" | "error"
+	message: string;
+	source: string; // e.g., "backend", "recording_manager", "recording_commands"
 };
 
 export default function LogViewer({ onClose }: LogViewerProps) {
@@ -18,6 +27,38 @@ export default function LogViewer({ onClose }: LogViewerProps) {
 	const [selectedCategory, setSelectedCategory] = useState<string>("all");
 	const [isHovering, setIsHovering] = useState(false);
 	const [copySuccess, setCopySuccess] = useState(false);
+	const lastImportedTsRef = useRef<string | null>(null);
+
+	// Pull backend dev logs periodically and mirror into frontend logger
+	useEffect(() => {
+		let cancelled = false;
+		const tick = async () => {
+			try {
+				const entries = (await invoke("dev_log_get")) as BackendLogEntry[];
+				if (cancelled || !entries?.length) return;
+				// Only import new entries since last timestamp
+				const lastTs = lastImportedTsRef.current;
+				const newEntries = lastTs ? entries.filter((e) => e.timestamp > lastTs) : entries;
+				if (newEntries.length) {
+					for (const e of newEntries) {
+						const category = e.source?.toUpperCase?.() || "BACKEND";
+						logger.debug(category, `backend:${e.level} ${e.message}`);
+					}
+					const last = newEntries[newEntries.length - 1];
+					if (last) lastImportedTsRef.current = last.timestamp;
+				}
+			} catch {
+				// ignore
+			}
+		};
+		// First immediate tick, then poll every 1s while viewer is open
+		tick();
+		const id = window.setInterval(tick, 1000);
+		return () => {
+			cancelled = true;
+			window.clearInterval(id);
+		};
+	}, []);
 
 	// Get unique categories
 	const categories = useMemo(() => {
