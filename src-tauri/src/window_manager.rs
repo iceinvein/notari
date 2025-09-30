@@ -29,16 +29,16 @@ pub struct PermissionStatus {
 pub trait WindowManager: Send {
     /// Check if screen recording permission is granted
     fn check_permission(&self) -> PermissionStatus;
-    
+
     /// Request screen recording permission
     fn request_permission(&self) -> Result<bool, String>;
-    
+
     /// Get list of available windows
     fn get_windows(&self) -> Result<Vec<WindowInfo>, String>;
-    
+
     /// Get thumbnail for a specific window
     fn get_window_thumbnail(&self, window_id: &str) -> Result<Option<String>, String>;
-    
+
     /// Open system settings for permission management
     fn open_system_settings(&self) -> Result<(), String>;
 }

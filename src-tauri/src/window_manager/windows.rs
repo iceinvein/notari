@@ -14,14 +14,12 @@ impl WindowsWindowManager {
 
     fn enumerate_windows(&self) -> Result<Vec<WindowInfo>, String> {
         let mut windows = Vec::new();
-        
+
         unsafe {
             let windows_ptr = &mut windows as *mut Vec<WindowInfo>;
-            
-            EnumWindows(
-                Some(enum_windows_proc),
-                LPARAM(windows_ptr as isize),
-            ).map_err(|e| format!("Failed to enumerate windows: {}", e))?;
+
+            EnumWindows(Some(enum_windows_proc), LPARAM(windows_ptr as isize))
+                .map_err(|e| format!("Failed to enumerate windows: {}", e))?;
         }
 
         Ok(windows)
@@ -30,7 +28,7 @@ impl WindowsWindowManager {
 
 unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
     let windows = &mut *(lparam.0 as *mut Vec<WindowInfo>);
-    
+
     // Skip invisible windows
     if IsWindowVisible(hwnd).as_bool() {
         // Get window title
@@ -66,7 +64,7 @@ unsafe extern "system" fn enum_windows_proc(hwnd: HWND, lparam: LPARAM) -> BOOL 
                 id: format!("windows_{}", hwnd.0),
                 title,
                 application: "Unknown App".to_string(), // TODO: Get actual app name
-                is_minimized: false, // TODO: Check if minimized
+                is_minimized: false,                    // TODO: Check if minimized
                 bounds,
                 thumbnail: None,
             };
@@ -122,7 +120,7 @@ mod tests {
         let manager = WindowsWindowManager::new();
         let permission = manager.check_permission();
         println!("Windows permission status: {:?}", permission);
-        
+
         match manager.get_windows() {
             Ok(windows) => println!("Found {} windows", windows.len()),
             Err(e) => println!("Error getting windows: {}", e),

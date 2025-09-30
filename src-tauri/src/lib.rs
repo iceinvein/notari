@@ -4,10 +4,10 @@ use tauri::{
     Manager, PhysicalPosition,
 };
 
-mod window_manager;
+mod logger;
 mod recording_commands;
 mod recording_manager;
-mod logger;
+mod window_manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -16,13 +16,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(recording_commands::WindowManagerState::new())
         .manage(recording_commands::PopoverGuard::default())
-
         .invoke_handler(tauri::generate_handler![
             recording_commands::check_recording_permission,
             recording_commands::request_recording_permission,
             recording_commands::get_available_windows,
             recording_commands::get_window_thumbnail,
-
             recording_commands::open_system_settings,
             recording_commands::start_window_recording,
             recording_commands::stop_recording,
@@ -121,16 +119,23 @@ pub fn run() {
                                             // Ensure the popover doesn't go off-screen
                                             if x < 8.0 {
                                                 x = 8.0; // 8px margin from left edge
-                                            } else if x + popover_width as f64 > monitor_size.width as f64 - 8.0 {
-                                                x = monitor_size.width as f64 - popover_width as f64 - 8.0; // 8px margin from right edge
+                                            } else if x + popover_width as f64
+                                                > monitor_size.width as f64 - 8.0
+                                            {
+                                                x = monitor_size.width as f64
+                                                    - popover_width as f64
+                                                    - 8.0; // 8px margin from right edge
                                             }
 
-                                            if y + popover_height as f64 > monitor_size.height as f64 - 8.0 {
+                                            if y + popover_height as f64
+                                                > monitor_size.height as f64 - 8.0
+                                            {
                                                 // If it would go below screen, position it above the cursor instead
                                                 y = position.y - popover_height as f64 - 20.0;
                                             }
 
-                                            let window_position = PhysicalPosition::new(x as i32, y as i32);
+                                            let window_position =
+                                                PhysicalPosition::new(x as i32, y as i32);
                                             let _ = popover_window.set_position(window_position);
                                         }
                                     }
@@ -157,7 +162,9 @@ pub fn run() {
             if let tauri::WindowEvent::Focused(is_focused) = event {
                 if !is_focused && window.label() == "popover" {
                     // Auto-hide popover on blur only when no dialogs are active
-                    let guard = window.app_handle().state::<recording_commands::PopoverGuard>();
+                    let guard = window
+                        .app_handle()
+                        .state::<recording_commands::PopoverGuard>();
                     if guard.count() == 0 {
                         let _ = window.hide();
                     }

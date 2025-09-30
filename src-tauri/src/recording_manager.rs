@@ -1,8 +1,8 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
-use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 /// Recording preferences that can be configured by the user
@@ -92,7 +92,10 @@ impl RecordingState {
     pub fn has_active_recording(&self) -> bool {
         if let Some(ref recording) = self.active_recording {
             // Only consider it active if the status is actually recording or preparing
-            matches!(recording.session.status, RecordingStatus::Recording | RecordingStatus::Preparing | RecordingStatus::Paused)
+            matches!(
+                recording.session.status,
+                RecordingStatus::Recording | RecordingStatus::Preparing | RecordingStatus::Paused
+            )
         } else {
             false
         }
@@ -100,7 +103,9 @@ impl RecordingState {
 
     /// Get the active recording session info (without process handle)
     pub fn get_active_session(&self) -> Option<ActiveRecording> {
-        self.active_recording.as_ref().map(|state| state.session.clone())
+        self.active_recording
+            .as_ref()
+            .map(|state| state.session.clone())
     }
 
     /// Update recording status
@@ -136,10 +141,15 @@ pub trait RecordingManager: Send + Sync {
     fn pause_recording(&self, session_id: &str, state: SharedRecordingState) -> Result<(), String>;
 
     /// Resume a paused recording (if supported)
-    fn resume_recording(&self, session_id: &str, state: SharedRecordingState) -> Result<(), String>;
+    fn resume_recording(&self, session_id: &str, state: SharedRecordingState)
+        -> Result<(), String>;
 
     /// Get detailed information about a recording session
-    fn get_recording_info(&self, session_id: &str, state: SharedRecordingState) -> Result<RecordingInfo, String>;
+    fn get_recording_info(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+    ) -> Result<RecordingInfo, String>;
 
     /// Check health of active recording and update status
     fn check_recording_health(&self, state: SharedRecordingState) -> Result<(), String>;
@@ -215,13 +225,18 @@ mod tests {
     fn test_recording_state_creation() {
         let state = RecordingState::new();
         assert!(!state.has_active_recording());
-        assert_eq!(state.preferences.filename_pattern, "notari_recording_{timestamp}");
+        assert_eq!(
+            state.preferences.filename_pattern,
+            "notari_recording_{timestamp}"
+        );
     }
 
     #[test]
     fn test_filename_generation() {
         let prefs = RecordingPreferences::default();
-        let timestamp = DateTime::parse_from_rfc3339("2024-01-15T10:30:45Z").unwrap().with_timezone(&Utc);
+        let timestamp = DateTime::parse_from_rfc3339("2024-01-15T10:30:45Z")
+            .unwrap()
+            .with_timezone(&Utc);
         let filename = prefs.generate_filename(timestamp);
         assert_eq!(filename, "notari_recording_20240115_103045");
     }
@@ -230,8 +245,13 @@ mod tests {
     fn test_output_path_generation() {
         let prefs = RecordingPreferences::default();
         let default_dir = PathBuf::from("/tmp");
-        let timestamp = DateTime::parse_from_rfc3339("2024-01-15T10:30:45Z").unwrap().with_timezone(&Utc);
+        let timestamp = DateTime::parse_from_rfc3339("2024-01-15T10:30:45Z")
+            .unwrap()
+            .with_timezone(&Utc);
         let path = prefs.get_output_path(&default_dir, timestamp);
-        assert_eq!(path, PathBuf::from("/tmp/notari_recording_20240115_103045.mov"));
+        assert_eq!(
+            path,
+            PathBuf::from("/tmp/notari_recording_20240115_103045.mov")
+        );
     }
 }

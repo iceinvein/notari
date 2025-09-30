@@ -1,6 +1,5 @@
 use super::{
-    ActiveRecording, RecordingInfo, RecordingManager, 
-    RecordingPreferences, SharedRecordingState
+    ActiveRecording, RecordingInfo, RecordingManager, RecordingPreferences, SharedRecordingState,
 };
 use std::path::PathBuf;
 
@@ -22,19 +21,35 @@ impl RecordingManager for WindowsRecordingManager {
         Err("Recording not implemented for Windows yet".to_string())
     }
 
-    fn stop_recording(&self, _session_id: &str, _state: SharedRecordingState) -> Result<(), String> {
+    fn stop_recording(
+        &self,
+        _session_id: &str,
+        _state: SharedRecordingState,
+    ) -> Result<(), String> {
         Err("Recording not implemented for Windows yet".to_string())
     }
 
-    fn pause_recording(&self, _session_id: &str, _state: SharedRecordingState) -> Result<(), String> {
+    fn pause_recording(
+        &self,
+        _session_id: &str,
+        _state: SharedRecordingState,
+    ) -> Result<(), String> {
         Err("Recording not implemented for Windows yet".to_string())
     }
 
-    fn resume_recording(&self, _session_id: &str, _state: SharedRecordingState) -> Result<(), String> {
+    fn resume_recording(
+        &self,
+        _session_id: &str,
+        _state: SharedRecordingState,
+    ) -> Result<(), String> {
         Err("Recording not implemented for Windows yet".to_string())
     }
 
-    fn get_recording_info(&self, _session_id: &str, _state: SharedRecordingState) -> Result<RecordingInfo, String> {
+    fn get_recording_info(
+        &self,
+        _session_id: &str,
+        _state: SharedRecordingState,
+    ) -> Result<RecordingInfo, String> {
         Err("Recording not implemented for Windows yet".to_string())
     }
 
@@ -48,18 +63,16 @@ impl RecordingManager for WindowsRecordingManager {
 
     fn get_default_save_directory(&self) -> Result<PathBuf, String> {
         // Use %USERPROFILE%\Videos\Notari as default on Windows
-        let home_dir = dirs::home_dir()
-            .ok_or_else(|| "Could not determine home directory".to_string())?;
-        
+        let home_dir =
+            dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
+
         Ok(home_dir.join("Videos").join("Notari"))
     }
 
     fn validate_save_directory(&self, path: &PathBuf) -> Result<bool, String> {
         // Check if directory exists or can be created
         if !path.exists() {
-            std::fs::create_dir_all(path).map_err(|e| {
-                format!("Cannot create directory: {}", e)
-            })?;
+            std::fs::create_dir_all(path).map_err(|e| format!("Cannot create directory: {}", e))?;
         }
 
         // Check if directory is writable

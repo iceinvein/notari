@@ -2,7 +2,7 @@ use super::{
     create_recording_session, ActiveRecording, InternalRecordingState, RecordingInfo,
     RecordingManager, RecordingPreferences, RecordingStatus, SharedRecordingState,
 };
-use crate::logger::{LOGGER, LogLevel};
+use crate::logger::{LogLevel, LOGGER};
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -108,7 +108,11 @@ impl MacOSRecordingManager {
                         }
                     }
                     // If parsing fails, just warn but don't fail
-                    LOGGER.log(LogLevel::Warn, "Could not parse disk space information", "backend");
+                    LOGGER.log(
+                        LogLevel::Warn,
+                        "Could not parse disk space information",
+                        "backend",
+                    );
                     Ok(())
                 } else {
                     // If df fails, just warn but don't fail
@@ -266,7 +270,11 @@ impl RecordingManager for MacOSRecordingManager {
                     process: Some(child),
                     last_health_check: Utc::now(),
                 });
-                LOGGER.log(LogLevel::Info, "Started ScreenCaptureKit sidecar", "backend");
+                LOGGER.log(
+                    LogLevel::Info,
+                    "Started ScreenCaptureKit sidecar",
+                    "backend",
+                );
             }
             Err(e) => {
                 let msg = format!("Failed to spawn SCK sidecar: {}", e);

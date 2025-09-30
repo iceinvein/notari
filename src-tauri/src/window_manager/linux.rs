@@ -21,14 +21,15 @@ impl LinuxWindowManager {
         use x11rb::connection::Connection;
         use x11rb::protocol::xproto::*;
 
-        let (conn, screen_num) = x11rb::connect(None)
-            .map_err(|e| format!("Failed to connect to X11: {}", e))?;
-        
+        let (conn, screen_num) =
+            x11rb::connect(None).map_err(|e| format!("Failed to connect to X11: {}", e))?;
+
         let screen = &conn.setup().roots[screen_num];
         let root = screen.root;
 
         // Query for all windows
-        let tree_reply = conn.query_tree(root)
+        let tree_reply = conn
+            .query_tree(root)
             .map_err(|e| format!("Failed to query window tree: {}", e))?
             .reply()
             .map_err(|e| format!("Failed to get tree reply: {}", e))?;
@@ -37,16 +38,18 @@ impl LinuxWindowManager {
 
         for &window in &tree_reply.children {
             // Get window attributes
-            if let Ok(attrs) = conn.get_window_attributes(window)
-                .and_then(|cookie| cookie.reply()) {
-                
+            if let Ok(attrs) = conn
+                .get_window_attributes(window)
+                .and_then(|cookie| cookie.reply())
+            {
                 // Skip unmapped windows
                 if attrs.map_state != MapState::VIEWABLE {
                     continue;
                 }
 
                 // Get window geometry
-                let geometry = conn.get_geometry(window)
+                let geometry = conn
+                    .get_geometry(window)
                     .and_then(|cookie| cookie.reply())
                     .unwrap_or_else(|_| GeometryReply {
                         depth: 0,
@@ -59,7 +62,8 @@ impl LinuxWindowManager {
                     });
 
                 // Get window title (WM_NAME property)
-                let title = conn.get_property(false, window, AtomEnum::WM_NAME, AtomEnum::STRING, 0, 1024)
+                let title = conn
+                    .get_property(false, window, AtomEnum::WM_NAME, AtomEnum::STRING, 0, 1024)
                     .and_then(|cookie| cookie.reply())
                     .ok()
                     .and_then(|reply| String::from_utf8(reply.value).ok())
@@ -69,7 +73,7 @@ impl LinuxWindowManager {
                     id: format!("x11_{}", window),
                     title,
                     application: "Unknown App".to_string(), // TODO: Get WM_CLASS
-                    is_minimized: false, // TODO: Check _NET_WM_STATE
+                    is_minimized: false,                    // TODO: Check _NET_WM_STATE
                     bounds: WindowBounds {
                         x: geometry.x as i32,
                         y: geometry.y as i32,
@@ -161,7 +165,7 @@ mod tests {
         let manager = LinuxWindowManager::new();
         let permission = manager.check_permission();
         println!("Linux permission status: {:?}", permission);
-        
+
         println!("Wayland: {}", manager.is_wayland());
         println!("X11: {}", manager.is_x11());
     }

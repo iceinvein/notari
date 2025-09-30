@@ -1,5 +1,5 @@
 use super::{PermissionStatus, WindowBounds, WindowInfo, WindowManager};
-use crate::logger::{LOGGER, LogLevel};
+use crate::logger::{LogLevel, LOGGER};
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, TCFType};
 use core_foundation::dictionary::CFDictionary;
@@ -14,12 +14,11 @@ use core_graphics::display::{
 use screencapturekit::{
     shareable_content::SCShareableContent,
     stream::{
-        configuration::{SCStreamConfiguration, pixel_format::PixelFormat},
+        configuration::{pixel_format::PixelFormat, SCStreamConfiguration},
         content_filter::SCContentFilter,
         screenshot_manager,
     },
 };
-
 
 pub struct MacOSWindowManager;
 
@@ -40,14 +39,26 @@ impl MacOSWindowManager {
 
     /// Create a thumbnail for a specific window using ScreenCaptureKit (screencapturekit-rs)
     fn create_window_thumbnail(&self, window_id: u32) -> Result<Option<String>, String> {
-        LOGGER.log(LogLevel::Info, &format!("Creating thumbnail via SCK for window ID: {}", window_id), "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Creating thumbnail via SCK for window ID: {}", window_id),
+            "backend",
+        );
         // 1) Find matching SCWindow by CoreGraphics window_id
-        let shareable = SCShareableContent::get().map_err(|e| format!("SCShareableContent::get failed: {e}"))?;
-        let sc_window_opt = shareable.windows().into_iter().find(|w| w.window_id() == window_id);
+        let shareable = SCShareableContent::get()
+            .map_err(|e| format!("SCShareableContent::get failed: {e}"))?;
+        let sc_window_opt = shareable
+            .windows()
+            .into_iter()
+            .find(|w| w.window_id() == window_id);
         let sc_window = match sc_window_opt {
             Some(w) => w,
             None => {
-                LOGGER.log(LogLevel::Warn, &format!("SCK window not found for id {}", window_id), "backend");
+                LOGGER.log(
+                    LogLevel::Warn,
+                    &format!("SCK window not found for id {}", window_id),
+                    "backend",
+                );
                 return Ok(None);
             }
         };
@@ -57,9 +68,12 @@ impl MacOSWindowManager {
 
         // 3) Configure capture: use 16:9 aspect to match most windows, force BGRA
         let config = SCStreamConfiguration::new()
-            .set_width(480).map_err(|e| format!("set_width: {e}"))?
-            .set_height(270).map_err(|e| format!("set_height: {e}"))?
-            .set_pixel_format(PixelFormat::BGRA).map_err(|e| format!("set_pixel_format: {e}"))?;
+            .set_width(480)
+            .map_err(|e| format!("set_width: {e}"))?
+            .set_height(270)
+            .map_err(|e| format!("set_height: {e}"))?
+            .set_pixel_format(PixelFormat::BGRA)
+            .map_err(|e| format!("set_pixel_format: {e}"))?;
 
         // 4) Capture a single frame
         let sample = screenshot_manager::capture(&filter, &config)
@@ -73,7 +87,14 @@ impl MacOSWindowManager {
         let width = pixel_buffer.get_width() as usize;
         let height = pixel_buffer.get_height() as usize;
         let bytes_per_row = pixel_buffer.get_bytes_per_row() as usize;
-        LOGGER.log(LogLevel::Info, &format!("SCK sample buffer size: {}x{}, row {}", width, height, bytes_per_row), "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "SCK sample buffer size: {}x{}, row {}",
+                width, height, bytes_per_row
+            ),
+            "backend",
+        );
 
         // Lock for read-only access
         use screencapturekit::output::LockTrait;
@@ -82,7 +103,15 @@ impl MacOSWindowManager {
             .map_err(|e| format!("CVPixelBuffer lock failed: {e}"))?;
         let bytes = guard.as_slice();
         if bytes.len() < bytes_per_row * height {
-            LOGGER.log(LogLevel::Warn, &format!("Pixel buffer size {} < expected {}", bytes.len(), bytes_per_row * height), "backend");
+            LOGGER.log(
+                LogLevel::Warn,
+                &format!(
+                    "Pixel buffer size {} < expected {}",
+                    bytes.len(),
+                    bytes_per_row * height
+                ),
+                "backend",
+            );
         }
 
         let mut rgba = Vec::with_capacity(width * height * 4);
@@ -99,23 +128,40 @@ impl MacOSWindowManager {
         // Completed reading pixel buffer
 
         // Encode to PNG
-        use image::{ImageBuffer, Rgba, DynamicImage, ImageFormat};
+        use image::{DynamicImage, ImageBuffer, ImageFormat, Rgba};
         use std::io::Cursor;
-        let img: ImageBuffer<Rgba<u8>, Vec<u8>> = match ImageBuffer::from_raw(width as u32, height as u32, rgba) {
-            Some(buf) => buf,
-            None => return Ok(None),
-        };
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
+            match ImageBuffer::from_raw(width as u32, height as u32, rgba) {
+                Some(buf) => buf,
+                None => return Ok(None),
+            };
         let dyn_img = DynamicImage::ImageRgba8(img);
         let mut png_data = Vec::new();
-        dyn_img.write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
+        dyn_img
+            .write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
             .map_err(|e| format!("Failed to encode PNG: {e}"))?;
 
         // Reuse existing thumbnail scaler/encoder
         let result = self.create_thumbnail_from_data(&png_data);
         match &result {
-            Ok(Some(thumbnail)) => LOGGER.log(LogLevel::Info, &format!("Successfully created SCK thumbnail (length: {})", thumbnail.len()), "backend"),
-            Ok(None) => LOGGER.log(LogLevel::Warn, "SCK thumbnail creation returned None", "backend"),
-            Err(e) => LOGGER.log(LogLevel::Error, &format!("SCK thumbnail creation failed: {}", e), "backend"),
+            Ok(Some(thumbnail)) => LOGGER.log(
+                LogLevel::Info,
+                &format!(
+                    "Successfully created SCK thumbnail (length: {})",
+                    thumbnail.len()
+                ),
+                "backend",
+            ),
+            Ok(None) => LOGGER.log(
+                LogLevel::Warn,
+                "SCK thumbnail creation returned None",
+                "backend",
+            ),
+            Err(e) => LOGGER.log(
+                LogLevel::Error,
+                &format!("SCK thumbnail creation failed: {}", e),
+                "backend",
+            ),
         }
         result
     }
@@ -152,7 +198,11 @@ impl MacOSWindowManager {
             }
         };
 
-        let thumbnail = img.resize(thumb_width, thumb_height, image::imageops::FilterType::Lanczos3);
+        let thumbnail = img.resize(
+            thumb_width,
+            thumb_height,
+            image::imageops::FilterType::Lanczos3,
+        );
 
         // Convert to PNG and encode as base64
         let mut png_data = Vec::new();
@@ -160,7 +210,7 @@ impl MacOSWindowManager {
             .write_to(&mut Cursor::new(&mut png_data), image::ImageFormat::Png)
             .map_err(|e| format!("Failed to encode PNG: {}", e))?;
 
-        use base64::{Engine as _, engine::general_purpose};
+        use base64::{engine::general_purpose, Engine as _};
         let base64_string = general_purpose::STANDARD.encode(&png_data);
         Ok(Some(format!("data:image/png;base64,{}", base64_string)))
     }
@@ -172,11 +222,11 @@ impl MacOSWindowManager {
         let temp_file = "/tmp/notari_permission_test.png";
 
         match std::process::Command::new("screencapture")
-            .arg("-R")  // Capture rectangle
-            .arg("0,0,1,1")  // Tiny 1x1 pixel area
+            .arg("-R") // Capture rectangle
+            .arg("0,0,1,1") // Tiny 1x1 pixel area
             .arg("-t")
             .arg("png")
-            .arg("-x")  // No sound
+            .arg("-x") // No sound
             .arg(temp_file)
             .output()
         {
@@ -185,18 +235,28 @@ impl MacOSWindowManager {
                 // Clean up test file
                 let _ = std::fs::remove_file(temp_file);
 
-                LOGGER.log(LogLevel::Info, &format!("Permission test result: success={}, stderr={}",
-                    success, String::from_utf8_lossy(&output.stderr)), "backend");
+                LOGGER.log(
+                    LogLevel::Info,
+                    &format!(
+                        "Permission test result: success={}, stderr={}",
+                        success,
+                        String::from_utf8_lossy(&output.stderr)
+                    ),
+                    "backend",
+                );
 
                 success
-            },
+            }
             Err(e) => {
-                LOGGER.log(LogLevel::Error, &format!("Permission test command failed: {}", e), "backend");
+                LOGGER.log(
+                    LogLevel::Error,
+                    &format!("Permission test command failed: {}", e),
+                    "backend",
+                );
                 false
             }
         }
     }
-
 
     fn get_real_windows(&self) -> Result<Vec<WindowInfo>, String> {
         self.get_windows_coregraphics()
@@ -220,11 +280,16 @@ impl MacOSWindowManager {
                         item.as_CFTypeRef() as _,
                     );
 
-                    let owner_name = self.get_cf_str(&dict, "kCGWindowOwnerName").unwrap_or_default();
+                    let owner_name = self
+                        .get_cf_str(&dict, "kCGWindowOwnerName")
+                        .unwrap_or_default();
                     let window_name = self.get_cf_str(&dict, "kCGWindowName");
                     let layer = self.get_cf_i32(&dict, "kCGWindowLayer").unwrap_or_default();
-                    let is_on_screen = self.get_cf_i32(&dict, "kCGWindowIsOnscreen").unwrap_or(0) != 0;
-                    let window_id = self.get_cf_i32(&dict, "kCGWindowNumber").unwrap_or_default();
+                    let is_on_screen =
+                        self.get_cf_i32(&dict, "kCGWindowIsOnscreen").unwrap_or(0) != 0;
+                    let window_id = self
+                        .get_cf_i32(&dict, "kCGWindowNumber")
+                        .unwrap_or_default();
 
                     // Filter out system windows and non-recordable apps
                     if !self.is_recordable_app(&owner_name) {
@@ -236,7 +301,9 @@ impl MacOSWindowManager {
                         continue;
                     }
 
-                    let bounds = self.get_cf_bounds(&dict).unwrap_or((0.0, 0.0, 800.0, 600.0));
+                    let bounds = self
+                        .get_cf_bounds(&dict)
+                        .unwrap_or((0.0, 0.0, 800.0, 600.0));
 
                     // Skip windows that are too small (likely system elements)
                     if bounds.2 < 50.0 || bounds.3 < 50.0 {
@@ -262,13 +329,19 @@ impl MacOSWindowManager {
                             x: bounds.0 as i32,
                             y: bounds.1 as i32,
                             width: bounds.2 as u32,
-                            height: bounds.3 as u32
+                            height: bounds.3 as u32,
                         },
                         thumbnail: None,
                     };
 
-                    LOGGER.log(LogLevel::Info, &format!("Found window: id={}, title={}, app={}, cg_window_id={}",
-                              window_info.id, window_info.title, window_info.application, window_id), "backend");
+                    LOGGER.log(
+                        LogLevel::Info,
+                        &format!(
+                            "Found window: id={}, title={}, app={}, cg_window_id={}",
+                            window_info.id, window_info.title, window_info.application, window_id
+                        ),
+                        "backend",
+                    );
 
                     windows.push(window_info);
                 }
@@ -278,7 +351,11 @@ impl MacOSWindowManager {
         }
     }
 
-    unsafe fn get_cf_str(&self, dict: &CFDictionary<CFString, CFType>, key: &str) -> Option<String> {
+    unsafe fn get_cf_str(
+        &self,
+        dict: &CFDictionary<CFString, CFType>,
+        key: &str,
+    ) -> Option<String> {
         let key = CFString::new(key);
         let val = dict.find(&key)?;
         let s = CFString::wrap_under_get_rule(val.as_CFTypeRef() as _);
@@ -292,7 +369,10 @@ impl MacOSWindowManager {
         n.to_i32()
     }
 
-    unsafe fn get_cf_bounds(&self, dict: &CFDictionary<CFString, CFType>) -> Option<(f64, f64, f64, f64)> {
+    unsafe fn get_cf_bounds(
+        &self,
+        dict: &CFDictionary<CFString, CFType>,
+    ) -> Option<(f64, f64, f64, f64)> {
         let key = CFString::new("kCGWindowBounds");
         let val = dict.find(&key)?;
         let b = CFDictionary::<CFString, CFType>::wrap_under_get_rule(val.as_CFTypeRef() as _);
@@ -303,7 +383,11 @@ impl MacOSWindowManager {
         Some((x, y, w, h))
     }
 
-    unsafe fn get_cf_num_from_dict(&self, dict: &CFDictionary<CFString, CFType>, key: &str) -> Option<f64> {
+    unsafe fn get_cf_num_from_dict(
+        &self,
+        dict: &CFDictionary<CFString, CFType>,
+        key: &str,
+    ) -> Option<f64> {
         let key = CFString::new(key);
         let val = dict.find(&key)?;
         let n = CFNumber::wrap_under_get_rule(val.as_CFTypeRef() as _);
@@ -318,27 +402,42 @@ impl MacOSWindowManager {
 
         // Filter out obvious system processes and background services
         let system_apps = [
-            "WindowServer", "Dock", "SystemUIServer", "ControlCenter", "NotificationCenter",
-            "Spotlight", "loginwindow", "UserEventAgent", "CoreServicesUIAgent",
-            "AirPlayUIAgent", "WiFiAgent", "BluetoothUIAgent"
+            "WindowServer",
+            "Dock",
+            "SystemUIServer",
+            "ControlCenter",
+            "NotificationCenter",
+            "Spotlight",
+            "loginwindow",
+            "UserEventAgent",
+            "CoreServicesUIAgent",
+            "AirPlayUIAgent",
+            "WiFiAgent",
+            "BluetoothUIAgent",
         ];
 
         // Allow all applications except system processes
         // Frontend will handle user preference filtering
         !system_apps.contains(&app_name)
     }
-
-
 }
 
 impl WindowManager for MacOSWindowManager {
     fn check_permission(&self) -> PermissionStatus {
-        LOGGER.log(LogLevel::Info, "Checking macOS screen recording permission", "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            "Checking macOS screen recording permission",
+            "backend",
+        );
 
         // Test if we have screen recording permission by trying to access screen capture
         let has_permission = self.test_screen_recording_access();
 
-        LOGGER.log(LogLevel::Info, &format!("Permission check result: has_permission={}", has_permission), "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Permission check result: has_permission={}", has_permission),
+            "backend",
+        );
 
         if has_permission {
             let status = PermissionStatus {
@@ -347,14 +446,26 @@ impl WindowManager for MacOSWindowManager {
                 system_settings_required: false,
                 message: "Screen recording permission is granted.".to_string(),
             };
-            LOGGER.log(LogLevel::Info, &format!("Returning granted permission status: {:?}", status), "backend");
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Returning granted permission status: {:?}", status),
+                "backend",
+            );
             status
         } else {
             // For unsigned apps, the screencapture command may fail even with permissions granted
             // In development/testing, we'll assume permission is granted if the command fails
             // This is a common issue with unsigned Tauri apps
-            LOGGER.log(LogLevel::Warn, "screencapture command failed - this is likely due to code signing issues", "backend");
-            LOGGER.log(LogLevel::Info, "Assuming permission is granted for unsigned app (development mode)", "backend");
+            LOGGER.log(
+                LogLevel::Warn,
+                "screencapture command failed - this is likely due to code signing issues",
+                "backend",
+            );
+            LOGGER.log(
+                LogLevel::Info,
+                "Assuming permission is granted for unsigned app (development mode)",
+                "backend",
+            );
 
             let status = PermissionStatus {
                 granted: true, // Assume granted for unsigned apps
@@ -362,7 +473,11 @@ impl WindowManager for MacOSWindowManager {
                 system_settings_required: false,
                 message: "Screen recording permission assumed granted (unsigned app - code signing required for production).".to_string(),
             };
-            LOGGER.log(LogLevel::Info, &format!("Returning assumed granted permission status: {:?}", status), "backend");
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Returning assumed granted permission status: {:?}", status),
+                "backend",
+            );
             status
         }
     }
@@ -377,44 +492,74 @@ impl WindowManager for MacOSWindowManager {
     }
 
     fn get_windows(&self) -> Result<Vec<WindowInfo>, String> {
-        LOGGER.log(LogLevel::Info, "Getting windows - starting process", "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            "Getting windows - starting process",
+            "backend",
+        );
 
         // Check permission first
         let permission = self.check_permission();
         if !permission.granted {
-            LOGGER.log(LogLevel::Error, "Permission not granted, returning error", "backend");
+            LOGGER.log(
+                LogLevel::Error,
+                "Permission not granted, returning error",
+                "backend",
+            );
             return Err("Screen recording permission not granted".to_string());
         }
 
-        LOGGER.log(LogLevel::Info, "Permission granted, attempting to get real windows", "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            "Permission granted, attempting to get real windows",
+            "backend",
+        );
 
         // Try to get real windows using AppleScript
         self.get_real_windows()
     }
 
-
-
     fn get_window_thumbnail(&self, window_id: &str) -> Result<Option<String>, String> {
-        LOGGER.log(LogLevel::Info, &format!("Getting thumbnail for window ID: {}", window_id), "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Getting thumbnail for window ID: {}", window_id),
+            "backend",
+        );
 
         // Parse window ID to get the CGWindowID
         let cg_window_id = match self.parse_window_id(window_id) {
             Some(id) => {
-                LOGGER.log(LogLevel::Info, &format!("Parsed window ID {} to CoreGraphics ID: {}", window_id, id), "backend");
+                LOGGER.log(
+                    LogLevel::Info,
+                    &format!("Parsed window ID {} to CoreGraphics ID: {}", window_id, id),
+                    "backend",
+                );
                 id
-            },
+            }
             None => {
-                LOGGER.log(LogLevel::Warn, &format!("Could not parse window ID: {} (expected format: cg_<number>)", window_id), "backend");
+                LOGGER.log(
+                    LogLevel::Warn,
+                    &format!(
+                        "Could not parse window ID: {} (expected format: cg_<number>)",
+                        window_id
+                    ),
+                    "backend",
+                );
                 return Ok(None);
-            },
+            }
         };
 
         // Create thumbnail using CoreGraphics
-        LOGGER.log(LogLevel::Info, &format!("Creating thumbnail for CoreGraphics window ID: {}", cg_window_id), "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Creating thumbnail for CoreGraphics window ID: {}",
+                cg_window_id
+            ),
+            "backend",
+        );
         self.create_window_thumbnail(cg_window_id)
     }
-
-
 
     fn open_system_settings(&self) -> Result<(), String> {
         // For Phase 1, we'll use a simple command to open System Preferences
@@ -435,6 +580,10 @@ mod tests {
     fn test_macos_window_manager() {
         let manager = MacOSWindowManager::new();
         let permission = manager.check_permission();
-        LOGGER.log(LogLevel::Info, &format!("macOS permission status: {:?}", permission), "backend");
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("macOS permission status: {:?}", permission),
+            "backend",
+        );
     }
 }
