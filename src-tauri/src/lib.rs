@@ -7,7 +7,7 @@ use tauri::{
 mod window_manager;
 mod recording_commands;
 mod recording_manager;
-mod dev_logger;
+mod logger;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -44,9 +44,11 @@ pub fn run() {
             recording_commands::shutdown_recording_system,
             recording_commands::validate_recording_window,
             recording_commands::get_recording_system_status,
-            recording_commands::dev_log_add,
-            recording_commands::dev_log_get,
-            recording_commands::dev_log_clear,
+            recording_commands::log_add,
+            recording_commands::log_get,
+            recording_commands::log_clear,
+            recording_commands::log_set_min_level,
+            recording_commands::log_get_min_level,
             recording_commands::popover_guard_push,
             recording_commands::popover_guard_pop,
         ])
@@ -67,18 +69,17 @@ pub fn run() {
                 }
             });
 
-            // Start periodic health check for recordings
+            // Start periodic health check for recordings using async task
             let app_handle = app.handle().clone();
-            std::thread::spawn(move || {
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(5));
+                    interval.tick().await;
 
                     let state = app_handle.state::<recording_commands::WindowManagerState>();
-                    tauri::async_runtime::block_on(async {
-                        if let Err(e) = recording_commands::check_recording_health(state).await {
-                            log::warn!("Recording health check failed: {}", e);
-                        }
-                    });
+                    if let Err(e) = recording_commands::check_recording_health(state).await {
+                        log::warn!("Recording health check failed: {}", e);
+                    }
                 }
             });
 

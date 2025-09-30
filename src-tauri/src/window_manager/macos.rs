@@ -1,5 +1,5 @@
 use super::{PermissionStatus, WindowBounds, WindowInfo, WindowManager};
-use crate::dev_logger::DEV_LOGGER;
+use crate::logger::{LOGGER, LogLevel};
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, TCFType};
 use core_foundation::dictionary::CFDictionary;
@@ -40,14 +40,14 @@ impl MacOSWindowManager {
 
     /// Create a thumbnail for a specific window using ScreenCaptureKit (screencapturekit-rs)
     fn create_window_thumbnail(&self, window_id: u32) -> Result<Option<String>, String> {
-        DEV_LOGGER.log("info", &format!("Creating thumbnail via SCK for window ID: {}", window_id), "backend");
+        LOGGER.log(LogLevel::Info, &format!("Creating thumbnail via SCK for window ID: {}", window_id), "backend");
         // 1) Find matching SCWindow by CoreGraphics window_id
         let shareable = SCShareableContent::get().map_err(|e| format!("SCShareableContent::get failed: {e}"))?;
         let sc_window_opt = shareable.windows().into_iter().find(|w| w.window_id() == window_id);
         let sc_window = match sc_window_opt {
             Some(w) => w,
             None => {
-                DEV_LOGGER.log("warn", &format!("SCK window not found for id {}", window_id), "backend");
+                LOGGER.log(LogLevel::Warn, &format!("SCK window not found for id {}", window_id), "backend");
                 return Ok(None);
             }
         };
@@ -73,7 +73,7 @@ impl MacOSWindowManager {
         let width = pixel_buffer.get_width() as usize;
         let height = pixel_buffer.get_height() as usize;
         let bytes_per_row = pixel_buffer.get_bytes_per_row() as usize;
-        DEV_LOGGER.log("info", &format!("SCK sample buffer size: {}x{}, row {}", width, height, bytes_per_row), "backend");
+        LOGGER.log(LogLevel::Info, &format!("SCK sample buffer size: {}x{}, row {}", width, height, bytes_per_row), "backend");
 
         // Lock for read-only access
         use screencapturekit::output::LockTrait;
@@ -82,7 +82,7 @@ impl MacOSWindowManager {
             .map_err(|e| format!("CVPixelBuffer lock failed: {e}"))?;
         let bytes = guard.as_slice();
         if bytes.len() < bytes_per_row * height {
-            DEV_LOGGER.log("warn", &format!("Pixel buffer size {} < expected {}", bytes.len(), bytes_per_row * height), "backend");
+            LOGGER.log(LogLevel::Warn, &format!("Pixel buffer size {} < expected {}", bytes.len(), bytes_per_row * height), "backend");
         }
 
         let mut rgba = Vec::with_capacity(width * height * 4);
@@ -113,9 +113,9 @@ impl MacOSWindowManager {
         // Reuse existing thumbnail scaler/encoder
         let result = self.create_thumbnail_from_data(&png_data);
         match &result {
-            Ok(Some(thumbnail)) => DEV_LOGGER.log("info", &format!("Successfully created SCK thumbnail (length: {})", thumbnail.len()), "backend"),
-            Ok(None) => DEV_LOGGER.log("warn", "SCK thumbnail creation returned None", "backend"),
-            Err(e) => DEV_LOGGER.log("error", &format!("SCK thumbnail creation failed: {}", e), "backend"),
+            Ok(Some(thumbnail)) => LOGGER.log(LogLevel::Info, &format!("Successfully created SCK thumbnail (length: {})", thumbnail.len()), "backend"),
+            Ok(None) => LOGGER.log(LogLevel::Warn, "SCK thumbnail creation returned None", "backend"),
+            Err(e) => LOGGER.log(LogLevel::Error, &format!("SCK thumbnail creation failed: {}", e), "backend"),
         }
         result
     }
@@ -185,13 +185,13 @@ impl MacOSWindowManager {
                 // Clean up test file
                 let _ = std::fs::remove_file(temp_file);
 
-                DEV_LOGGER.log("info", &format!("Permission test result: success={}, stderr={}",
+                LOGGER.log(LogLevel::Info, &format!("Permission test result: success={}, stderr={}",
                     success, String::from_utf8_lossy(&output.stderr)), "backend");
 
                 success
             },
             Err(e) => {
-                DEV_LOGGER.log("error", &format!("Permission test command failed: {}", e), "backend");
+                LOGGER.log(LogLevel::Error, &format!("Permission test command failed: {}", e), "backend");
                 false
             }
         }
@@ -267,7 +267,7 @@ impl MacOSWindowManager {
                         thumbnail: None,
                     };
 
-                    DEV_LOGGER.log("info", &format!("Found window: id={}, title={}, app={}, cg_window_id={}",
+                    LOGGER.log(LogLevel::Info, &format!("Found window: id={}, title={}, app={}, cg_window_id={}",
                               window_info.id, window_info.title, window_info.application, window_id), "backend");
 
                     windows.push(window_info);
@@ -333,12 +333,12 @@ impl MacOSWindowManager {
 
 impl WindowManager for MacOSWindowManager {
     fn check_permission(&self) -> PermissionStatus {
-        DEV_LOGGER.log("info", "Checking macOS screen recording permission", "backend");
+        LOGGER.log(LogLevel::Info, "Checking macOS screen recording permission", "backend");
 
         // Test if we have screen recording permission by trying to access screen capture
         let has_permission = self.test_screen_recording_access();
 
-        DEV_LOGGER.log("info", &format!("Permission check result: has_permission={}", has_permission), "backend");
+        LOGGER.log(LogLevel::Info, &format!("Permission check result: has_permission={}", has_permission), "backend");
 
         if has_permission {
             let status = PermissionStatus {
@@ -347,14 +347,14 @@ impl WindowManager for MacOSWindowManager {
                 system_settings_required: false,
                 message: "Screen recording permission is granted.".to_string(),
             };
-            DEV_LOGGER.log("info", &format!("Returning granted permission status: {:?}", status), "backend");
+            LOGGER.log(LogLevel::Info, &format!("Returning granted permission status: {:?}", status), "backend");
             status
         } else {
             // For unsigned apps, the screencapture command may fail even with permissions granted
             // In development/testing, we'll assume permission is granted if the command fails
             // This is a common issue with unsigned Tauri apps
-            DEV_LOGGER.log("warn", "screencapture command failed - this is likely due to code signing issues", "backend");
-            DEV_LOGGER.log("info", "Assuming permission is granted for unsigned app (development mode)", "backend");
+            LOGGER.log(LogLevel::Warn, "screencapture command failed - this is likely due to code signing issues", "backend");
+            LOGGER.log(LogLevel::Info, "Assuming permission is granted for unsigned app (development mode)", "backend");
 
             let status = PermissionStatus {
                 granted: true, // Assume granted for unsigned apps
@@ -362,7 +362,7 @@ impl WindowManager for MacOSWindowManager {
                 system_settings_required: false,
                 message: "Screen recording permission assumed granted (unsigned app - code signing required for production).".to_string(),
             };
-            DEV_LOGGER.log("info", &format!("Returning assumed granted permission status: {:?}", status), "backend");
+            LOGGER.log(LogLevel::Info, &format!("Returning assumed granted permission status: {:?}", status), "backend");
             status
         }
     }
@@ -377,16 +377,16 @@ impl WindowManager for MacOSWindowManager {
     }
 
     fn get_windows(&self) -> Result<Vec<WindowInfo>, String> {
-        DEV_LOGGER.log("info", "Getting windows - starting process", "backend");
+        LOGGER.log(LogLevel::Info, "Getting windows - starting process", "backend");
 
         // Check permission first
         let permission = self.check_permission();
         if !permission.granted {
-            DEV_LOGGER.log("error", "Permission not granted, returning error", "backend");
+            LOGGER.log(LogLevel::Error, "Permission not granted, returning error", "backend");
             return Err("Screen recording permission not granted".to_string());
         }
 
-        DEV_LOGGER.log("info", "Permission granted, attempting to get real windows", "backend");
+        LOGGER.log(LogLevel::Info, "Permission granted, attempting to get real windows", "backend");
 
         // Try to get real windows using AppleScript
         self.get_real_windows()
@@ -395,22 +395,22 @@ impl WindowManager for MacOSWindowManager {
 
 
     fn get_window_thumbnail(&self, window_id: &str) -> Result<Option<String>, String> {
-        DEV_LOGGER.log("info", &format!("Getting thumbnail for window ID: {}", window_id), "backend");
+        LOGGER.log(LogLevel::Info, &format!("Getting thumbnail for window ID: {}", window_id), "backend");
 
         // Parse window ID to get the CGWindowID
         let cg_window_id = match self.parse_window_id(window_id) {
             Some(id) => {
-                DEV_LOGGER.log("info", &format!("Parsed window ID {} to CoreGraphics ID: {}", window_id, id), "backend");
+                LOGGER.log(LogLevel::Info, &format!("Parsed window ID {} to CoreGraphics ID: {}", window_id, id), "backend");
                 id
             },
             None => {
-                DEV_LOGGER.log("warn", &format!("Could not parse window ID: {} (expected format: cg_<number>)", window_id), "backend");
+                LOGGER.log(LogLevel::Warn, &format!("Could not parse window ID: {} (expected format: cg_<number>)", window_id), "backend");
                 return Ok(None);
             },
         };
 
         // Create thumbnail using CoreGraphics
-        DEV_LOGGER.log("info", &format!("Creating thumbnail for CoreGraphics window ID: {}", cg_window_id), "backend");
+        LOGGER.log(LogLevel::Info, &format!("Creating thumbnail for CoreGraphics window ID: {}", cg_window_id), "backend");
         self.create_window_thumbnail(cg_window_id)
     }
 
@@ -435,6 +435,6 @@ mod tests {
     fn test_macos_window_manager() {
         let manager = MacOSWindowManager::new();
         let permission = manager.check_permission();
-        DEV_LOGGER.log("info", &format!("macOS permission status: {:?}", permission), "backend");
+        LOGGER.log(LogLevel::Info, &format!("macOS permission status: {:?}", permission), "backend");
     }
 }

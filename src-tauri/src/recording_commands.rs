@@ -3,7 +3,7 @@ use crate::recording_manager::{
     create_recording_manager, RecordingManager, RecordingPreferences,
     RecordingState, SharedRecordingState, ActiveRecording, RecordingInfo
 };
-use crate::dev_logger::{DEV_LOGGER, LogEntry};
+use crate::logger::{LOGGER, LogEntry, LogLevel};
 
 use std::sync::{Arc, Mutex};
 use tauri::State;
@@ -69,12 +69,12 @@ pub async fn request_recording_permission(
 pub async fn get_available_windows(
     state: State<'_, WindowManagerState>,
 ) -> Result<Vec<WindowInfo>, String> {
-    DEV_LOGGER.log("info", "Frontend requested available windows", "backend");
+    LOGGER.log(LogLevel::Info, "Frontend requested available windows", "backend");
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
     let windows = manager.get_windows();
     match &windows {
-        Ok(window_list) => DEV_LOGGER.log("info", &format!("Returning {} windows to frontend", window_list.len()), "backend"),
-        Err(e) => DEV_LOGGER.log("error", &format!("Failed to get windows: {}", e), "backend"),
+        Ok(window_list) => LOGGER.log(LogLevel::Info, &format!("Returning {} windows to frontend", window_list.len()), "backend"),
+        Err(e) => LOGGER.log(LogLevel::Error, &format!("Failed to get windows: {}", e), "backend"),
     }
     windows
 }
@@ -85,13 +85,13 @@ pub async fn get_window_thumbnail(
     window_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<Option<String>, String> {
-    DEV_LOGGER.log("info", &format!("Frontend requested thumbnail for window: {}", window_id), "backend");
+    LOGGER.log(LogLevel::Info, &format!("Frontend requested thumbnail for window: {}", window_id), "backend");
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
     let result = manager.get_window_thumbnail(&window_id);
     match &result {
-        Ok(Some(thumbnail)) => DEV_LOGGER.log("info", &format!("Thumbnail generated successfully for {}, length: {}", window_id, thumbnail.len()), "backend"),
-        Ok(None) => DEV_LOGGER.log("warn", &format!("No thumbnail generated for {}", window_id), "backend"),
-        Err(e) => DEV_LOGGER.log("error", &format!("Thumbnail generation failed for {}: {}", window_id, e), "backend"),
+        Ok(Some(thumbnail)) => LOGGER.log(LogLevel::Info, &format!("Thumbnail generated successfully for {}, length: {}", window_id, thumbnail.len()), "backend"),
+        Ok(None) => LOGGER.log(LogLevel::Warn, &format!("No thumbnail generated for {}", window_id), "backend"),
+        Err(e) => LOGGER.log(LogLevel::Error, &format!("Thumbnail generation failed for {}: {}", window_id, e), "backend"),
     }
     result
 }
@@ -114,8 +114,8 @@ pub async fn start_window_recording(
     preferences: Option<RecordingPreferences>,
     state: State<'_, WindowManagerState>,
 ) -> Result<ActiveRecording, String> {
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Starting recording for window: {}", window_id),
         "recording_commands"
     );
@@ -128,8 +128,8 @@ pub async fn start_window_recording(
         state.recording_state.clone(),
     )?;
 
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Recording started successfully: {}", session.session_id),
         "recording_commands"
     );
@@ -143,16 +143,16 @@ pub async fn stop_recording(
     session_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Stopping recording session: {}", session_id),
         "recording_commands"
     );
 
     state.recording_manager.stop_recording(&session_id, state.recording_state.clone())?;
 
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Recording stopped successfully: {}", session_id),
         "recording_commands"
     );
@@ -166,8 +166,8 @@ pub async fn get_recording_info(
     session_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<RecordingInfo, String> {
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Getting info for recording session: {}", session_id),
         "recording_commands"
     );
@@ -206,7 +206,7 @@ pub async fn update_recording_preferences(
     state_guard.preferences = preferences;
 
     // TODO: Persist preferences to Tauri store
-    DEV_LOGGER.log("info", "Recording preferences updated", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Recording preferences updated", "recording_commands");
     Ok(())
 }
 
@@ -235,7 +235,7 @@ pub async fn select_save_directory(
     app_handle: tauri::AppHandle,
     state: State<'_, WindowManagerState>,
 ) -> Result<Option<String>, String> {
-    DEV_LOGGER.log("info", "Opening folder selection dialog", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Opening folder selection dialog", "recording_commands");
 
     // Resolve current directory to seed the dialog
     let current_dir = {
@@ -288,8 +288,8 @@ pub async fn select_save_directory(
             // Validate the selected directory
             match state.recording_manager.validate_save_directory(&path) {
                 Ok(true) => {
-                    DEV_LOGGER.log(
-                        "info",
+                    LOGGER.log(
+                        LogLevel::Info,
                         &format!("Save directory selected: {}", path.display()),
                         "recording_commands",
                     );
@@ -319,7 +319,7 @@ pub async fn check_recording_health(
 pub async fn cleanup_orphaned_recordings(
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
-    DEV_LOGGER.log("info", "Cleaning up orphaned recordings", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Cleaning up orphaned recordings", "recording_commands");
     state.recording_manager.cleanup_orphaned_recordings()
 }
 
@@ -329,8 +329,8 @@ pub async fn pause_recording(
     session_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Pausing recording session: {}", session_id),
         "recording_commands"
     );
@@ -344,8 +344,8 @@ pub async fn resume_recording(
     session_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Resuming recording session: {}", session_id),
         "recording_commands"
     );
@@ -376,7 +376,7 @@ pub async fn has_active_recording(
 pub async fn clear_active_recording(
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
-    DEV_LOGGER.log("info", "Clearing active recording state", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Clearing active recording state", "recording_commands");
     let mut state_guard = state.recording_state.lock().map_err(|e| e.to_string())?;
     state_guard.clear_active_recording();
     Ok(())
@@ -387,14 +387,14 @@ pub async fn clear_active_recording(
 pub async fn initialize_recording_system(
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
-    DEV_LOGGER.log("info", "Initializing recording system", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Initializing recording system", "recording_commands");
 
     // Clean up any orphaned processes from previous sessions
     state.recording_manager.cleanup_orphaned_recordings()?;
 
     // TODO: Load persisted recording preferences from Tauri store
 
-    DEV_LOGGER.log("info", "Recording system initialized successfully", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Recording system initialized successfully", "recording_commands");
     Ok(())
 }
 
@@ -403,7 +403,7 @@ pub async fn initialize_recording_system(
 pub async fn shutdown_recording_system(
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
-    DEV_LOGGER.log("info", "Shutting down recording system", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Shutting down recording system", "recording_commands");
 
     // Check if there's an active recording
     let session_id = {
@@ -413,13 +413,13 @@ pub async fn shutdown_recording_system(
 
     // Stop active recording if any
     if let Some(id) = session_id {
-        DEV_LOGGER.log("warn", "Stopping active recording due to app shutdown", "recording_commands");
+        LOGGER.log(LogLevel::Warn, "Stopping active recording due to app shutdown", "recording_commands");
         let _ = state.recording_manager.stop_recording(&id, state.recording_state.clone());
     }
 
     // TODO: Persist recording preferences to Tauri store
 
-    DEV_LOGGER.log("info", "Recording system shutdown complete", "recording_commands");
+    LOGGER.log(LogLevel::Info, "Recording system shutdown complete", "recording_commands");
     Ok(())
 }
 
@@ -429,8 +429,8 @@ pub async fn validate_recording_window(
     window_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<bool, String> {
-    DEV_LOGGER.log(
-        "info",
+    LOGGER.log(
+        LogLevel::Info,
         &format!("Validating recording window: {}", window_id),
         "recording_commands"
     );
@@ -443,8 +443,8 @@ pub async fn validate_recording_window(
     let window_exists = windows.iter().any(|w| w.id == window_id);
 
     if !window_exists {
-        DEV_LOGGER.log(
-            "warn",
+        LOGGER.log(
+            LogLevel::Warn,
             &format!("Window {} no longer exists", window_id),
             "recording_commands"
         );
@@ -471,26 +471,41 @@ pub async fn get_recording_system_status(
     Ok(status)
 }
 
-// Dev Logger Commands
+// Logger Commands
 
 /// Add a log entry from the frontend
 #[tauri::command]
-pub async fn dev_log_add(level: String, message: String) -> Result<(), String> {
-    DEV_LOGGER.log(&level, &message, "frontend");
+pub async fn log_add(level: String, message: String) -> Result<(), String> {
+    let log_level = LogLevel::from_str(&level).unwrap_or(LogLevel::Info);
+    LOGGER.log(log_level, &message, "frontend");
     Ok(())
 }
 
-/// Get all dev logs
+/// Get all logs
 #[tauri::command]
-pub async fn dev_log_get() -> Result<Vec<LogEntry>, String> {
-    Ok(DEV_LOGGER.get_logs())
+pub async fn log_get() -> Result<Vec<LogEntry>, String> {
+    Ok(LOGGER.get_logs())
 }
 
-/// Clear all dev logs
+/// Clear all logs
 #[tauri::command]
-pub async fn dev_log_clear() -> Result<(), String> {
-    DEV_LOGGER.clear_logs();
+pub async fn log_clear() -> Result<(), String> {
+    LOGGER.clear_logs();
     Ok(())
+}
+
+/// Set minimum log level (runtime filtering)
+#[tauri::command]
+pub async fn log_set_min_level(level: String) -> Result<(), String> {
+    let log_level = LogLevel::from_str(&level).unwrap_or(LogLevel::Info);
+    LOGGER.set_min_level(log_level);
+    Ok(())
+}
+
+/// Get current minimum log level
+#[tauri::command]
+pub async fn log_get_min_level() -> Result<String, String> {
+    Ok(LOGGER.get_min_level().as_str().to_string())
 }
 
 #[cfg(test)]

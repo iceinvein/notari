@@ -2,7 +2,7 @@ use super::{
     create_recording_session, ActiveRecording, InternalRecordingState, RecordingInfo,
     RecordingManager, RecordingPreferences, RecordingStatus, SharedRecordingState,
 };
-use crate::dev_logger::DEV_LOGGER;
+use crate::logger::{LOGGER, LogLevel};
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -47,15 +47,15 @@ impl MacOSRecordingManager {
             Ok(Some(status)) => {
                 // Process has exited
                 if status.success() {
-                    DEV_LOGGER.log(
-                        "debug",
+                    LOGGER.log(
+                        LogLevel::Debug,
                         "Recording process completed successfully",
                         "backend",
                     );
                     Ok(false) // Process finished normally
                 } else {
                     let error_msg = format!("Recording process exited with error: {}", status);
-                    DEV_LOGGER.log("error", &error_msg, "backend");
+                    LOGGER.log(LogLevel::Error, &error_msg, "backend");
                     Err(error_msg)
                 }
             }
@@ -65,7 +65,7 @@ impl MacOSRecordingManager {
             }
             Err(e) => {
                 let error_msg = format!("Failed to check process status: {}", e);
-                DEV_LOGGER.log("error", &error_msg, "backend");
+                LOGGER.log(LogLevel::Error, &error_msg, "backend");
                 Err(error_msg)
             }
         }
@@ -108,17 +108,17 @@ impl MacOSRecordingManager {
                         }
                     }
                     // If parsing fails, just warn but don't fail
-                    DEV_LOGGER.log("warn", "Could not parse disk space information", "backend");
+                    LOGGER.log(LogLevel::Warn, "Could not parse disk space information", "backend");
                     Ok(())
                 } else {
                     // If df fails, just warn but don't fail
-                    DEV_LOGGER.log("warn", "Could not check disk space", "backend");
+                    LOGGER.log(LogLevel::Warn, "Could not check disk space", "backend");
                     Ok(())
                 }
             }
             Err(_) => {
                 // If df command fails, just warn but don't fail
-                DEV_LOGGER.log("warn", "Could not execute df command", "backend");
+                LOGGER.log(LogLevel::Warn, "Could not execute df command", "backend");
                 Ok(())
             }
         }
@@ -126,7 +126,7 @@ impl MacOSRecordingManager {
 
     /// Terminate recording process gracefully
     fn terminate_process(&self, process: &mut Child) -> Result<(), String> {
-        DEV_LOGGER.log("info", "Terminating recording process", "backend");
+        LOGGER.log(LogLevel::Info, "Terminating recording process", "backend");
 
         // Send SIGTERM for graceful shutdown
         match process.kill() {
@@ -134,8 +134,8 @@ impl MacOSRecordingManager {
                 // Wait for process to exit (with timeout)
                 match process.wait() {
                     Ok(status) => {
-                        DEV_LOGGER.log(
-                            "info",
+                        LOGGER.log(
+                            LogLevel::Info,
                             &format!("Recording process terminated with status: {}", status),
                             "recording_manager",
                         );
@@ -143,14 +143,14 @@ impl MacOSRecordingManager {
                     }
                     Err(e) => {
                         let error_msg = format!("Failed to wait for process termination: {}", e);
-                        DEV_LOGGER.log("error", &error_msg, "backend");
+                        LOGGER.log(LogLevel::Error, &error_msg, "backend");
                         Err(error_msg)
                     }
                 }
             }
             Err(e) => {
                 let error_msg = format!("Failed to terminate recording process: {}", e);
-                DEV_LOGGER.log("error", &error_msg, "backend");
+                LOGGER.log(LogLevel::Error, &error_msg, "backend");
                 Err(error_msg)
             }
         }
@@ -175,8 +175,8 @@ impl RecordingManager for MacOSRecordingManager {
         preferences: &RecordingPreferences,
         state: SharedRecordingState,
     ) -> Result<ActiveRecording, String> {
-        DEV_LOGGER.log(
-            "info",
+        LOGGER.log(
+            LogLevel::Info,
             &format!("Starting recording for window: {}", window_id),
             "recording_manager",
         );
@@ -214,8 +214,8 @@ impl RecordingManager for MacOSRecordingManager {
 
         // Try Swift sidecar (ScreenCaptureKit) first
         let sidecar_path = self.resolve_sidecar_path();
-        DEV_LOGGER.log(
-            "info",
+        LOGGER.log(
+            LogLevel::Info,
             &format!(
                 "Spawning SCK sidecar: {:?} {} {}",
                 sidecar_path,
@@ -233,13 +233,13 @@ impl RecordingManager for MacOSRecordingManager {
 
         match cmd.spawn() {
             Ok(mut child) => {
-                // Forward sidecar stdout/stderr into DEV_LOGGER so it appears in frontend settings log
+                // Forward sidecar stdout/stderr into LOGGER so it appears in frontend settings log
                 if let Some(stdout) = child.stdout.take() {
                     std::thread::spawn(move || {
                         let reader = std::io::BufReader::new(stdout);
                         for line in reader.lines().flatten() {
-                            DEV_LOGGER.log(
-                                "debug",
+                            LOGGER.log(
+                                LogLevel::Debug,
                                 &format!("sck-recorder stdout: {}", line),
                                 "backend",
                             );
@@ -250,8 +250,8 @@ impl RecordingManager for MacOSRecordingManager {
                     std::thread::spawn(move || {
                         let reader = std::io::BufReader::new(stderr);
                         for line in reader.lines().flatten() {
-                            DEV_LOGGER.log(
-                                "warn",
+                            LOGGER.log(
+                                LogLevel::Warn,
                                 &format!("sck-recorder stderr: {}", line),
                                 "backend",
                             );
@@ -266,11 +266,11 @@ impl RecordingManager for MacOSRecordingManager {
                     process: Some(child),
                     last_health_check: Utc::now(),
                 });
-                DEV_LOGGER.log("info", "Started ScreenCaptureKit sidecar", "backend");
+                LOGGER.log(LogLevel::Info, "Started ScreenCaptureKit sidecar", "backend");
             }
             Err(e) => {
                 let msg = format!("Failed to spawn SCK sidecar: {}", e);
-                DEV_LOGGER.log("error", &msg, "backend");
+                LOGGER.log(LogLevel::Error, &msg, "backend");
                 return Err(msg);
             }
         }
@@ -283,8 +283,8 @@ impl RecordingManager for MacOSRecordingManager {
             session.status = RecordingStatus::Recording;
         }
 
-        DEV_LOGGER.log(
-            "info",
+        LOGGER.log(
+            LogLevel::Info,
             &format!("Recording started successfully: {}", session.session_id),
             "recording_manager",
         );
@@ -293,8 +293,8 @@ impl RecordingManager for MacOSRecordingManager {
     }
 
     fn stop_recording(&self, session_id: &str, state: SharedRecordingState) -> Result<(), String> {
-        DEV_LOGGER.log(
-            "info",
+        LOGGER.log(
+            LogLevel::Info,
             &format!("Stopping recording: {}", session_id),
             "recording_manager",
         );
@@ -327,8 +327,8 @@ impl RecordingManager for MacOSRecordingManager {
 
             // Log final file information
             if let Some(file_size) = self.get_file_size(&recording.session.output_path) {
-                DEV_LOGGER.log(
-                    "info",
+                LOGGER.log(
+                    LogLevel::Info,
                     &format!(
                         "Recording completed. File: {}, Size: {} bytes",
                         recording.session.output_path.display(),
@@ -338,8 +338,8 @@ impl RecordingManager for MacOSRecordingManager {
                 );
             }
 
-            DEV_LOGGER.log(
-                "info",
+            LOGGER.log(
+                LogLevel::Info,
                 &format!("Recording stopped successfully: {}", session_id),
                 "recording_manager",
             );
@@ -405,8 +405,8 @@ impl RecordingManager for MacOSRecordingManager {
                     Ok(true) => {
                         // Process is healthy, update last check time
                         recording.last_health_check = Utc::now();
-                        DEV_LOGGER.log(
-                            "debug",
+                        LOGGER.log(
+                            LogLevel::Debug,
                             &format!(
                                 "Recording health check passed for session: {}",
                                 recording.session.session_id
@@ -419,8 +419,8 @@ impl RecordingManager for MacOSRecordingManager {
                         // Process finished normally; clear process to avoid repeated logs
                         recording.session.status = RecordingStatus::Stopped;
                         recording.process = None;
-                        DEV_LOGGER.log(
-                            "info",
+                        LOGGER.log(
+                            LogLevel::Info,
                             &format!(
                                 "Recording process finished for session: {}",
                                 recording.session.session_id
@@ -434,8 +434,8 @@ impl RecordingManager for MacOSRecordingManager {
                         recording.session.status = RecordingStatus::Error(e.clone());
                         // Clear process on error as well to avoid repeated polling
                         recording.process = None;
-                        DEV_LOGGER.log(
-                            "error",
+                        LOGGER.log(
+                            LogLevel::Error,
                             &format!(
                                 "Recording process error for session {}: {}",
                                 recording.session.session_id, e
