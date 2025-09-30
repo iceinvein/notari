@@ -1,0 +1,4 @@
+# Ignore the external binary directory to prevent watch loops
+bin/
+target/
+

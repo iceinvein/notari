@@ -1,7 +1,6 @@
 import { Button } from "@heroui/button";
-import { Chip } from "@heroui/chip";
 import { Spinner } from "@heroui/spinner";
-import { ExternalLink, Lock, Minimize2, Monitor, RefreshCw } from "lucide-react";
+import { ExternalLink, Lock, Monitor, RefreshCw } from "lucide-react";
 import { useEffect, useMemo } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import {
@@ -236,56 +235,45 @@ function WindowPickerContent({ onWindowSelect, onBack }: WindowPickerProps) {
 					</div>
 				) : (
 					<div className="flex-1 min-h-0 flex flex-col">
-						<div className="flex-1 space-y-3 px-2 overflow-y-auto pb-4">
-							{filteredWindows.map((window) => (
-								<button
-									key={window.id}
-									type="button"
-									onClick={() => handleWindowSelect(window)}
-									className="group relative w-full p-4 rounded-xl border border-default-200 bg-content1 hover:bg-content2 hover:border-primary/30 transition-all duration-300 cursor-pointer hover:shadow-lg hover:scale-[1.02] text-left"
-								>
-									<div className="flex items-start space-x-4">
-										{/* Thumbnail or App Icon */}
+						<div className="flex-1 px-2 overflow-y-auto pb-4">
+							<div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3">
+								{filteredWindows.map((window) => (
+									<button
+										key={window.id}
+										type="button"
+										onClick={() => handleWindowSelect(window)}
+										className="group relative w-full rounded-lg border border-default-200 bg-content1 hover:bg-content2 hover:border-primary/30 transition-all duration-200 cursor-pointer hover:shadow-md text-left overflow-hidden"
+									>
+										{/* Thumbnail */}
 										<div className="relative">
-											<WindowThumbnail window={window} />
+											<WindowThumbnail window={window} variant="card" />
 											{window.is_minimized && (
-												<div className="absolute -top-1 -right-1 w-5 h-5 bg-warning rounded-full flex items-center justify-center">
-													<Minimize2 className="w-3 h-3 text-warning-foreground" />
+												<div className="absolute top-2 right-2 z-10 px-1.5 py-0.5 rounded bg-warning/90 backdrop-blur-sm text-warning-foreground text-[10px] font-medium">
+													Minimized
 												</div>
 											)}
 										</div>
 
-										{/* Window Info */}
-										<div className="flex-1 min-w-0 space-y-1">
-											<div className="flex items-center justify-between">
-												<h3 className="text-base font-semibold text-foreground truncate pr-2">
-													{window.title}
-												</h3>
-												<ExternalLink className="w-4 h-4 text-foreground-400 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0" />
-											</div>
-
-											<p className="text-sm text-foreground-600 truncate">{window.application}</p>
-
-											<div className="flex items-center space-x-4 text-xs text-foreground-500">
-												<span className="flex items-center space-x-1">
-													<Monitor className="w-3 h-3" />
-													<span>
-														{window.bounds.width} × {window.bounds.height}
-													</span>
+										{/* Details */}
+										<div className="px-3 py-2.5 space-y-0.5 bg-content1">
+											<h3 className="text-sm font-semibold text-foreground truncate leading-tight">
+												{window.title}
+											</h3>
+											<p className="text-xs text-foreground-500 truncate">{window.application}</p>
+											<div className="flex items-center gap-1 text-[10px] text-foreground-400 pt-0.5">
+												<Monitor className="w-3 h-3" />
+												<span>
+													{window.bounds.width} × {window.bounds.height}
 												</span>
-												{window.is_minimized && (
-													<Chip size="sm" color="warning" variant="flat" className="h-5">
-														Minimized
-													</Chip>
-												)}
 											</div>
 										</div>
-									</div>
 
-									{/* Hover Effect Border */}
-									<div className="absolute inset-0 rounded-xl border-2 border-primary/0 group-hover:border-primary/20 transition-colors duration-300 pointer-events-none" />
-								</button>
-							))}
+										{/* Hover Effect */}
+										<div className="absolute inset-0 rounded-lg border-2 border-primary/0 group-hover:border-primary/30 transition-colors duration-200 pointer-events-none" />
+										<ExternalLink className="absolute top-2 left-2 w-4 h-4 text-white/80 opacity-0 group-hover:opacity-100 transition-opacity duration-200 drop-shadow-lg" />
+									</button>
+								))}
+							</div>
 						</div>
 
 						{/* Footer */}

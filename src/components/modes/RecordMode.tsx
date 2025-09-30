@@ -104,7 +104,12 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 									<p className="text-danger text-sm font-medium">Failed to start recording</p>
 									<p className="text-foreground-500 text-xs break-words">{startError}</p>
 									<div className="mt-2 flex gap-2">
-										<Button size="sm" color="danger" variant="flat" onPress={openScreenRecordingSettings}>
+										<Button
+											size="sm"
+											color="danger"
+											variant="flat"
+											onPress={openScreenRecordingSettings}
+										>
 											Open Screen Recording Settings
 										</Button>
 										<Button size="sm" variant="bordered" onPress={() => setStartError(null)}>

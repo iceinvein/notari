@@ -9,6 +9,17 @@ use core_graphics::display::{
     kCGNullWindowID, kCGWindowListExcludeDesktopElements, kCGWindowListOptionOnScreenOnly,
     CGWindowListCopyWindowInfo,
 };
+// ScreenCaptureKit (Rust wrapper)
+#[cfg(target_os = "macos")]
+use screencapturekit::{
+    shareable_content::SCShareableContent,
+    stream::{
+        configuration::{SCStreamConfiguration, pixel_format::PixelFormat},
+        content_filter::SCContentFilter,
+        screenshot_manager,
+    },
+};
+
 
 pub struct MacOSWindowManager;
 
@@ -27,59 +38,86 @@ impl MacOSWindowManager {
         }
     }
 
-    /// Create a thumbnail for a specific window using screencapture command
+    /// Create a thumbnail for a specific window using ScreenCaptureKit (screencapturekit-rs)
     fn create_window_thumbnail(&self, window_id: u32) -> Result<Option<String>, String> {
-        DEV_LOGGER.log("info", &format!("Creating thumbnail for window ID: {}", window_id), "backend");
-
-        // Use screencapture command to capture window thumbnail
-        // This is more reliable than CoreGraphics for unsigned apps
-        let temp_file = format!("/tmp/notari_thumb_{}.png", window_id);
-        DEV_LOGGER.log("info", &format!("Temp file path: {}", temp_file), "backend");
-
-        let output = std::process::Command::new("screencapture")
-            .arg(format!("-l{}", window_id))
-            .arg("-t")
-            .arg("png")
-            .arg("-x") // No sound
-            .arg(&temp_file)
-            .output()
-            .map_err(|e| {
-                let error_msg = format!("Failed to execute screencapture: {}", e);
-                log::error!("{}", error_msg);
-                error_msg
-            })?;
-
-        if !output.status.success() {
-            DEV_LOGGER.log("warn", &format!("screencapture failed: {}", String::from_utf8_lossy(&output.stderr)), "backend");
-        }
-
-        if !output.status.success() {
-            return Ok(None);
-        }
-
-        // Read the captured image file
-        log::info!("Reading captured image file: {}", temp_file);
-        match std::fs::read(&temp_file) {
-            Ok(image_data) => {
-                log::info!("Successfully read {} bytes from temp file", image_data.len());
-
-                // Clean up temp file
-                let _ = std::fs::remove_file(&temp_file);
-
-                // Create thumbnail from the captured image
-                let result = self.create_thumbnail_from_data(&image_data);
-                match &result {
-                    Ok(Some(thumbnail)) => log::info!("Successfully created thumbnail (length: {})", thumbnail.len()),
-                    Ok(None) => log::warn!("Thumbnail creation returned None"),
-                    Err(e) => log::error!("Thumbnail creation failed: {}", e),
-                }
-                result
+        DEV_LOGGER.log("info", &format!("Creating thumbnail via SCK for window ID: {}", window_id), "backend");
+        // 1) Find matching SCWindow by CoreGraphics window_id
+        let shareable = SCShareableContent::get().map_err(|e| format!("SCShareableContent::get failed: {e}"))?;
+        let sc_window_opt = shareable.windows().into_iter().find(|w| w.window_id() == window_id);
+        let sc_window = match sc_window_opt {
+            Some(w) => w,
+            None => {
+                DEV_LOGGER.log("warn", &format!("SCK window not found for id {}", window_id), "backend");
+                return Ok(None);
             }
-            Err(e) => {
-                log::error!("Failed to read temp file {}: {}", temp_file, e);
-                Ok(None)
-            },
+        };
+
+        // 2) Build content filter for this window
+        let filter = SCContentFilter::new().with_desktop_independent_window(&sc_window);
+
+        // 3) Configure capture: use 16:9 aspect to match most windows, force BGRA
+        let config = SCStreamConfiguration::new()
+            .set_width(480).map_err(|e| format!("set_width: {e}"))?
+            .set_height(270).map_err(|e| format!("set_height: {e}"))?
+            .set_pixel_format(PixelFormat::BGRA).map_err(|e| format!("set_pixel_format: {e}"))?;
+
+        // 4) Capture a single frame
+        let sample = screenshot_manager::capture(&filter, &config)
+            .map_err(|e| format!("SCScreenshotManager::capture failed: {e}"))?;
+
+        // 5) Extract pixel buffer and convert BGRA -> RGBA PNG in-memory
+        // Get CVPixelBuffer directly and lock to access bytes
+        let pixel_buffer = sample
+            .get_pixel_buffer()
+            .map_err(|e| format!("No pixel buffer in sample: {e}"))?;
+        let width = pixel_buffer.get_width() as usize;
+        let height = pixel_buffer.get_height() as usize;
+        let bytes_per_row = pixel_buffer.get_bytes_per_row() as usize;
+        DEV_LOGGER.log("info", &format!("SCK sample buffer size: {}x{}, row {}", width, height, bytes_per_row), "backend");
+
+        // Lock for read-only access
+        use screencapturekit::output::LockTrait;
+        let guard = pixel_buffer
+            .lock()
+            .map_err(|e| format!("CVPixelBuffer lock failed: {e}"))?;
+        let bytes = guard.as_slice();
+        if bytes.len() < bytes_per_row * height {
+            DEV_LOGGER.log("warn", &format!("Pixel buffer size {} < expected {}", bytes.len(), bytes_per_row * height), "backend");
         }
+
+        let mut rgba = Vec::with_capacity(width * height * 4);
+        for y in 0..height {
+            let start = y * bytes_per_row;
+            let row = &bytes[start..start + (width * 4)];
+            for px in row.chunks_exact(4) {
+                rgba.push(px[2]); // R
+                rgba.push(px[1]); // G
+                rgba.push(px[0]); // B
+                rgba.push(px[3]); // A
+            }
+        }
+        // Completed reading pixel buffer
+
+        // Encode to PNG
+        use image::{ImageBuffer, Rgba, DynamicImage, ImageFormat};
+        use std::io::Cursor;
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> = match ImageBuffer::from_raw(width as u32, height as u32, rgba) {
+            Some(buf) => buf,
+            None => return Ok(None),
+        };
+        let dyn_img = DynamicImage::ImageRgba8(img);
+        let mut png_data = Vec::new();
+        dyn_img.write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
+            .map_err(|e| format!("Failed to encode PNG: {e}"))?;
+
+        // Reuse existing thumbnail scaler/encoder
+        let result = self.create_thumbnail_from_data(&png_data);
+        match &result {
+            Ok(Some(thumbnail)) => DEV_LOGGER.log("info", &format!("Successfully created SCK thumbnail (length: {})", thumbnail.len()), "backend"),
+            Ok(None) => DEV_LOGGER.log("warn", "SCK thumbnail creation returned None", "backend"),
+            Err(e) => DEV_LOGGER.log("error", &format!("SCK thumbnail creation failed: {}", e), "backend"),
+        }
+        result
     }
 
     /// Create a thumbnail from image data
@@ -207,12 +245,12 @@ impl MacOSWindowManager {
 
                     let title = if let Some(window_title) = &window_name {
                         if window_title.is_empty() {
-                            self.get_descriptive_title(&owner_name)
+                            owner_name.clone()
                         } else {
-                            format!("{} - {}", owner_name, window_title)
+                            window_title.clone()
                         }
                     } else {
-                        self.get_descriptive_title(&owner_name)
+                        owner_name.clone()
                     };
 
                     let window_info = WindowInfo {
@@ -270,32 +308,6 @@ impl MacOSWindowManager {
         let val = dict.find(&key)?;
         let n = CFNumber::wrap_under_get_rule(val.as_CFTypeRef() as _);
         n.to_f64()
-    }
-
-    fn get_descriptive_title(&self, app_name: &str) -> String {
-        match app_name {
-            "Google Chrome" => "Google Chrome - Browser".to_string(),
-            "Brave Browser" => "Brave Browser - Browser".to_string(),
-            "Safari" => "Safari - Browser".to_string(),
-            "Firefox" => "Firefox - Browser".to_string(),
-            "Code" => "Visual Studio Code - Editor".to_string(),
-            "Xcode" => "Xcode - IDE".to_string(),
-            "Slack" => "Slack - Communication".to_string(),
-            "Discord" => "Discord - Communication".to_string(),
-            "Microsoft Teams" => "Microsoft Teams - Communication".to_string(),
-            "Zoom" => "Zoom - Video Call".to_string(),
-            "Terminal" => "Terminal - Command Line".to_string(),
-            "iTerm2" => "iTerm2 - Terminal".to_string(),
-            "Warp" => "Warp - Modern Terminal".to_string(),
-            "Finder" => "Finder - File Browser".to_string(),
-            "Preview" => "Preview - Document Viewer".to_string(),
-            "Calculator" => "Calculator - Math".to_string(),
-            "Figma" => "Figma - Design Tool".to_string(),
-            "Sketch" => "Sketch - Design Tool".to_string(),
-            "Notion" => "Notion - Notes & Docs".to_string(),
-            "Obsidian" => "Obsidian - Knowledge Base".to_string(),
-            _ => format!("{} - Application", app_name),
-        }
     }
 
     fn is_recordable_app(&self, app_name: &str) -> bool {
@@ -365,16 +377,16 @@ impl WindowManager for MacOSWindowManager {
     }
 
     fn get_windows(&self) -> Result<Vec<WindowInfo>, String> {
-        log::info!("Getting windows - starting process");
+        DEV_LOGGER.log("info", "Getting windows - starting process", "backend");
 
         // Check permission first
         let permission = self.check_permission();
         if !permission.granted {
-            log::error!("Permission not granted, returning error");
+            DEV_LOGGER.log("error", "Permission not granted, returning error", "backend");
             return Err("Screen recording permission not granted".to_string());
         }
 
-        log::info!("Permission granted, attempting to get real windows");
+        DEV_LOGGER.log("info", "Permission granted, attempting to get real windows", "backend");
 
         // Try to get real windows using AppleScript
         self.get_real_windows()
@@ -383,22 +395,22 @@ impl WindowManager for MacOSWindowManager {
 
 
     fn get_window_thumbnail(&self, window_id: &str) -> Result<Option<String>, String> {
-        log::info!("Getting thumbnail for window ID: {}", window_id);
+        DEV_LOGGER.log("info", &format!("Getting thumbnail for window ID: {}", window_id), "backend");
 
         // Parse window ID to get the CGWindowID
         let cg_window_id = match self.parse_window_id(window_id) {
             Some(id) => {
-                log::info!("Parsed window ID {} to CoreGraphics ID: {}", window_id, id);
+                DEV_LOGGER.log("info", &format!("Parsed window ID {} to CoreGraphics ID: {}", window_id, id), "backend");
                 id
             },
             None => {
-                log::warn!("Could not parse window ID: {} (expected format: cg_<number>)", window_id);
+                DEV_LOGGER.log("warn", &format!("Could not parse window ID: {} (expected format: cg_<number>)", window_id), "backend");
                 return Ok(None);
             },
         };
 
         // Create thumbnail using CoreGraphics
-        log::info!("Creating thumbnail for CoreGraphics window ID: {}", cg_window_id);
+        DEV_LOGGER.log("info", &format!("Creating thumbnail for CoreGraphics window ID: {}", cg_window_id), "backend");
         self.create_window_thumbnail(cg_window_id)
     }
 
@@ -423,6 +435,6 @@ mod tests {
     fn test_macos_window_manager() {
         let manager = MacOSWindowManager::new();
         let permission = manager.check_permission();
-        println!("macOS permission status: {:?}", permission);
+        DEV_LOGGER.log("info", &format!("macOS permission status: {:?}", permission), "backend");
     }
 }
