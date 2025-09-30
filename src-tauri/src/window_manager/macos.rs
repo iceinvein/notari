@@ -161,26 +161,7 @@ impl MacOSWindowManager {
 
 
     fn get_real_windows(&self) -> Result<Vec<WindowInfo>, String> {
-        // Try CoreGraphics approach first (most reliable)
-        match self.get_windows_coregraphics() {
-            Ok(windows) if !windows.is_empty() => {
-                return Ok(windows);
-            }
-            Ok(_) => {}
-            Err(_) => {}
-        }
-
-        // Fallback to AppleScript approach
-        match self.get_windows_applescript() {
-            Ok(windows) if !windows.is_empty() => {
-                return Ok(windows);
-            }
-            Ok(_) => {}
-            Err(_) => {}
-        }
-
-        // Final fallback to lsappinfo approach
-        self.get_windows_lsappinfo()
+        self.get_windows_coregraphics()
     }
 
     fn get_windows_coregraphics(&self) -> Result<Vec<WindowInfo>, String> {
@@ -291,143 +272,6 @@ impl MacOSWindowManager {
         n.to_f64()
     }
 
-    fn get_windows_applescript(&self) -> Result<Vec<WindowInfo>, String> {
-        log::info!("Using AppleScript to get window titles");
-
-        // AppleScript to get windows with real titles from recordable apps
-        let script = r#"
-        tell application "System Events"
-            set windowList to {}
-            set recordableApps to {"Safari", "Google Chrome", "Firefox", "Brave Browser", "Microsoft Edge", "Arc", "Visual Studio Code", "Code", "Xcode", "Slack", "Discord", "Microsoft Teams", "Zoom", "Figma", "Sketch", "Terminal", "iTerm2", "Warp", "Finder", "Preview", "Calculator", "Notion", "Obsidian"}
-
-            repeat with appName in recordableApps
-                try
-                    if exists application process appName then
-                        tell application process appName
-                            repeat with w in windows
-                                try
-                                    set windowTitle to name of w
-                                    if windowTitle is not "" and windowTitle is not missing value then
-                                        set windowList to windowList & (appName & "|" & windowTitle)
-                                    end if
-                                end try
-                            end repeat
-                        end tell
-                    end if
-                end try
-            end repeat
-
-            return windowList
-        end tell
-        "#;
-
-        let output = std::process::Command::new("osascript")
-            .arg("-e")
-            .arg(script)
-            .output()
-            .map_err(|e| format!("Failed to run AppleScript: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("AppleScript failed: {}", stderr));
-        }
-
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        self.parse_applescript_output(&output_str)
-    }
-
-    fn parse_applescript_output(&self, output: &str) -> Result<Vec<WindowInfo>, String> {
-        let mut windows = Vec::new();
-
-        // AppleScript returns comma-separated list like: "Safari|Google - Safari, Code|main.rs - notari"
-        for (i, line) in output.trim().split(", ").enumerate() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            // Parse format: "AppName|WindowTitle"
-            if let Some((app_name, window_title)) = line.split_once('|') {
-                let app_name = app_name.trim();
-                let window_title = window_title.trim();
-
-                if !app_name.is_empty() && !window_title.is_empty() {
-                    let window_info = WindowInfo {
-                        id: format!("macos_as_{}", i),
-                        title: format!("{} - {}", app_name, window_title),
-                        application: app_name.to_string(),
-                        is_minimized: false,
-                        bounds: WindowBounds { x: 0, y: 0, width: 800, height: 600 },
-                        thumbnail: None,
-                    };
-
-                    windows.push(window_info);
-                }
-            }
-        }
-
-        Ok(windows)
-    }
-
-    fn get_windows_lsappinfo(&self) -> Result<Vec<WindowInfo>, String> {
-        // Fallback to the existing lsappinfo approach
-        let output = std::process::Command::new("lsappinfo")
-            .arg("list")
-            .output()
-            .map_err(|e| format!("Failed to run lsappinfo: {}", e))?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(format!("lsappinfo failed: {}", stderr));
-        }
-
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        self.parse_lsappinfo_output(&output_str)
-    }
-
-    fn parse_lsappinfo_output(&self, output: &str) -> Result<Vec<WindowInfo>, String> {
-        let mut windows = Vec::new();
-        let mut app_counts = std::collections::HashMap::new();
-
-        // Parse lsappinfo output - it typically shows app names and info
-        for line in output.lines() {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-
-            // Extract app name from lsappinfo format
-            // Format is typically like: "AppName" ASN:0x0-0x123456:
-            if let Some(app_name) = self.extract_app_name_from_lsappinfo(line) {
-                // Count instances of each app
-                let count = app_counts.entry(app_name.clone()).or_insert(0);
-                *count += 1;
-
-                // Create descriptive titles for multiple instances
-                let title = if *count == 1 {
-                    // First instance - try to get a more descriptive title
-                    self.get_descriptive_title(&app_name)
-                } else {
-                    // Multiple instances - number them
-                    format!("{} - Window {}", app_name, count)
-                };
-
-                let window_info = WindowInfo {
-                    id: format!("macos_app_{}_{}", app_name.replace(" ", "_").to_lowercase(), count),
-                    title,
-                    application: app_name,
-                    is_minimized: false,
-                    bounds: WindowBounds { x: 0, y: 0, width: 800, height: 600 },
-                    thumbnail: None,
-                };
-
-                windows.push(window_info);
-            }
-        }
-
-        Ok(windows)
-    }
-
     fn get_descriptive_title(&self, app_name: &str) -> String {
         match app_name {
             "Google Chrome" => "Google Chrome - Browser".to_string(),
@@ -452,20 +296,6 @@ impl MacOSWindowManager {
             "Obsidian" => "Obsidian - Knowledge Base".to_string(),
             _ => format!("{} - Application", app_name),
         }
-    }
-
-    fn extract_app_name_from_lsappinfo(&self, line: &str) -> Option<String> {
-        // lsappinfo format is typically: "AppName" ASN:0x0-0x123456:
-        if let Some(quote_start) = line.find('"') {
-            if let Some(quote_end) = line[quote_start + 1..].find('"') {
-                let app_name = &line[quote_start + 1..quote_start + 1 + quote_end];
-
-                if self.is_recordable_app(app_name) {
-                    return Some(app_name.to_string());
-                }
-            }
-        }
-        None
     }
 
     fn is_recordable_app(&self, app_name: &str) -> bool {
