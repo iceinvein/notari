@@ -578,6 +578,70 @@ pub async fn log_get_min_level() -> Result<String, String> {
     Ok(LOGGER.get_min_level().as_str().to_string())
 }
 
+// Evidence System Commands
+
+/// Verify a recording's evidence
+#[tauri::command]
+pub async fn verify_recording(
+    manifest_path: String,
+    video_path: String,
+) -> Result<crate::evidence::VerificationReport, String> {
+    crate::evidence::Verifier::verify(&manifest_path, &video_path)
+        .map_err(|e| format!("Verification failed: {}", e))
+}
+
+/// Get evidence manifest for a recording
+#[tauri::command]
+pub async fn get_evidence_manifest(
+    manifest_path: String,
+) -> Result<crate::evidence::EvidenceManifest, String> {
+    crate::evidence::EvidenceManifest::load(&manifest_path)
+        .map_err(|e| format!("Failed to load manifest: {}", e))
+}
+
+/// Export public key for sharing
+#[tauri::command]
+pub async fn export_public_key() -> Result<String, String> {
+    use crate::evidence::keychain;
+    use crate::evidence::signature::KeyManager;
+
+    if !keychain::has_signing_key() {
+        return Err("No signing key found".to_string());
+    }
+
+    let key_bytes =
+        keychain::retrieve_signing_key().map_err(|e| format!("Failed to retrieve key: {}", e))?;
+
+    let key_manager =
+        KeyManager::from_bytes(&key_bytes).map_err(|e| format!("Failed to load key: {}", e))?;
+
+    let public_key = key_manager.public_key();
+    use base64::{engine::general_purpose, Engine as _};
+    Ok(general_purpose::STANDARD.encode(public_key.as_bytes()))
+}
+
+/// Check if signing key exists
+#[tauri::command]
+pub async fn has_signing_key() -> Result<bool, String> {
+    use crate::evidence::keychain;
+    Ok(keychain::has_signing_key())
+}
+
+/// Generate new signing key (overwrites existing)
+#[tauri::command]
+pub async fn generate_signing_key() -> Result<String, String> {
+    use crate::evidence::keychain;
+    use crate::evidence::signature::KeyManager;
+
+    let key_manager = KeyManager::generate();
+    keychain::store_signing_key(&key_manager.to_bytes())
+        .map_err(|e| format!("Failed to store key: {}", e))?;
+
+    let public_key = key_manager.public_key();
+    use base64::{engine::general_purpose, Engine as _};
+    Ok(general_purpose::STANDARD.encode(public_key.as_bytes()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

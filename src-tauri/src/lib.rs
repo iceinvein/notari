@@ -4,6 +4,7 @@ use tauri::{
     Manager, PhysicalPosition,
 };
 
+mod evidence;
 mod logger;
 mod recording_commands;
 mod recording_manager;
@@ -47,6 +48,11 @@ pub fn run() {
             recording_commands::log_clear,
             recording_commands::log_set_min_level,
             recording_commands::log_get_min_level,
+            recording_commands::verify_recording,
+            recording_commands::get_evidence_manifest,
+            recording_commands::export_public_key,
+            recording_commands::has_signing_key,
+            recording_commands::generate_signing_key,
             recording_commands::popover_guard_push,
             recording_commands::popover_guard_pop,
         ])
