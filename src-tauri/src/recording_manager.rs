@@ -36,6 +36,16 @@ pub enum VideoQuality {
     Low,
 }
 
+/// Metadata about the window being recorded
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WindowMetadata {
+    pub title: String,
+    pub app_name: String,
+    pub app_bundle_id: String,
+    pub width: u32,
+    pub height: u32,
+}
+
 /// Information about an active recording session
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveRecording {
@@ -45,6 +55,9 @@ pub struct ActiveRecording {
     pub output_path: PathBuf,
     pub status: RecordingStatus,
     pub preferences: RecordingPreferences,
+    pub window_metadata: Option<WindowMetadata>,
+    #[serde(skip_serializing)]
+    pub encryption_password: Option<String>,
 }
 
 /// Enhanced recording status with more detailed information
@@ -131,6 +144,7 @@ pub trait RecordingManager: Send + Sync {
         &self,
         window_id: &str,
         preferences: &RecordingPreferences,
+        window_info: Option<crate::window_manager::WindowInfo>,
         state: SharedRecordingState,
     ) -> Result<ActiveRecording, String>;
 
@@ -193,6 +207,8 @@ pub fn create_recording_session(
         output_path,
         status: RecordingStatus::Preparing,
         preferences: preferences.clone(),
+        window_metadata: None, // Will be set after window lookup
+        encryption_password: None, // Will be set if encryption is enabled
     }
 }
 

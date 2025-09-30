@@ -15,6 +15,7 @@ const RECORDING_QUERY_KEYS = {
 	systemStatus: ["recording", "systemStatus"] as const,
 	recordingInfo: (sessionId: string) => ["recording", "info", sessionId] as const,
 	hasActiveRecording: ["recording", "hasActive"] as const,
+	recordings: ["recordings", "list"] as const,
 };
 
 // Recording preferences hooks
@@ -93,13 +94,16 @@ export function useStartRecordingMutation() {
 		mutationFn: async ({
 			windowId,
 			preferences,
+			encryptionPassword,
 		}: {
 			windowId: string;
 			preferences?: RecordingPreferences;
+			encryptionPassword?: string | null;
 		}) => {
 			return await invoke<ActiveRecording>("start_window_recording", {
 				windowId,
 				preferences,
+				encryptionPassword,
 			});
 		},
 		onSuccess: () => {
@@ -230,6 +234,60 @@ export function useValidateRecordingWindowMutation() {
 	return useMutation({
 		mutationFn: async (windowId: string) => {
 			return await invoke<boolean>("validate_recording_window", { windowId });
+		},
+	});
+}
+
+// Recordings library hooks
+export type RecordingEntry = {
+	video_path: string;
+	manifest_path: string;
+	filename: string;
+	created_at: string;
+	file_size_bytes: number;
+	is_encrypted: boolean;
+	has_manifest: boolean;
+};
+
+export function useRecordingsQuery() {
+	return useQuery({
+		queryKey: RECORDING_QUERY_KEYS.recordings,
+		queryFn: async (): Promise<RecordingEntry[]> => {
+			return await invoke("list_recordings");
+		},
+		staleTime: 1000 * 30, // 30 seconds
+		refetchOnWindowFocus: true,
+	});
+}
+
+export function useDeleteRecordingMutation() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		mutationFn: async ({
+			videoPath,
+			manifestPath,
+		}: {
+			videoPath: string;
+			manifestPath?: string;
+		}) => {
+			// Delete video file
+			await invoke("delete_file", { path: videoPath });
+
+			// Delete manifest file if provided
+			if (manifestPath) {
+				await invoke("delete_file", { path: manifestPath });
+			}
+		},
+		onSuccess: () => {
+			// Invalidate recordings list to trigger refetch
+			queryClient.invalidateQueries({ queryKey: RECORDING_QUERY_KEYS.recordings });
+		},
+		onError: (error) => {
+			recordingLogger.error(
+				"Delete recording failed",
+				error instanceof Error ? error : new Error(String(error))
+			);
 		},
 	});
 }

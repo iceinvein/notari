@@ -1,19 +1,16 @@
-import { Button } from "@heroui/button";
 import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
-import { invoke } from "@tauri-apps/api/core";
-import { AlertCircle } from "lucide-react";
-
+import { Modal, ModalBody, ModalContent, ModalHeader } from "@heroui/modal";
+import { Tab, Tabs } from "@heroui/tabs";
+import { Circle, Play, Shield } from "lucide-react";
 import { useState } from "react";
-import {
-	useActiveRecordingSessionQuery,
-	useRecordingPreferencesQuery,
-	useStartRecordingMutation,
-} from "../../hooks/useRecordingSystem";
-import { isRecordingActive } from "../../types/recording";
+
+import { useStartRecordingMutation } from "../../hooks/useRecordingSystem";
 import AppHeader from "../AppHeader";
-import RecordingStatus from "../RecordingStatus";
 import SettingsModal from "../SettingsModal";
+import RecordedVideosTab from "../tabs/RecordedVideosTab";
+import RecordingTab from "../tabs/RecordingTab";
+import VerifyTab from "../tabs/VerifyTab";
 import WindowPicker from "../WindowPicker";
 
 type WindowInfo = {
@@ -32,100 +29,38 @@ type WindowInfo = {
 
 type RecordModeProps = {
 	onStartRecording: () => void;
-	onVerifyFile: () => void;
 };
 
-type RecordView = "main" | "window-picker";
-
-export default function RecordMode({ onStartRecording, onVerifyFile }: RecordModeProps) {
-	const [currentView, setCurrentView] = useState<RecordView>("main");
-	const [_selectedWindow, setSelectedWindow] = useState<WindowInfo | null>(null);
+export default function RecordMode({ onStartRecording }: RecordModeProps) {
+	const [selectedTab, setSelectedTab] = useState("recording");
 	const [showSettings, setShowSettings] = useState(false);
-	const [startError, setStartError] = useState<string | null>(null);
-
-	// Recording system hooks
-	const { data: activeSession } = useActiveRecordingSessionQuery();
-	const { data: recordingPreferences } = useRecordingPreferencesQuery();
+	const [showWindowPicker, setShowWindowPicker] = useState(false);
+	const [encryptionPassword, setEncryptionPassword] = useState("");
 	const startRecordingMutation = useStartRecordingMutation();
 
-	// Determine if recording is actually active based on session status
-	const hasActiveRecording = activeSession ? isRecordingActive(activeSession.status) : false;
-
-	const handleStartRecording = () => {
-		if (hasActiveRecording) {
-			// If there's already an active recording, don't allow starting another
-			return;
-		}
-		setCurrentView("window-picker");
-	};
-
 	const handleWindowSelect = async (window: WindowInfo) => {
-		setSelectedWindow(window);
-
 		try {
-			setStartError(null);
-			// Start recording with the selected window
+			// Start recording with or without password
+			const password = encryptionPassword || null;
 			await startRecordingMutation.mutateAsync({
 				windowId: window.id,
-				preferences: recordingPreferences,
+				encryptionPassword: password,
 			});
 
-			// Call the parent callback to indicate recording started
+			// Close window picker
+			setShowWindowPicker(false);
+			setEncryptionPassword("");
+
+			// Call parent handler
 			onStartRecording();
-			setCurrentView("main");
 		} catch (error) {
 			console.error("Failed to start recording:", error);
-			const message = error instanceof Error ? error.message : String(error);
-			setStartError(message || "Failed to start recording");
-			// Stay on window picker if recording failed
 		}
 	};
 
-	const handleBackToMain = () => {
-		setCurrentView("main");
+	const handleOpenWindowPicker = () => {
+		setShowWindowPicker(true);
 	};
-
-	if (currentView === "window-picker") {
-		const openScreenRecordingSettings = async () => {
-			try {
-				await invoke("open_system_settings");
-			} catch (e) {
-				console.error("Failed to open system settings:", e);
-			}
-		};
-		return (
-			<>
-				{startError && (
-					<div className="px-4">
-						<Card className="mb-3 border border-danger/20 bg-danger/10">
-							<CardBody className="flex items-start gap-3">
-								<AlertCircle className="w-5 h-5 text-danger mt-1" />
-								<div className="flex-1">
-									<p className="text-danger text-sm font-medium">Failed to start recording</p>
-									<p className="text-foreground-500 text-xs break-words">{startError}</p>
-									<div className="mt-2 flex gap-2">
-										<Button
-											size="sm"
-											color="danger"
-											variant="flat"
-											onPress={openScreenRecordingSettings}
-										>
-											Open Screen Recording Settings
-										</Button>
-										<Button size="sm" variant="bordered" onPress={() => setStartError(null)}>
-											Dismiss
-										</Button>
-									</div>
-								</div>
-							</CardBody>
-						</Card>
-					</div>
-				)}
-				<WindowPicker onWindowSelect={handleWindowSelect} onBack={handleBackToMain} />
-				<SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
-			</>
-		);
-	}
 
 	return (
 		<>
@@ -145,81 +80,89 @@ export default function RecordMode({ onStartRecording, onVerifyFile }: RecordMod
 					/>
 				</CardHeader>
 				<Divider />
-				<CardBody className="pt-6 px-4 pb-4">
-					<div className="space-y-6">
-						{/* Recording Status */}
-						{hasActiveRecording && <RecordingStatus />}
-
-						{/* Main Actions */}
-						<div className="space-y-4">
-							<div className="text-center space-y-2">
-								<h3 className="text-sm font-medium text-foreground">
-									{hasActiveRecording ? "Recording in Progress" : "What would you like to do?"}
-								</h3>
-								<p className="text-xs text-foreground-500">
-									{hasActiveRecording
-										? "Your recording session is active. Use the controls above to manage it."
-										: "Create tamper-evident proof of your work or verify existing files"}
-								</p>
-							</div>
-
-							<div className="space-y-3">
-								<Button
-									color="primary"
-									size="lg"
-									className="w-full font-medium transition-all duration-200 hover:scale-105 active:scale-95"
-									onPress={handleStartRecording}
-									isDisabled={hasActiveRecording || startRecordingMutation.isPending}
-									isLoading={startRecordingMutation.isPending}
-									startContent={
-										<div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
-											<div className="w-2 h-2 rounded-full bg-white"></div>
-										</div>
-									}
-								>
-									{hasActiveRecording ? "Recording Active" : "Start Recording Session"}
-								</Button>
-
-								<Button
-									variant="bordered"
-									size="lg"
-									className="w-full font-medium transition-all duration-200 hover:scale-105 active:scale-95"
-									onPress={onVerifyFile}
-									startContent={<span className="text-lg">🔍</span>}
-								>
-									Verify Existing File
-								</Button>
-							</div>
-						</div>
-
-						{/* Info Section */}
-						<div className="bg-content2 rounded-lg p-4 space-y-3">
-							<h4 className="text-sm font-medium text-foreground">Local Mode Features</h4>
-							<div className="space-y-2 text-xs text-foreground-500">
-								<div className="flex items-start space-x-2">
-									<span className="text-success">✓</span>
-									<span>Record work sessions with cryptographic integrity</span>
+				<CardBody className="p-0 overflow-hidden flex flex-col">
+					<Tabs
+						selectedKey={selectedTab}
+						onSelectionChange={(key) => setSelectedTab(key as string)}
+						color="primary"
+						variant="underlined"
+						classNames={{
+							base: "w-full",
+							tabList: "gap-6 w-full relative rounded-none p-0 px-4 border-b border-divider",
+							cursor: "w-full bg-primary",
+							tab: "max-w-fit px-0 h-12",
+							tabContent: "group-data-[selected=true]:text-primary",
+							panel: "flex-1 overflow-auto",
+						}}
+					>
+						<Tab
+							key="recording"
+							title={
+								<div className="flex items-center space-x-2">
+									<Circle className="w-4 h-4" />
+									<span>Recording</span>
 								</div>
-								<div className="flex items-start space-x-2">
-									<span className="text-success">✓</span>
-									<span>Generate tamper-evident proofs locally</span>
+							}
+						>
+							<RecordingTab
+								onOpenWindowPicker={handleOpenWindowPicker}
+								encryptionPassword={encryptionPassword}
+								setEncryptionPassword={setEncryptionPassword}
+							/>
+						</Tab>
+
+						<Tab
+							key="videos"
+							title={
+								<div className="flex items-center space-x-2">
+									<Play className="w-4 h-4" />
+									<span>Recorded Videos</span>
 								</div>
-								<div className="flex items-start space-x-2">
-									<span className="text-success">✓</span>
-									<span>Verify file authenticity and timestamps</span>
+							}
+						>
+							<RecordedVideosTab />
+						</Tab>
+
+						<Tab
+							key="verify"
+							title={
+								<div className="flex items-center space-x-2">
+									<Shield className="w-4 h-4" />
+									<span>Verify</span>
 								</div>
-								<div className="flex items-start space-x-2">
-									<span className="text-warning">⚠</span>
-									<span>Files stored locally only (not backed up online)</span>
-								</div>
-							</div>
-						</div>
-					</div>
+							}
+						>
+							<VerifyTab />
+						</Tab>
+					</Tabs>
 				</CardBody>
 			</Card>
 
 			{/* Settings Modal */}
 			<SettingsModal isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
+			{/* Window Picker Modal */}
+			<Modal
+				isOpen={showWindowPicker}
+				onClose={() => setShowWindowPicker(false)}
+				size="5xl"
+				classNames={{
+					base: "bg-background",
+					backdrop: "bg-black/50",
+				}}
+			>
+				<ModalContent>
+					<ModalHeader className="flex items-center space-x-3 px-4">
+						<span className="text-lg font-semibold">Select Window to Record</span>
+					</ModalHeader>
+					<ModalBody className="p-4">
+						<WindowPicker
+							onWindowSelect={handleWindowSelect}
+							onBack={() => setShowWindowPicker(false)}
+						/>
+					</ModalBody>
+				</ModalContent>
+			</Modal>
 		</>
 	);
 }

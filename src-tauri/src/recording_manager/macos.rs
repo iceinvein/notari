@@ -3,11 +3,17 @@ use super::{
     RecordingManager, RecordingPreferences, RecordingStatus, SharedRecordingState,
 };
 use crate::logger::{LogLevel, LOGGER};
+use crate::evidence::{
+    EvidenceManifest, HashInfo, KeyManager, Metadata, SystemInfo, Timestamps,
+    WindowInfo as EvidenceWindowInfo, VideoInfo,
+};
+use crate::evidence::keychain;
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
 use chrono::Utc;
+use uuid::Uuid;
 
 pub struct MacOSRecordingManager;
 
@@ -177,6 +183,7 @@ impl RecordingManager for MacOSRecordingManager {
         &self,
         window_id: &str,
         preferences: &RecordingPreferences,
+        window_info: Option<crate::window_manager::WindowInfo>,
         state: SharedRecordingState,
     ) -> Result<ActiveRecording, String> {
         LOGGER.log(
@@ -215,6 +222,17 @@ impl RecordingManager for MacOSRecordingManager {
 
         // Create recording session
         let mut session = create_recording_session(window_id, preferences, output_path.clone());
+
+        // Populate window metadata if available
+        if let Some(win_info) = window_info {
+            session.window_metadata = Some(crate::recording_manager::WindowMetadata {
+                title: win_info.title,
+                app_name: win_info.application,
+                app_bundle_id: "unknown".to_string(), // TODO: Get actual bundle ID
+                width: win_info.bounds.width,
+                height: win_info.bounds.height,
+            });
+        }
 
         // Try Swift sidecar (ScreenCaptureKit) first
         let sidecar_path = self.resolve_sidecar_path();
@@ -342,6 +360,63 @@ impl RecordingManager for MacOSRecordingManager {
                         recording.session.output_path.display(),
                         file_size
                     ),
+                    "recording_manager",
+                );
+            }
+
+            // Compute plaintext hash before encryption
+            let plaintext_hash = match HashInfo::from_file(&recording.session.output_path) {
+                Ok(hash) => Some(hash),
+                Err(e) => {
+                    LOGGER.log(
+                        LogLevel::Error,
+                        &format!("Failed to compute plaintext hash: {}", e),
+                        "recording_manager",
+                    );
+                    None
+                }
+            };
+
+            // Encrypt video if password was provided
+            let (final_video_path, encryption_info) = if let Some(ref password) = recording.session.encryption_password {
+                LOGGER.log(
+                    LogLevel::Info,
+                    "Encrypting recorded video...",
+                    "recording_manager",
+                );
+
+                match self.encrypt_recording(&recording.session, password) {
+                    Ok((encrypted_path, enc_info)) => {
+                        LOGGER.log(
+                            LogLevel::Info,
+                            &format!("Video encrypted successfully: {}", encrypted_path.display()),
+                            "recording_manager",
+                        );
+                        (encrypted_path, Some(enc_info))
+                    }
+                    Err(e) => {
+                        LOGGER.log(
+                            LogLevel::Error,
+                            &format!("Failed to encrypt video: {}", e),
+                            "recording_manager",
+                        );
+                        // Continue with unencrypted video
+                        (recording.session.output_path.clone(), None)
+                    }
+                }
+            } else {
+                (recording.session.output_path.clone(), None)
+            };
+
+            // Update session with final path
+            let mut final_session = recording.session.clone();
+            final_session.output_path = final_video_path;
+
+            // Generate evidence manifest (non-blocking, log errors but don't fail)
+            if let Err(e) = self.generate_evidence_manifest(&final_session, encryption_info, plaintext_hash) {
+                LOGGER.log(
+                    LogLevel::Error,
+                    &format!("Failed to generate evidence manifest: {}", e),
                     "recording_manager",
                 );
             }
@@ -490,5 +565,234 @@ impl RecordingManager for MacOSRecordingManager {
             }
             Err(e) => Err(format!("Directory not writable: {}", e)),
         }
+    }
+}
+
+// Helper methods for evidence generation and encryption
+impl MacOSRecordingManager {
+    /// Encrypt a recorded video file
+    fn encrypt_recording(
+        &self,
+        session: &ActiveRecording,
+        password: &str,
+    ) -> Result<(PathBuf, crate::evidence::EncryptionInfo), String> {
+        use crate::evidence::VideoEncryptor;
+
+        let input_path = &session.output_path;
+        let encrypted_path = input_path.with_extension("mov.enc");
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Encrypting {} to {}",
+                input_path.display(),
+                encrypted_path.display()
+            ),
+            "recording_manager",
+        );
+
+        // Encrypt the video file
+        let encryption_info = VideoEncryptor::encrypt_file(input_path, &encrypted_path, password)
+            .map_err(|e| format!("Encryption failed: {}", e))?;
+
+        // Delete the original unencrypted file
+        if let Err(e) = std::fs::remove_file(input_path) {
+            LOGGER.log(
+                LogLevel::Warn,
+                &format!("Failed to delete original unencrypted file: {}", e),
+                "recording_manager",
+            );
+        } else {
+            LOGGER.log(
+                LogLevel::Info,
+                "Deleted original unencrypted file",
+                "recording_manager",
+            );
+        }
+
+        Ok((encrypted_path, encryption_info))
+    }
+
+    /// Generate evidence manifest for a completed recording
+    fn generate_evidence_manifest(
+        &self,
+        session: &ActiveRecording,
+        encryption_info: Option<crate::evidence::EncryptionInfo>,
+        plaintext_hash: Option<HashInfo>,
+    ) -> Result<(), String> {
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Generating evidence manifest for session: {}", session.session_id),
+            "recording_manager",
+        );
+
+        // Check if signing key exists, generate if not
+        if !keychain::has_signing_key() {
+            LOGGER.log(
+                LogLevel::Info,
+                "No signing key found, generating new key",
+                "recording_manager",
+            );
+            let key_manager = KeyManager::generate();
+            keychain::store_signing_key(&key_manager.to_bytes())
+                .map_err(|e| format!("Failed to store signing key: {}", e))?;
+        }
+
+        // Load signing key
+        let key_bytes = keychain::retrieve_signing_key()
+            .map_err(|e| format!("Failed to retrieve signing key: {}", e))?;
+        let key_manager = KeyManager::from_bytes(&key_bytes)
+            .map_err(|e| format!("Failed to load signing key: {}", e))?;
+
+        // Calculate current file hash (encrypted if encrypted, plaintext if not)
+        let current_file_hash = HashInfo::from_file(&session.output_path)
+            .map_err(|e| format!("Failed to calculate file hash: {}", e))?;
+
+        // Determine which hash to use for manifest creation
+        // If we have a plaintext_hash, use it; otherwise use current file hash
+        let manifest_plaintext_hash = plaintext_hash.unwrap_or_else(|| current_file_hash.clone());
+
+        // Get file size
+        let file_size = self.get_file_size(&session.output_path).unwrap_or(0);
+
+        // Calculate duration
+        let duration = (Utc::now() - session.start_time).num_seconds() as f64;
+
+        // Get window ID
+        let window_id_u32 = self.parse_window_id(&session.window_id).unwrap_or(0);
+
+        // Collect metadata from session or use placeholders
+        let (window_title, app_name, app_bundle_id, resolution) = if let Some(ref win_meta) = session.window_metadata {
+            (
+                win_meta.title.clone(),
+                win_meta.app_name.clone(),
+                win_meta.app_bundle_id.clone(),
+                format!("{}x{}", win_meta.width, win_meta.height),
+            )
+        } else {
+            (
+                format!("Window {}", window_id_u32),
+                "Unknown".to_string(),
+                "unknown".to_string(),
+                "unknown".to_string(),
+            )
+        };
+
+        let metadata = Metadata {
+            window: EvidenceWindowInfo {
+                title: window_title,
+                id: window_id_u32,
+                app_name,
+                app_bundle_id,
+            },
+            video: VideoInfo {
+                resolution,
+                frame_rate: 30, // Default frame rate
+                codec: "H.264".to_string(),
+            },
+        };
+
+        // Collect system info
+        let system = SystemInfo {
+            os: "macOS".to_string(),
+            os_version: self.get_macos_version(),
+            device_id: self.get_device_id(),
+            hostname: self.get_hostname(),
+            app_version: env!("CARGO_PKG_VERSION").to_string(),
+            recorder: "notari".to_string(),
+        };
+
+        // Timestamps
+        let now = Utc::now();
+        let timestamps = Timestamps {
+            started_at: session.start_time,
+            stopped_at: now,
+            manifest_created_at: now,
+        };
+
+        // Create manifest
+        let session_uuid = Uuid::parse_str(&session.session_id)
+            .map_err(|e| format!("Invalid session ID: {}", e))?;
+
+        let mut manifest = EvidenceManifest::new(
+            session_uuid,
+            session.output_path.clone(),
+            manifest_plaintext_hash.clone(),
+            file_size,
+            duration,
+            metadata,
+            system,
+            timestamps,
+        );
+
+        // Update encryption fields if video was encrypted
+        if let Some(enc_info) = encryption_info {
+            manifest.recording.encrypted = true;
+            manifest.recording.encryption = Some(enc_info);
+            // Store the encrypted file hash
+            manifest.recording.encrypted_hash = Some(current_file_hash.clone());
+            LOGGER.log(
+                LogLevel::Info,
+                &format!(
+                    "Added encryption info to manifest (plaintext hash: {}, encrypted hash: {})",
+                    manifest_plaintext_hash.value,
+                    current_file_hash.value
+                ),
+                "recording_manager",
+            );
+        }
+
+        // Sign manifest
+        manifest.sign(&key_manager);
+
+        // Save manifest alongside video file
+        let manifest_path = session.output_path.with_extension("json");
+        manifest.save(&manifest_path)
+            .map_err(|e| format!("Failed to save manifest: {}", e))?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Evidence manifest saved: {}", manifest_path.display()),
+            "recording_manager",
+        );
+
+        Ok(())
+    }
+
+    /// Get macOS version
+    fn get_macos_version(&self) -> String {
+        std::process::Command::new("sw_vers")
+            .arg("-productVersion")
+            .output()
+            .ok()
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    /// Get device ID (hardware UUID)
+    fn get_device_id(&self) -> String {
+        std::process::Command::new("ioreg")
+            .args(&["-d2", "-c", "IOPlatformExpertDevice"])
+            .output()
+            .ok()
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .and_then(|s| {
+                s.lines()
+                    .find(|line| line.contains("IOPlatformUUID"))
+                    .and_then(|line| line.split('"').nth(3))
+                    .map(|uuid| uuid.to_string())
+            })
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+
+    /// Get hostname
+    fn get_hostname(&self) -> String {
+        std::process::Command::new("hostname")
+            .output()
+            .ok()
+            .and_then(|output| String::from_utf8(output.stdout).ok())
+            .map(|s| s.trim().to_string())
+            .unwrap_or_else(|| "unknown".to_string())
     }
 }

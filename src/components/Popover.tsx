@@ -62,11 +62,6 @@ export default function Popover() {
 		// console.log("Starting recording session...");
 	};
 
-	const handleVerifyFile = () => {
-		// TODO: Implement file verification logic
-		// console.log("Verifying file...");
-	};
-
 	// Render the appropriate mode
 	const renderCurrentMode = () => {
 		switch (currentMode) {
@@ -85,9 +80,7 @@ export default function Popover() {
 			case "logged-in":
 				return <LoggedInMode onLogout={handleLogout} onStartSession={handleStartSession} />;
 			case "record":
-				return (
-					<RecordMode onStartRecording={handleStartRecording} onVerifyFile={handleVerifyFile} />
-				);
+				return <RecordMode onStartRecording={handleStartRecording} />;
 			default:
 				return (
 					<LoginMode

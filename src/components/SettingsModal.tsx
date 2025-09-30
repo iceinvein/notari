@@ -3,11 +3,17 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Tab, Tabs } from "@heroui/tabs";
-import { FileText, Info, Palette, Settings, Smartphone, Video } from "lucide-react";
+import { FileText, Info, Key, Palette, Settings, Shield, Smartphone, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
+import {
+	formatPublicKeyFingerprint,
+	useHasSigningKeyQuery,
+	usePublicKeyQuery,
+} from "../hooks/useEvidence";
 import { preferencesLogger } from "../utils/logger";
 import ApplicationSelector from "./ApplicationSelector";
+import KeyManagementModal from "./KeyManagementModal";
 import LogViewer from "./LogViewer";
 import RecordingPreferences from "./RecordingPreferences";
 import ThemeToggle from "./ThemeToggle";
@@ -21,7 +27,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 	const [selectedTab, setSelectedTab] = useState("applications");
 	const [clickCount, setClickCount] = useState(0);
 	const [showResetConfirm, setShowResetConfirm] = useState(false);
+	const [showKeyManagement, setShowKeyManagement] = useState(false);
 	const { resetToDefaults } = useApplicationPreferencesQuery();
+	const { data: hasSigningKey } = useHasSigningKeyQuery();
+	const { data: publicKey } = usePublicKeyQuery();
 
 	// Debug: Check if resetToDefaults is available
 	useEffect(() => {
@@ -159,6 +168,87 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 							</Tab>
 
 							<Tab
+								key="security"
+								title={
+									<div className="flex items-center space-x-2">
+										<Shield className="w-4 h-4" />
+										<span>Security</span>
+									</div>
+								}
+							>
+								<div className="space-y-4 pt-4">
+									<Card className="bg-content1">
+										<CardHeader>
+											<h4 className="text-sm font-medium text-foreground">Signing Key</h4>
+										</CardHeader>
+										<Divider />
+										<CardBody className="space-y-3">
+											<div className="flex items-center justify-between">
+												<div>
+													<p className="text-sm font-medium text-foreground">Status</p>
+													<p className="text-xs text-foreground-500">
+														{hasSigningKey
+															? "Active - recordings are being signed"
+															: "No key - generate one to enable signing"}
+													</p>
+												</div>
+												<div
+													className={`px-2 py-1 rounded-full text-xs font-medium ${hasSigningKey ? "bg-success-100 dark:bg-success-900/30 text-success-700 dark:text-success-300" : "bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-300"}`}
+												>
+													{hasSigningKey ? "Active" : "Inactive"}
+												</div>
+											</div>
+											{hasSigningKey && publicKey && (
+												<div>
+													<p className="text-sm font-medium text-foreground mb-1">
+														Public Key Fingerprint
+													</p>
+													<p className="text-xs font-mono text-foreground-500">
+														{formatPublicKeyFingerprint(publicKey)}
+													</p>
+												</div>
+											)}
+											<Button
+												color="primary"
+												variant="flat"
+												size="sm"
+												onPress={() => setShowKeyManagement(true)}
+												startContent={<Key className="w-4 h-4" />}
+											>
+												Manage Signing Key
+											</Button>
+										</CardBody>
+									</Card>
+
+									<Card className="bg-content2">
+										<CardBody className="p-4">
+											<h4 className="font-semibold mb-2 text-sm">About Evidence System</h4>
+											<div className="space-y-2 text-xs text-foreground-500">
+												<div className="flex items-start space-x-2">
+													<span className="text-success">✓</span>
+													<span>
+														All recordings are automatically signed with Ed25519 digital signatures
+													</span>
+												</div>
+												<div className="flex items-start space-x-2">
+													<span className="text-success">✓</span>
+													<span>SHA-256 hashes verify file integrity and detect tampering</span>
+												</div>
+												<div className="flex items-start space-x-2">
+													<span className="text-success">✓</span>
+													<span>Private keys stored securely in macOS Keychain</span>
+												</div>
+												<div className="flex items-start space-x-2">
+													<span className="text-success">✓</span>
+													<span>Share your public key to let others verify your recordings</span>
+												</div>
+											</div>
+										</CardBody>
+									</Card>
+								</div>
+							</Tab>
+
+							<Tab
 								key="appearance"
 								title={
 									<div className="flex items-center space-x-2">
@@ -288,6 +378,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 					</ModalFooter>
 				</ModalContent>
 			</Modal>
+
+			{/* Key Management Modal */}
+			<KeyManagementModal isOpen={showKeyManagement} onClose={() => setShowKeyManagement(false)} />
 		</>
 	);
 }

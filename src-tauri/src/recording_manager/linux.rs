@@ -16,6 +16,7 @@ impl RecordingManager for LinuxRecordingManager {
         &self,
         _window_id: &str,
         _preferences: &RecordingPreferences,
+        _window_info: Option<crate::window_manager::WindowInfo>,
         _state: SharedRecordingState,
     ) -> Result<ActiveRecording, String> {
         Err("Recording not implemented for Linux yet".to_string())

@@ -65,8 +65,19 @@ impl Verifier {
         manifest_path: P,
         video_path: P,
     ) -> Result<VerificationReport, Box<dyn Error>> {
+        use crate::logger::{LogLevel, LOGGER};
+
         // Load manifest
         let manifest = EvidenceManifest::load(&manifest_path)?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Verifying recording: encrypted={}, video_path={}",
+                manifest.recording.encrypted,
+                video_path.as_ref().display()
+            ),
+            "verifier",
+        );
 
         // Check 1: Manifest structure
         let manifest_check = CheckResult::Pass;
@@ -81,7 +92,27 @@ impl Verifier {
 
         // Check 3: Verify hash
         let computed_hash = HashInfo::from_file(&video_path)?;
-        let hash_match = computed_hash.value == manifest.recording.plaintext_hash.value;
+
+        // For encrypted files, compare against encrypted_hash; otherwise use plaintext_hash
+        let expected_hash = if manifest.recording.encrypted {
+            manifest.recording.encrypted_hash.as_ref()
+                .ok_or("Encrypted file but no encrypted_hash in manifest")?
+        } else {
+            &manifest.recording.plaintext_hash
+        };
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Hash comparison: computed={}, expected={}, match={}",
+                computed_hash.value,
+                expected_hash.value,
+                computed_hash.value == expected_hash.value
+            ),
+            "verifier",
+        );
+
+        let hash_match = computed_hash.value == expected_hash.value;
         let hash_check = if hash_match {
             CheckResult::Pass
         } else {

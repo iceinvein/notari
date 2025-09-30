@@ -17,6 +17,14 @@ export type RecordingStatus =
 	| "Stopped"
 	| { Error: string };
 
+export type WindowMetadata = {
+	title: string;
+	app_name: string;
+	app_bundle_id: string;
+	width: number;
+	height: number;
+};
+
 export type ActiveRecording = {
 	session_id: string;
 	window_id: string;
@@ -24,6 +32,7 @@ export type ActiveRecording = {
 	output_path: string;
 	status: RecordingStatus;
 	preferences: RecordingPreferences;
+	window_metadata?: WindowMetadata;
 };
 
 export type RecordingInfo = {
