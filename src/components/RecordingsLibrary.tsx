@@ -47,6 +47,24 @@ type VerificationReport = {
 	};
 };
 
+type EvidenceManifest = {
+	version: string;
+	recording: {
+		session_id: string;
+		file_path: string;
+		encrypted: boolean;
+		encryption?: {
+			algorithm: string;
+			key_derivation: {
+				algorithm: string;
+				iterations: number;
+				salt: string;
+			};
+			nonce: string;
+		};
+	};
+};
+
 export default function RecordingsLibrary() {
 	// React Query hooks
 	const { data: recordings = [], isLoading, error, refetch } = useRecordingsQuery();
@@ -89,11 +107,10 @@ export default function RecordingsLibrary() {
 		setDecryptError(null);
 
 		try {
-			// Load manifest to get encryption info
-			const manifestContent = await invoke<string>("read_file", {
-				path: selectedRecording.manifest_path,
+			// Load manifest to get encryption info (extracts from .notari automatically)
+			const manifest = await invoke<EvidenceManifest>("get_evidence_manifest", {
+				manifestPath: selectedRecording.manifest_path,
 			});
-			const manifest = JSON.parse(manifestContent);
 			const encryptionInfo = manifest.recording?.encryption;
 			if (!encryptionInfo) {
 				throw new Error(

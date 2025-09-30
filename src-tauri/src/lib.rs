@@ -61,6 +61,8 @@ pub fn run() {
             recording_commands::list_recordings,
             recording_commands::open_file_in_default_app,
             recording_commands::decrypt_and_play_video,
+            recording_commands::create_proof_pack,
+            recording_commands::extract_proof_pack,
             recording_commands::popover_guard_push,
             recording_commands::popover_guard_pop,
         ])

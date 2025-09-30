@@ -144,7 +144,11 @@ pub async fn start_window_recording(
 ) -> Result<ActiveRecording, String> {
     LOGGER.log(
         LogLevel::Info,
-        &format!("Starting recording for window: {} (encryption: {})", window_id, encryption_password.is_some()),
+        &format!(
+            "Starting recording for window: {} (encryption: {})",
+            window_id,
+            encryption_password.is_some()
+        ),
         "recording_commands",
     );
 
@@ -159,7 +163,8 @@ pub async fn start_window_recording(
     // Get window information before starting recording
     let window_info = {
         let manager = state.manager.lock().map_err(|e| e.to_string())?;
-        manager.get_windows()?
+        manager
+            .get_windows()?
             .into_iter()
             .find(|w| w.id == window_id)
     };
@@ -614,17 +619,34 @@ pub async fn verify_recording(
     manifest_path: String,
     video_path: String,
 ) -> Result<crate::evidence::VerificationReport, String> {
-    crate::evidence::Verifier::verify(&manifest_path, &video_path)
-        .map_err(|e| format!("Verification failed: {}", e))
+    // Extract from .notari file
+    let (resolved_video, resolved_manifest, temp_dir) =
+        resolve_recording_paths(&video_path, &manifest_path)?;
+
+    let result = crate::evidence::Verifier::verify(&resolved_manifest, &resolved_video)
+        .map_err(|e| format!("Verification failed: {}", e));
+
+    // Cleanup temp files
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    result
 }
 
-/// Get evidence manifest for a recording
+/// Get evidence manifest for a recording (extracts from .notari if needed)
 #[tauri::command]
 pub async fn get_evidence_manifest(
     manifest_path: String,
 ) -> Result<crate::evidence::EvidenceManifest, String> {
-    crate::evidence::EvidenceManifest::load(&manifest_path)
-        .map_err(|e| format!("Failed to load manifest: {}", e))
+    // Extract from .notari file
+    let (_, resolved_manifest, temp_dir) = resolve_recording_paths(&manifest_path, &manifest_path)?;
+
+    let manifest = crate::evidence::EvidenceManifest::load(&resolved_manifest)
+        .map_err(|e| format!("Failed to load manifest: {}", e))?;
+
+    // Cleanup temp files
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    Ok(manifest)
 }
 
 /// Export public key for sharing
@@ -735,6 +757,60 @@ pub async fn delete_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Create a proof pack (ZIP archive) containing video + manifest + public key + README
+#[tauri::command]
+pub async fn create_proof_pack(
+    video_path: String,
+    manifest_path: String,
+    output_path: String,
+) -> Result<String, String> {
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Creating proof pack: {}", output_path),
+        "recording_commands",
+    );
+
+    let result_path =
+        crate::evidence::proof_pack::create_proof_pack(&video_path, &manifest_path, &output_path)
+            .map_err(|e| format!("Failed to create proof pack: {}", e))?;
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Proof pack created successfully: {}", result_path.display()),
+        "recording_commands",
+    );
+
+    Ok(result_path.to_string_lossy().to_string())
+}
+
+/// Extract a proof pack and return paths to extracted files
+#[tauri::command]
+pub async fn extract_proof_pack(
+    proof_pack_path: String,
+    extract_dir: String,
+) -> Result<(String, String), String> {
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Extracting proof pack: {}", proof_pack_path),
+        "recording_commands",
+    );
+
+    let (video_path, manifest_path) =
+        crate::evidence::proof_pack::extract_proof_pack(&proof_pack_path, &extract_dir)
+            .map_err(|e| format!("Failed to extract proof pack: {}", e))?;
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Proof pack extracted successfully to: {}", extract_dir),
+        "recording_commands",
+    );
+
+    Ok((
+        video_path.to_string_lossy().to_string(),
+        manifest_path.to_string_lossy().to_string(),
+    ))
+}
+
 /// Recording entry for library view
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingEntry {
@@ -747,10 +823,37 @@ pub struct RecordingEntry {
     pub has_manifest: bool,
 }
 
+/// Helper: Extract video and manifest from .notari file
+/// Returns (video_path, manifest_path, temp_dir_path)
+fn resolve_recording_paths(
+    notari_path: &str,
+    _manifest_path: &str,
+) -> Result<(String, String, String), String> {
+    // Extract to temp directory
+    let temp_dir = std::env::temp_dir().join(format!("notari_temp_{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+
+    let (extracted_video, extracted_manifest) = crate::evidence::proof_pack::extract_proof_pack(
+        notari_path,
+        temp_dir.to_str().ok_or("Invalid temp directory path")?,
+    )
+    .map_err(|e| format!("Failed to extract proof pack: {}", e))?;
+
+    Ok((
+        extracted_video.to_string_lossy().to_string(),
+        extracted_manifest.to_string_lossy().to_string(),
+        temp_dir.to_string_lossy().to_string(),
+    ))
+}
+
 /// List all recordings in the save directory
 #[tauri::command]
-pub async fn list_recordings(state: State<'_, WindowManagerState>) -> Result<Vec<RecordingEntry>, String> {
+pub async fn list_recordings(
+    state: State<'_, WindowManagerState>,
+) -> Result<Vec<RecordingEntry>, String> {
     use std::fs;
+    use std::io::Read;
 
     // Get save directory
     let save_dir = {
@@ -770,53 +873,79 @@ pub async fn list_recordings(state: State<'_, WindowManagerState>) -> Result<Vec
     let mut recordings = Vec::new();
 
     // Read directory entries
-    let entries = fs::read_dir(&save_dir)
-        .map_err(|e| format!("Failed to read directory: {}", e))?;
+    let entries =
+        fs::read_dir(&save_dir).map_err(|e| format!("Failed to read directory: {}", e))?;
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
         let path = entry.path();
 
-        // Only process .mov and .mov.enc files
+        // Only process .notari files
         if let Some(extension) = path.extension() {
             let ext_str = extension.to_string_lossy();
-            let is_video = ext_str == "mov" || ext_str == "enc";
 
-            if is_video {
-                let video_path = path.to_string_lossy().to_string();
-                let filename = path.file_name()
+            if ext_str == "notari" {
+                let notari_path = path.to_string_lossy().to_string();
+                let filename = path
+                    .file_name()
                     .and_then(|n| n.to_str())
                     .unwrap_or("unknown")
                     .to_string();
 
-                // Check if encrypted
-                let is_encrypted = ext_str == "enc";
-
-                // Get manifest path
-                let manifest_path = if is_encrypted {
-                    // For .mov.enc, replace .enc with .json
-                    video_path.replace(".enc", ".json")
+                // Extract metadata from .notari file to determine encryption status
+                let is_encrypted = if let Ok(file) = fs::File::open(&path) {
+                    if let Ok(mut archive) = zip::ZipArchive::new(file) {
+                        if let Ok(mut metadata_file) = archive.by_name("metadata.json") {
+                            let mut contents = String::new();
+                            if metadata_file.read_to_string(&mut contents).is_ok() {
+                                if let Ok(metadata) =
+                                    serde_json::from_str::<serde_json::Value>(&contents)
+                                {
+                                    metadata
+                                        .get("is_encrypted")
+                                        .and_then(|v| v.as_bool())
+                                        .unwrap_or(false)
+                                } else {
+                                    false
+                                }
+                            } else {
+                                false
+                            }
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
                 } else {
-                    // For .mov, replace .mov with .json
-                    video_path.replace(".mov", ".json")
+                    false
                 };
 
-                let has_manifest = std::path::Path::new(&manifest_path).exists();
+                // For .notari files, the video_path is the .notari file itself
+                // The manifest is embedded, so has_manifest is always true
+                let video_path = notari_path.clone();
+                let manifest_path = notari_path.clone(); // Same file contains both
+                let has_manifest = true;
 
                 // Get file metadata
-                let metadata = fs::metadata(&path)
-                    .map_err(|e| format!("Failed to get metadata: {}", e))?;
+                let metadata =
+                    fs::metadata(&path).map_err(|e| format!("Failed to get metadata: {}", e))?;
 
                 let file_size_bytes = metadata.len();
-                let created_at = metadata.created()
+                let created_at = metadata
+                    .created()
                     .or_else(|_| metadata.modified())
                     .map(|time| {
                         use std::time::SystemTime;
-                        let duration = time.duration_since(SystemTime::UNIX_EPOCH)
+                        let duration = time
+                            .duration_since(SystemTime::UNIX_EPOCH)
                             .unwrap_or_default();
-                        chrono::DateTime::<chrono::Utc>::from_timestamp(duration.as_secs() as i64, 0)
-                            .map(|dt| dt.to_rfc3339())
-                            .unwrap_or_else(|| "Unknown".to_string())
+                        chrono::DateTime::<chrono::Utc>::from_timestamp(
+                            duration.as_secs() as i64,
+                            0,
+                        )
+                        .map(|dt| dt.to_rfc3339())
+                        .unwrap_or_else(|| "Unknown".to_string())
                     })
                     .unwrap_or_else(|_| "Unknown".to_string());
 
@@ -882,15 +1011,18 @@ pub async fn decrypt_and_play_video(
     use std::env;
     use std::path::PathBuf;
 
+    // Extract from .notari file
+    let (resolved_video, _, temp_dir) = resolve_recording_paths(&encrypted_path, &encrypted_path)?;
+
     // Create temp directory for decrypted video
-    let temp_dir = env::temp_dir();
-    let path_buf = PathBuf::from(&encrypted_path);
+    let temp_dir_path = env::temp_dir();
+    let path_buf = PathBuf::from(&resolved_video);
     let file_name = path_buf
         .file_stem()
         .and_then(|s| s.to_str())
         .ok_or("Invalid file name")?;
 
-    let temp_path = temp_dir.join(format!("{}_decrypted.mov", file_name));
+    let temp_path = temp_dir_path.join(format!("{}_decrypted.mov", file_name));
 
     LOGGER.log(
         LogLevel::Info,
@@ -900,8 +1032,11 @@ pub async fn decrypt_and_play_video(
 
     // Decrypt the video
     let temp_path_str = temp_path.to_string_lossy().to_string();
-    VideoEncryptor::decrypt_file(&encrypted_path, &temp_path_str, &password, &encryption_info)
+    VideoEncryptor::decrypt_file(&resolved_video, &temp_path_str, &password, &encryption_info)
         .map_err(|e| format!("Decryption failed: {}", e))?;
+
+    // Cleanup extracted files
+    let _ = std::fs::remove_dir_all(&temp_dir);
 
     // Open in default player
     open_file_in_default_app(temp_path_str.clone()).await?;

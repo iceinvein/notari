@@ -45,6 +45,7 @@ hex = "0.4"
 # Evidence system (Phase 2 - Encryption)
 aes-gcm = "0.10"
 pbkdf2 = { version = "0.12", features = ["simple"] }
+zip = "4.2.0"
 
 # Platform-specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]

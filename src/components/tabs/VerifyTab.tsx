@@ -42,11 +42,11 @@ export default function VerifyTab() {
 
 			try {
 				const file = await open({
-					title: "Select Evidence Manifest",
+					title: "Select Notari Proof Pack",
 					filters: [
 						{
-							name: "Evidence Manifest",
-							extensions: ["json"],
+							name: "Notari Proof Pack",
+							extensions: ["notari"],
 						},
 					],
 				});
@@ -73,20 +73,11 @@ export default function VerifyTab() {
 		setError(null);
 
 		try {
-			// Read manifest to get the video file path
-			const manifestContent = await invoke<string>("read_file", { path: selectedFile });
-			const manifest = JSON.parse(manifestContent);
-
-			// Use the file_path from the manifest (it contains the full path to the video)
-			const videoPath = manifest.recording?.file_path;
-
-			if (!videoPath) {
-				throw new Error("Manifest does not contain a file_path");
-			}
-
+			// For .notari files, both manifestPath and videoPath are the same
+			// The backend will extract and verify automatically
 			const result = await invoke<VerificationReport>("verify_recording", {
 				manifestPath: selectedFile,
-				videoPath: videoPath,
+				videoPath: selectedFile,
 			});
 
 			setVerificationResult(result);

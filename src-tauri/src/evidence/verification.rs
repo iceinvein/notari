@@ -72,7 +72,8 @@ impl Verifier {
 
         LOGGER.log(
             LogLevel::Info,
-            &format!("Verifying recording: encrypted={}, video_path={}",
+            &format!(
+                "Verifying recording: encrypted={}, video_path={}",
                 manifest.recording.encrypted,
                 video_path.as_ref().display()
             ),
@@ -95,7 +96,10 @@ impl Verifier {
 
         // For encrypted files, compare against encrypted_hash; otherwise use plaintext_hash
         let expected_hash = if manifest.recording.encrypted {
-            manifest.recording.encrypted_hash.as_ref()
+            manifest
+                .recording
+                .encrypted_hash
+                .as_ref()
                 .ok_or("Encrypted file but no encrypted_hash in manifest")?
         } else {
             &manifest.recording.plaintext_hash

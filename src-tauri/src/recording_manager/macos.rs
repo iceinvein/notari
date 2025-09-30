@@ -2,12 +2,12 @@ use super::{
     create_recording_session, ActiveRecording, InternalRecordingState, RecordingInfo,
     RecordingManager, RecordingPreferences, RecordingStatus, SharedRecordingState,
 };
-use crate::logger::{LogLevel, LOGGER};
-use crate::evidence::{
-    EvidenceManifest, HashInfo, KeyManager, Metadata, SystemInfo, Timestamps,
-    WindowInfo as EvidenceWindowInfo, VideoInfo,
-};
 use crate::evidence::keychain;
+use crate::evidence::{
+    EvidenceManifest, HashInfo, KeyManager, Metadata, SystemInfo, Timestamps, VideoInfo,
+    WindowInfo as EvidenceWindowInfo,
+};
+use crate::logger::{LogLevel, LOGGER};
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -378,7 +378,9 @@ impl RecordingManager for MacOSRecordingManager {
             };
 
             // Encrypt video if password was provided
-            let (final_video_path, encryption_info) = if let Some(ref password) = recording.session.encryption_password {
+            let (final_video_path, encryption_info) = if let Some(ref password) =
+                recording.session.encryption_password
+            {
                 LOGGER.log(
                     LogLevel::Info,
                     "Encrypting recorded video...",
@@ -410,15 +412,56 @@ impl RecordingManager for MacOSRecordingManager {
 
             // Update session with final path
             let mut final_session = recording.session.clone();
-            final_session.output_path = final_video_path;
+            final_session.output_path = final_video_path.clone();
 
             // Generate evidence manifest (non-blocking, log errors but don't fail)
-            if let Err(e) = self.generate_evidence_manifest(&final_session, encryption_info, plaintext_hash) {
+            let manifest_path = final_video_path.with_extension("json");
+            if let Err(e) =
+                self.generate_evidence_manifest(&final_session, encryption_info, plaintext_hash)
+            {
                 LOGGER.log(
                     LogLevel::Error,
                     &format!("Failed to generate evidence manifest: {}", e),
                     "recording_manager",
                 );
+            }
+
+            // Package into .notari proof pack
+            if manifest_path.exists() {
+                let notari_path = final_video_path.with_extension("notari");
+                LOGGER.log(
+                    LogLevel::Info,
+                    &format!(
+                        "Packaging recording into proof pack: {}",
+                        notari_path.display()
+                    ),
+                    "recording_manager",
+                );
+
+                match crate::evidence::proof_pack::create_proof_pack(
+                    &final_video_path,
+                    &manifest_path,
+                    &notari_path,
+                ) {
+                    Ok(_) => {
+                        LOGGER.log(
+                            LogLevel::Info,
+                            "Proof pack created successfully, cleaning up source files",
+                            "recording_manager",
+                        );
+
+                        // Delete the original video and manifest files
+                        let _ = std::fs::remove_file(&final_video_path);
+                        let _ = std::fs::remove_file(&manifest_path);
+                    }
+                    Err(e) => {
+                        LOGGER.log(
+                            LogLevel::Error,
+                            &format!("Failed to create proof pack: {}, keeping original files", e),
+                            "recording_manager",
+                        );
+                    }
+                }
             }
 
             LOGGER.log(
@@ -622,7 +665,10 @@ impl MacOSRecordingManager {
     ) -> Result<(), String> {
         LOGGER.log(
             LogLevel::Info,
-            &format!("Generating evidence manifest for session: {}", session.session_id),
+            &format!(
+                "Generating evidence manifest for session: {}",
+                session.session_id
+            ),
             "recording_manager",
         );
 
@@ -662,21 +708,22 @@ impl MacOSRecordingManager {
         let window_id_u32 = self.parse_window_id(&session.window_id).unwrap_or(0);
 
         // Collect metadata from session or use placeholders
-        let (window_title, app_name, app_bundle_id, resolution) = if let Some(ref win_meta) = session.window_metadata {
-            (
-                win_meta.title.clone(),
-                win_meta.app_name.clone(),
-                win_meta.app_bundle_id.clone(),
-                format!("{}x{}", win_meta.width, win_meta.height),
-            )
-        } else {
-            (
-                format!("Window {}", window_id_u32),
-                "Unknown".to_string(),
-                "unknown".to_string(),
-                "unknown".to_string(),
-            )
-        };
+        let (window_title, app_name, app_bundle_id, resolution) =
+            if let Some(ref win_meta) = session.window_metadata {
+                (
+                    win_meta.title.clone(),
+                    win_meta.app_name.clone(),
+                    win_meta.app_bundle_id.clone(),
+                    format!("{}x{}", win_meta.width, win_meta.height),
+                )
+            } else {
+                (
+                    format!("Window {}", window_id_u32),
+                    "Unknown".to_string(),
+                    "unknown".to_string(),
+                    "unknown".to_string(),
+                )
+            };
 
         let metadata = Metadata {
             window: EvidenceWindowInfo {
@@ -735,8 +782,7 @@ impl MacOSRecordingManager {
                 LogLevel::Info,
                 &format!(
                     "Added encryption info to manifest (plaintext hash: {}, encrypted hash: {})",
-                    manifest_plaintext_hash.value,
-                    current_file_hash.value
+                    manifest_plaintext_hash.value, current_file_hash.value
                 ),
                 "recording_manager",
             );
@@ -747,7 +793,8 @@ impl MacOSRecordingManager {
 
         // Save manifest alongside video file
         let manifest_path = session.output_path.with_extension("json");
-        manifest.save(&manifest_path)
+        manifest
+            .save(&manifest_path)
             .map_err(|e| format!("Failed to save manifest: {}", e))?;
 
         LOGGER.log(

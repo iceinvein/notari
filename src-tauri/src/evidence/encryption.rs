@@ -35,7 +35,12 @@ impl VideoEncryptor {
 
         // Derive key from password using PBKDF2
         let mut key_bytes = [0u8; KEY_SIZE];
-        pbkdf2_hmac::<Sha256>(password.as_bytes(), &salt, PBKDF2_ITERATIONS, &mut key_bytes);
+        pbkdf2_hmac::<Sha256>(
+            password.as_bytes(),
+            &salt,
+            PBKDF2_ITERATIONS,
+            &mut key_bytes,
+        );
         let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
 
         // Generate random nonce
@@ -159,12 +164,9 @@ mod tests {
         // Encrypt
         let encrypted_file = NamedTempFile::new().unwrap();
         let password = "TestPassword123";
-        let encryption_info = VideoEncryptor::encrypt_file(
-            input_file.path(),
-            encrypted_file.path(),
-            password,
-        )
-        .unwrap();
+        let encryption_info =
+            VideoEncryptor::encrypt_file(input_file.path(), encrypted_file.path(), password)
+                .unwrap();
 
         // Verify encryption info
         assert_eq!(encryption_info.algorithm, "AES-256-GCM");
@@ -265,4 +267,3 @@ mod tests {
         assert_ne!(content1, content2);
     }
 }
-

@@ -207,7 +207,7 @@ pub fn create_recording_session(
         output_path,
         status: RecordingStatus::Preparing,
         preferences: preferences.clone(),
-        window_metadata: None, // Will be set after window lookup
+        window_metadata: None,     // Will be set after window lookup
         encryption_password: None, // Will be set if encryption is enabled
     }
 }

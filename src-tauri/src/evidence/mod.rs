@@ -2,6 +2,7 @@ pub mod encryption;
 pub mod hash;
 pub mod keychain;
 pub mod manifest;
+pub mod proof_pack;
 pub mod signature;
 pub mod verification;
 
