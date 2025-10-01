@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use super::{HashInfo, SignatureInfo};
+use super::blockchain::BlockchainAnchor;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvidenceManifest {
@@ -13,6 +14,10 @@ pub struct EvidenceManifest {
     pub system: SystemInfo,
     pub timestamps: Timestamps,
     pub signature: SignatureInfo,
+
+    /// Blockchain anchor (optional, added in v1.1)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blockchain_anchor: Option<BlockchainAnchor>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,6 +153,7 @@ impl EvidenceManifest {
                 signature: String::new(),
                 signed_data_hash: String::new(),
             },
+            blockchain_anchor: None,
         }
     }
 

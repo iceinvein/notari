@@ -32,6 +32,19 @@ pub struct VerificationChecks {
     pub manifest_structure: CheckResult,
     pub signature_valid: CheckResult,
     pub hash_match: CheckResult,
+
+    /// Blockchain anchor verification (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blockchain_anchor: Option<BlockchainAnchorCheck>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockchainAnchorCheck {
+    pub present: bool,
+    pub algorithm: String,
+    pub anchored_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub explorer_url: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -129,6 +142,16 @@ impl Verifier {
             CheckResult::Fail
         };
 
+        // Check blockchain anchor if present
+        let blockchain_anchor_check = manifest.blockchain_anchor.as_ref().map(|anchor| {
+            BlockchainAnchorCheck {
+                present: true,
+                algorithm: anchor.proof.description(),
+                anchored_at: anchor.anchored_at.to_rfc3339(),
+                explorer_url: anchor.proof.explorer_url(),
+            }
+        });
+
         // Determine overall status
         let status = if signature_valid && hash_match {
             VerificationStatus::Verified
@@ -144,6 +167,7 @@ impl Verifier {
                     manifest_structure: manifest_check,
                     signature_valid: signature_check,
                     hash_match: hash_check,
+                    blockchain_anchor: blockchain_anchor_check,
                 },
                 recording_info: RecordingInfoSummary {
                     session_id: manifest.recording.session_id.clone(),
