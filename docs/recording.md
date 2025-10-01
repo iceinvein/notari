@@ -8,22 +8,67 @@ This document explains how window listing, thumbnails, and screen recording work
   - Window listing and thumbnails
   - Recording orchestration and session state
   - Spawns a Swift sidecar that uses ScreenCaptureKit (SCK)
+  - Encrypts recordings with AES-256-GCM (optional)
+  - Generates evidence manifests with signatures and hashes
+  - Packages recordings into .notari proof packs
 - Swift sidecar (SCKRecorder.swift):
   - Captures frames for a specific window using ScreenCaptureKit
   - Encodes them with AVAssetWriter into a .mov file
   - Writes logs to stderr, read by the Rust backend and surfaced in Dev Logs
 
+For details on encryption and video playback, see [docs/encryption.md](encryption.md).
+
 ## Architecture diagram
 
 ```mermaid
-flowchart LR
-  FE[Frontend] -- start_window_recording --> RC[Tauri command]
-  FE -- get_available_windows / get_window_thumbnail --> WC[Window commands]
-  RC --> RM[RecordingManager]
-  RM -- spawn --> SCK[Swift sidecar]
-  SCK -- frames --> AV[AVAssetWriter]
-  AV --> MOV[(mov file)]
-  SCK -- sck logs --> LOGS[Dev Logs]
+flowchart TB
+  subgraph Frontend
+    FE[React UI]
+  end
+
+  subgraph "Tauri Backend (Rust)"
+    WC[Window Commands]
+    RC[Recording Commands]
+    RM[Recording Manager]
+    CG[CoreGraphics]
+    SCK_THUMB[ScreenCaptureKit<br/>Thumbnails]
+    ENC[Encryption]
+    SIG[Signatures]
+    PP[Proof Pack]
+  end
+
+  subgraph "Swift Sidecar"
+    SCK[ScreenCaptureKit<br/>Recording]
+    AV[AVAssetWriter]
+  end
+
+  subgraph Output
+    MOV[(video.mov)]
+    NOTARI[(recording.notari)]
+    LOGS[Dev Logs]
+  end
+
+  FE -- "get_available_windows" --> WC
+  WC --> CG
+  CG -- "window list" --> WC
+
+  FE -- "get_window_thumbnail" --> WC
+  WC --> SCK_THUMB
+  SCK_THUMB -- "480x270 PNG" --> WC
+
+  FE -- "start_window_recording<br/>(window_id, password?, metadata?)" --> RC
+  RC --> RM
+  RM -- "spawn with window_id" --> SCK
+  SCK -- "capture frames" --> AV
+  AV -- "encode H.264" --> MOV
+  SCK -- "[sck] logs" --> LOGS
+
+  RM -- "on stop" --> ENC
+  ENC -- "encrypt (if password)" --> SIG
+  SIG -- "sign & hash" --> PP
+  PP -- "package" --> NOTARI
+
+  FE -- "stop_window_recording" --> RC
 ```
 
 ## Permissions (macOS)
@@ -45,6 +90,24 @@ Tauri commands:
 
 - `get_available_windows() -> Vec<WindowInfo>`
 - `get_window_thumbnail(window_id: String) -> Option<String /* base64 */>`
+
+### Window Listing
+
+Uses **CoreGraphics** (`CGWindowListCopyWindowInfo`) to enumerate all windows:
+- Filters out system windows and minimized windows
+- Returns window ID, title, application name, bounds
+- Window IDs are in format `cg_<number>` (e.g., `cg_12345`)
+
+### Thumbnail Generation
+
+Uses **ScreenCaptureKit** (`screencapturekit-rs`) to capture window thumbnails:
+- Finds the SCWindow matching the CoreGraphics window ID
+- Creates a content filter for the specific window
+- Captures a single frame at 480x270 resolution (16:9 aspect ratio)
+- Converts to PNG and encodes as base64 data URL
+- Resizes to max 300px dimension for display
+
+**Implementation**: `src-tauri/src/window_manager/macos.rs::create_window_thumbnail()`
 
 Types:
 
@@ -109,15 +172,49 @@ How it works:
 - Finishes AVAssetWriter cleanly before exit
 - Logs (stderr) are prefixed with `[sck]` and forwarded to Dev Logs
 
+## Post-Recording Flow
+
+After the sidecar finishes writing the .mov file, the backend:
+
+1. **Encrypts the video** (if password provided):
+   - Uses AES-256-GCM with chunked encryption (1MB chunks)
+   - Derives key from password using PBKDF2-HMAC-SHA256 (600,000 iterations)
+   - Stores encryption metadata (salt, nonces, chunk offsets) in manifest
+   - Deletes original unencrypted file
+
+2. **Generates evidence manifest**:
+   - Calculates SHA-256 hashes of plaintext and ciphertext
+   - Creates Ed25519 digital signature
+   - Records system info (OS, device ID, app version)
+   - Includes recording metadata (session ID, timestamps, window info)
+   - Adds custom metadata (title, description, tags) if provided
+
+3. **Packages into .notari proof pack**:
+   - Creates ZIP archive with:
+     - `evidence/` folder: video, manifest, public key
+     - `metadata.json`: proof pack metadata
+     - `README.txt`: human-readable documentation
+   - Deletes source files (encrypted video, manifest, public key)
+
+4. **Updates UI**:
+   - Recording appears in library
+   - Can be played, verified, or exported
+
+For details on encryption and playback, see [docs/encryption.md](encryption.md).
+
 ## Logging
 
-- Backend logger categories of note: `backend`, `recording_manager`, `recording_commands`
+- Backend logger categories of note: `backend`, `recording_manager`, `recording_commands`, `encryption`, `video_server`
 - Sidecar logs (stderr/stdout) are forwarded into `backend` so they appear in Dev Logs UI.
 - Example sidecar log lines:
   - `[sck] init windowId=... output=...`
   - `[sck] startCapture ok`
   - `[sck] writer initialized at first frame ...`
   - `[sck] sample buffer missing image buffer` (idle duplication path)
+- Example encryption log lines:
+  - `Encrypting /path/to/video.mov to /path/to/video.mov.enc`
+  - `Video encrypted successfully: /path/to/video.mov.enc`
+  - `Added encryption info to manifest`
 
 ## Error Handling & UX
 
