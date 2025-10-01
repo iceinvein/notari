@@ -40,8 +40,7 @@ describe('useRecordingPreferencesQuery', () => {
 
   it('should fetch recording preferences', async () => {
     const mockPreferences: RecordingPreferences = {
-      video_quality: 'high',
-      frame_rate: 30,
+      video_quality: 'High',
       include_audio: true,
       save_directory: '/path/to/save',
       filename_pattern: '{timestamp}_{title}',
@@ -81,11 +80,14 @@ describe('useActiveRecordingSessionQuery', () => {
     const mockSession: ActiveRecording = {
       session_id: 'test-session-123',
       window_id: 'window-456',
-      window_title: 'Test Window',
-      started_at: '2024-01-15T10:00:00Z',
-      is_paused: false,
+      start_time: '2024-01-15T10:00:00Z',
       output_path: '/path/to/output.notari',
-      is_encrypted: true,
+      status: 'Recording',
+      preferences: {
+        filename_pattern: 'notari_recording_{timestamp}',
+        include_audio: false,
+        video_quality: 'High',
+      },
     };
 
     vi.mocked(invoke).mockResolvedValue(mockSession);
@@ -153,11 +155,14 @@ describe('useStartRecordingMutation', () => {
     const mockSession: ActiveRecording = {
       session_id: 'new-session-123',
       window_id: 'window-789',
-      window_title: 'New Window',
-      started_at: '2024-01-15T11:00:00Z',
-      is_paused: false,
+      start_time: '2024-01-15T11:00:00Z',
       output_path: '/path/to/new-output.notari',
-      is_encrypted: false,
+      status: 'Recording',
+      preferences: {
+        filename_pattern: 'notari_recording_{timestamp}',
+        include_audio: false,
+        video_quality: 'High',
+      },
     };
 
     vi.mocked(invoke).mockResolvedValue(mockSession);
@@ -184,11 +189,14 @@ describe('useStartRecordingMutation', () => {
     const mockSession: ActiveRecording = {
       session_id: 'encrypted-session',
       window_id: 'window-123',
-      window_title: 'Secure Window',
-      started_at: '2024-01-15T12:00:00Z',
-      is_paused: false,
+      start_time: '2024-01-15T12:00:00Z',
       output_path: '/path/to/encrypted.notari',
-      is_encrypted: true,
+      status: 'Recording',
+      preferences: {
+        filename_pattern: 'notari_recording_{timestamp}',
+        include_audio: false,
+        video_quality: 'High',
+      },
     };
 
     vi.mocked(invoke).mockResolvedValue(mockSession);

@@ -139,15 +139,13 @@ describe('useLogger', () => {
   });
 
   it('should cleanup subscription on unmount', () => {
-    const { unmount } = renderHook(() => useLogger());
-
     // Add a spy to check if unsubscribe is called
     const unsubscribeSpy = vi.fn();
     vi.spyOn(logger, 'subscribe').mockReturnValue(unsubscribeSpy);
 
-    const { unmount: unmount2 } = renderHook(() => useLogger());
+    const { unmount } = renderHook(() => useLogger());
 
-    unmount2();
+    unmount();
 
     expect(unsubscribeSpy).toHaveBeenCalled();
   });

@@ -8,6 +8,13 @@ const mockWindow: WindowInfo = {
   id: 'window-123',
   title: 'Test Window',
   application: 'TestApp',
+  is_minimized: false,
+  bounds: {
+    x: 0,
+    y: 0,
+    width: 1920,
+    height: 1080,
+  },
   thumbnail: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
 };
 

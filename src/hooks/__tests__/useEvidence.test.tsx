@@ -101,25 +101,26 @@ describe('useVerifyRecordingQuery', () => {
 
   it('should verify recording successfully', async () => {
     const mockReport: VerificationReport = {
-      status: 'VERIFIED',
-      checks: {
-        manifest_structure: 'PASS',
-        signature_valid: 'PASS',
-        hash_match: 'PASS',
+      verification: {
+        timestamp: '2024-01-15T10:00:00Z',
+        status: 'VERIFIED',
+        checks: {
+          manifest_structure: 'PASS',
+          signature_valid: 'PASS',
+          hash_match: 'PASS',
+        },
+        recording_info: {
+          session_id: 'test-session-123',
+          created_at: '2024-01-15T10:00:00Z',
+          duration_seconds: 120,
+          window_title: 'Test Window',
+        },
+        signature_info: {
+          algorithm: 'Ed25519',
+          public_key: 'ed25519:abc123',
+          verified_by: 'Notari v0.1.0',
+        },
       },
-      recording_info: {
-        session_id: 'test-session-123',
-        created_at: '2024-01-15T10:00:00Z',
-        duration_seconds: 120,
-        window_title: 'Test Window',
-      },
-      signature_info: {
-        algorithm: 'Ed25519',
-        public_key: 'ed25519:abc123',
-        verified_by: 'Notari v0.1.0',
-      },
-      warnings: [],
-      errors: [],
     };
 
     vi.mocked(invoke).mockResolvedValue(mockReport);
@@ -132,7 +133,7 @@ describe('useVerifyRecordingQuery', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     expect(result.current.data).toEqual(mockReport);
-    expect(result.current.data?.status).toBe('VERIFIED');
+    expect(result.current.data?.verification.status).toBe('VERIFIED');
     expect(invoke).toHaveBeenCalledWith('verify_recording', {
       manifestPath: '/path/to/manifest.json',
       videoPath: '/path/to/video.notari',
@@ -141,25 +142,26 @@ describe('useVerifyRecordingQuery', () => {
 
   it('should detect tampered recording', async () => {
     const mockReport: VerificationReport = {
-      status: 'FAILED',
-      checks: {
-        manifest_structure: 'PASS',
-        signature_valid: 'PASS',
-        hash_match: 'FAIL',
+      verification: {
+        timestamp: '2024-01-15T11:00:00Z',
+        status: 'FAILED',
+        checks: {
+          manifest_structure: 'PASS',
+          signature_valid: 'PASS',
+          hash_match: 'FAIL',
+        },
+        recording_info: {
+          session_id: 'test-session-456',
+          created_at: '2024-01-15T11:00:00Z',
+          duration_seconds: 60,
+          window_title: 'Tampered Window',
+        },
+        signature_info: {
+          algorithm: 'Ed25519',
+          public_key: 'ed25519:def456',
+          verified_by: 'Notari v0.1.0',
+        },
       },
-      recording_info: {
-        session_id: 'test-session-456',
-        created_at: '2024-01-15T11:00:00Z',
-        duration_seconds: 60,
-        window_title: 'Tampered Window',
-      },
-      signature_info: {
-        algorithm: 'Ed25519',
-        public_key: 'ed25519:def456',
-        verified_by: 'Notari v0.1.0',
-      },
-      warnings: [],
-      errors: ['Video hash does not match manifest'],
     };
 
     vi.mocked(invoke).mockResolvedValue(mockReport);
@@ -171,9 +173,8 @@ describe('useVerifyRecordingQuery', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.data?.status).toBe('FAILED');
-    expect(result.current.data?.checks.hash_match).toBe('FAIL');
-    expect(result.current.data?.errors).toContain('Video hash does not match manifest');
+    expect(result.current.data?.verification.status).toBe('FAILED');
+    expect(result.current.data?.verification.checks.hash_match).toBe('FAIL');
   });
 
   it('should not fetch when paths are null', async () => {
@@ -189,25 +190,26 @@ describe('useVerifyRecordingQuery', () => {
 
   it('should handle verification with warnings', async () => {
     const mockReport: VerificationReport = {
-      status: 'WARNING',
-      checks: {
-        manifest_structure: 'PASS',
-        signature_valid: 'PASS',
-        hash_match: 'PASS',
+      verification: {
+        timestamp: '2024-01-15T12:00:00Z',
+        status: 'WARNING',
+        checks: {
+          manifest_structure: 'PASS',
+          signature_valid: 'PASS',
+          hash_match: 'PASS',
+        },
+        recording_info: {
+          session_id: 'test-session-789',
+          created_at: '2024-01-15T12:00:00Z',
+          duration_seconds: 180,
+          window_title: 'Warning Window',
+        },
+        signature_info: {
+          algorithm: 'Ed25519',
+          public_key: 'ed25519:ghi789',
+          verified_by: 'Notari v0.1.0',
+        },
       },
-      recording_info: {
-        session_id: 'test-session-789',
-        created_at: '2024-01-15T12:00:00Z',
-        duration_seconds: 180,
-        window_title: 'Warning Window',
-      },
-      signature_info: {
-        algorithm: 'Ed25519',
-        public_key: 'ed25519:ghi789',
-        verified_by: 'Notari v0.1.0',
-      },
-      warnings: ['Recording was paused during capture'],
-      errors: [],
     };
 
     vi.mocked(invoke).mockResolvedValue(mockReport);
@@ -219,8 +221,7 @@ describe('useVerifyRecordingQuery', () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(result.current.data?.status).toBe('WARNING');
-    expect(result.current.data?.warnings).toHaveLength(1);
+    expect(result.current.data?.verification.status).toBe('WARNING');
   });
 });
 
