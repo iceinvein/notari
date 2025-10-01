@@ -277,4 +277,140 @@ mod tests {
             PathBuf::from("/tmp/notari_recording_20240115_103045.mov")
         );
     }
+
+    #[test]
+    fn test_custom_save_directory() {
+        let mut prefs = RecordingPreferences::default();
+        prefs.save_directory = Some(PathBuf::from("/custom/path"));
+
+        let default_dir = PathBuf::from("/tmp");
+        let timestamp = Utc::now();
+        let path = prefs.get_output_path(&default_dir, timestamp);
+
+        assert!(path.starts_with("/custom/path"));
+    }
+
+    #[test]
+    fn test_custom_filename_pattern() {
+        let mut prefs = RecordingPreferences::default();
+        prefs.filename_pattern = "my_recording_{timestamp}".to_string();
+
+        let timestamp = DateTime::parse_from_rfc3339("2024-01-15T10:30:45Z")
+            .unwrap()
+            .with_timezone(&Utc);
+        let filename = prefs.generate_filename(timestamp);
+
+        assert_eq!(filename, "my_recording_20240115_103045");
+    }
+
+    #[test]
+    fn test_recording_status_serialization() {
+        let statuses = vec![
+            RecordingStatus::Preparing,
+            RecordingStatus::Recording,
+            RecordingStatus::Paused,
+            RecordingStatus::Stopping,
+            RecordingStatus::Stopped,
+            RecordingStatus::Error("test error".to_string()),
+        ];
+
+        for status in statuses {
+            let json = serde_json::to_string(&status).unwrap();
+            let deserialized: RecordingStatus = serde_json::from_str(&json).unwrap();
+            // Compare debug representations since RecordingStatus doesn't implement PartialEq
+            assert_eq!(format!("{:?}", status), format!("{:?}", deserialized));
+        }
+    }
+
+    #[test]
+    fn test_create_recording_session() {
+        let window_id = "test_window_123";
+        let prefs = RecordingPreferences::default();
+        let output_path = PathBuf::from("/tmp/test.mov");
+
+        let session = create_recording_session(window_id, &prefs, output_path.clone());
+
+        assert_eq!(session.window_id, window_id);
+        assert_eq!(session.output_path, output_path);
+        assert!(matches!(session.status, RecordingStatus::Preparing));
+        assert!(session.encryption_password.is_none());
+        assert!(session.recording_title.is_none());
+    }
+
+    #[test]
+    fn test_window_metadata_serialization() {
+        let metadata = WindowMetadata {
+            title: "Test Window".to_string(),
+            app_name: "Test App".to_string(),
+            app_bundle_id: "com.test.app".to_string(),
+            width: 1920,
+            height: 1080,
+        };
+
+        let json = serde_json::to_string(&metadata).unwrap();
+        let deserialized: WindowMetadata = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.title, metadata.title);
+        assert_eq!(deserialized.app_name, metadata.app_name);
+        assert_eq!(deserialized.width, metadata.width);
+        assert_eq!(deserialized.height, metadata.height);
+    }
+
+    #[test]
+    fn test_video_quality_serialization() {
+        let qualities = vec![
+            VideoQuality::High,
+            VideoQuality::Medium,
+            VideoQuality::Low,
+        ];
+
+        for quality in qualities {
+            let json = serde_json::to_string(&quality).unwrap();
+            let deserialized: VideoQuality = serde_json::from_str(&json).unwrap();
+            assert_eq!(format!("{:?}", quality), format!("{:?}", deserialized));
+        }
+    }
+
+    #[test]
+    fn test_recording_preferences_default() {
+        let prefs = RecordingPreferences::default();
+
+        assert!(prefs.save_directory.is_none());
+        assert_eq!(prefs.filename_pattern, "notari_recording_{timestamp}");
+        assert!(!prefs.include_audio);
+        assert!(matches!(prefs.video_quality, VideoQuality::High));
+    }
+
+    #[test]
+    fn test_active_recording_serialization() {
+        let session = ActiveRecording {
+            session_id: "test-session-123".to_string(),
+            window_id: "window-456".to_string(),
+            start_time: Utc::now(),
+            output_path: PathBuf::from("/tmp/test.mov"),
+            status: RecordingStatus::Recording,
+            preferences: RecordingPreferences::default(),
+            window_metadata: Some(WindowMetadata {
+                title: "Test".to_string(),
+                app_name: "Test App".to_string(),
+                app_bundle_id: "com.test".to_string(),
+                width: 1920,
+                height: 1080,
+            }),
+            encryption_password: None,
+            recording_title: Some("My Recording".to_string()),
+            recording_description: Some("Test description".to_string()),
+            recording_tags: Some(vec!["test".to_string(), "demo".to_string()]),
+        };
+
+        let json = serde_json::to_string(&session).unwrap();
+        let deserialized: ActiveRecording = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.session_id, session.session_id);
+        assert_eq!(deserialized.window_id, session.window_id);
+        assert_eq!(deserialized.recording_title, session.recording_title);
+        assert_eq!(deserialized.recording_tags, session.recording_tags);
+        // encryption_password should not be serialized
+        assert!(deserialized.encryption_password.is_none());
+    }
 }

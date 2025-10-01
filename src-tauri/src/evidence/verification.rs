@@ -19,7 +19,7 @@ pub struct VerificationInfo {
     pub signature_info: SignatureInfoSummary,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum VerificationStatus {
     Verified,
@@ -34,7 +34,7 @@ pub struct VerificationChecks {
     pub hash_match: CheckResult,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum CheckResult {
     Pass,

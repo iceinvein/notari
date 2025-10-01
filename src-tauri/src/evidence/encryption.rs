@@ -630,4 +630,188 @@ mod tests {
         // Encrypted outputs should be different (due to random salt and nonce)
         assert_ne!(content1, content2);
     }
+
+    #[test]
+    fn test_chunked_encrypt_decrypt_roundtrip() {
+        // Create test file larger than chunk size
+        let mut input_file = NamedTempFile::new().unwrap();
+        let test_data = vec![0u8; CHUNK_SIZE * 2 + 500]; // 2.5 chunks
+        input_file.write_all(&test_data).unwrap();
+        input_file.flush().unwrap();
+
+        // Encrypt with chunked method
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let password = "ChunkedTest123";
+        let encryption_info = VideoEncryptor::encrypt_file_chunked(
+            input_file.path(),
+            encrypted_file.path(),
+            password,
+        )
+        .unwrap();
+
+        // Verify encryption info
+        assert_eq!(encryption_info.algorithm, "AES-256-GCM-CHUNKED");
+        assert!(encryption_info.chunked.is_some());
+        let chunked_info = encryption_info.chunked.as_ref().unwrap();
+        assert_eq!(chunked_info.chunk_size, CHUNK_SIZE as u64);
+        assert_eq!(chunked_info.total_chunks, 3); // 2 full chunks + 1 partial
+
+        // Decrypt
+        let decrypted_file = NamedTempFile::new().unwrap();
+        VideoEncryptor::decrypt_file(
+            encrypted_file.path(),
+            decrypted_file.path(),
+            password,
+            &encryption_info,
+        )
+        .unwrap();
+
+        // Verify decrypted content matches original
+        let mut decrypted_content = Vec::new();
+        File::open(decrypted_file.path())
+            .unwrap()
+            .read_to_end(&mut decrypted_content)
+            .unwrap();
+        assert_eq!(decrypted_content, test_data);
+    }
+
+    #[test]
+    fn test_chunked_decrypt_wrong_password() {
+        // Create and encrypt test file
+        let mut input_file = NamedTempFile::new().unwrap();
+        let test_data = vec![0u8; CHUNK_SIZE + 100];
+        input_file.write_all(&test_data).unwrap();
+        input_file.flush().unwrap();
+
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let encryption_info = VideoEncryptor::encrypt_file_chunked(
+            input_file.path(),
+            encrypted_file.path(),
+            "Correct123",
+        )
+        .unwrap();
+
+        // Try to decrypt with wrong password
+        let decrypted_file = NamedTempFile::new().unwrap();
+        let result = VideoEncryptor::decrypt_file(
+            encrypted_file.path(),
+            decrypted_file.path(),
+            "Wrong123",
+            &encryption_info,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_encrypt_empty_file() {
+        // Create empty file
+        let input_file = NamedTempFile::new().unwrap();
+
+        // Encrypt
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let password = "EmptyFile123";
+        let encryption_info =
+            VideoEncryptor::encrypt_file(input_file.path(), encrypted_file.path(), password)
+                .unwrap();
+
+        // Decrypt
+        let decrypted_file = NamedTempFile::new().unwrap();
+        VideoEncryptor::decrypt_file(
+            encrypted_file.path(),
+            decrypted_file.path(),
+            password,
+            &encryption_info,
+        )
+        .unwrap();
+
+        // Verify decrypted file is also empty
+        let metadata = std::fs::metadata(decrypted_file.path()).unwrap();
+        assert_eq!(metadata.len(), 0);
+    }
+
+    #[test]
+    fn test_encrypt_large_file() {
+        // Create a larger test file (5MB)
+        let mut input_file = NamedTempFile::new().unwrap();
+        let test_data = vec![42u8; 5 * 1024 * 1024];
+        input_file.write_all(&test_data).unwrap();
+        input_file.flush().unwrap();
+
+        // Encrypt with chunked method
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let password = "LargeFile123";
+        let encryption_info = VideoEncryptor::encrypt_file_chunked(
+            input_file.path(),
+            encrypted_file.path(),
+            password,
+        )
+        .unwrap();
+
+        // Verify chunked info
+        let chunked_info = encryption_info.chunked.as_ref().unwrap();
+        assert_eq!(chunked_info.chunk_size, CHUNK_SIZE as u64);
+        assert_eq!(chunked_info.total_chunks, 5); // 5MB / 1MB = 5 chunks
+
+        // Decrypt
+        let decrypted_file = NamedTempFile::new().unwrap();
+        VideoEncryptor::decrypt_file(
+            encrypted_file.path(),
+            decrypted_file.path(),
+            password,
+            &encryption_info,
+        )
+        .unwrap();
+
+        // Verify size matches
+        let original_size = std::fs::metadata(input_file.path()).unwrap().len();
+        let decrypted_size = std::fs::metadata(decrypted_file.path()).unwrap().len();
+        assert_eq!(original_size, decrypted_size);
+    }
+
+    #[test]
+    fn test_password_validation_edge_cases() {
+        // Exactly 8 characters (minimum)
+        assert!(validate_password("Pass123A").is_ok());
+
+        // 7 characters (too short)
+        assert!(validate_password("Pas123A").is_err());
+
+        // All requirements met with special characters
+        assert!(validate_password("P@ssw0rd!").is_ok());
+
+        // Unicode characters
+        assert!(validate_password("Pässw0rd").is_ok());
+
+        // Very long password (must have uppercase, lowercase, and digit)
+        let long_password = format!("{}abc123", "A".repeat(100));
+        assert!(validate_password(&long_password).is_ok());
+    }
+
+    #[test]
+    fn test_encryption_info_serialization() {
+        // Create encryption info
+        let encryption_info = EncryptionInfo {
+            algorithm: "AES-256-GCM".to_string(),
+            key_derivation: KeyDerivationInfo {
+                algorithm: "PBKDF2-HMAC-SHA256".to_string(),
+                iterations: PBKDF2_ITERATIONS,
+                salt: "test_salt_base64".to_string(),
+            },
+            nonce: Some("test_nonce_base64".to_string()),
+            tag: Some("test_tag_base64".to_string()),
+            chunked: None,
+        };
+
+        // Serialize and deserialize
+        let json = serde_json::to_string(&encryption_info).unwrap();
+        let deserialized: EncryptionInfo = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.algorithm, encryption_info.algorithm);
+        assert_eq!(
+            deserialized.key_derivation.iterations,
+            encryption_info.key_derivation.iterations
+        );
+        assert_eq!(deserialized.nonce, encryption_info.nonce);
+    }
 }

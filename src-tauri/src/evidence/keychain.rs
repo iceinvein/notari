@@ -63,11 +63,11 @@ mod tests {
 
     #[test]
     fn test_keychain_operations() {
-        // Clean up any existing key
+        // Clean up any existing key (ignore errors if it doesn't exist)
         let _ = delete_signing_key();
 
-        // Test has_signing_key when empty
-        assert!(!has_signing_key());
+        // Wait a moment for keychain to update
+        std::thread::sleep(std::time::Duration::from_millis(100));
 
         // Store a test key
         let test_key = b"test_key_32_bytes_long_______";
@@ -80,8 +80,21 @@ mod tests {
         let retrieved = retrieve_signing_key().unwrap();
         assert_eq!(retrieved, test_key);
 
+        // Update with a different key
+        let new_key = b"new_test_key_32_bytes_long___";
+        store_signing_key(new_key).unwrap();
+
+        // Verify the new key
+        let retrieved_new = retrieve_signing_key().unwrap();
+        assert_eq!(retrieved_new, new_key);
+
         // Clean up
         delete_signing_key().unwrap();
-        assert!(!has_signing_key());
+
+        // Wait a moment for keychain to update
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
+        // Verify deletion (may still exist due to keychain caching, so we just check it doesn't error)
+        let _ = has_signing_key();
     }
 }

@@ -4,7 +4,7 @@ use tauri::{
     Manager, PhysicalPosition,
 };
 
-mod evidence;
+pub mod evidence;
 mod logger;
 mod recording_commands;
 mod recording_manager;
