@@ -127,12 +127,13 @@ impl VideoEncryptor {
         let mut chunks = Vec::with_capacity(total_chunks);
 
         // Encrypt each chunk
-        let mut offset = 0u64;
+        let mut plaintext_offset = 0u64;
+        let mut ciphertext_offset = 0u64;
         let mut chunk_index = 0;
 
-        while offset < file_size {
+        while plaintext_offset < file_size {
             // Calculate chunk size (last chunk may be smaller)
-            let remaining = file_size - offset;
+            let remaining = file_size - plaintext_offset;
             let current_chunk_size = std::cmp::min(CHUNK_SIZE as u64, remaining) as usize;
 
             // Read chunk
@@ -152,17 +153,16 @@ impl VideoEncryptor {
             // Write encrypted chunk
             output_file.write_all(&ciphertext)?;
 
-            // Store chunk info (offset is the position in the OUTPUT file)
+            // Store chunk info with ciphertext offset (for seeking in encrypted file)
             chunks.push(ChunkInfo {
                 index: chunk_index,
-                offset,
+                offset: ciphertext_offset,
                 size: ciphertext.len() as u64,
                 nonce: general_purpose::STANDARD.encode(&nonce_bytes),
             });
 
-            // Move offset by ciphertext size (not plaintext size!)
-            // Ciphertext is larger due to AES-GCM authentication tag
-            offset += ciphertext.len() as u64;
+            plaintext_offset += current_chunk_size as u64;
+            ciphertext_offset += ciphertext.len() as u64;
             chunk_index += 1;
         }
 
