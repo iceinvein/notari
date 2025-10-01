@@ -61,6 +61,7 @@ pub fn run() {
             recording_commands::read_file,
             recording_commands::delete_file,
             recording_commands::list_recordings,
+            recording_commands::update_recording_metadata,
             recording_commands::open_file_in_default_app,
             recording_commands::decrypt_and_play_video,
             recording_commands::create_proof_pack,

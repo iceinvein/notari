@@ -726,6 +726,20 @@ impl MacOSRecordingManager {
                 )
             };
 
+        // Build custom metadata from session if provided
+        let custom_metadata = if session.recording_title.is_some()
+            || session.recording_description.is_some()
+            || session.recording_tags.is_some()
+        {
+            Some(crate::evidence::CustomMetadata {
+                title: session.recording_title.clone(),
+                description: session.recording_description.clone(),
+                tags: session.recording_tags.clone(),
+            })
+        } else {
+            None
+        };
+
         let metadata = Metadata {
             window: EvidenceWindowInfo {
                 title: window_title,
@@ -738,6 +752,7 @@ impl MacOSRecordingManager {
                 frame_rate: 30, // Default frame rate
                 codec: "H.264".to_string(),
             },
+            custom: custom_metadata,
         };
 
         // Collect system info

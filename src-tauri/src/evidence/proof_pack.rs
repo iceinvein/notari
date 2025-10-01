@@ -17,6 +17,12 @@ pub struct ProofPackMetadata {
     pub notari_version: String,
     pub recording_filename: String,
     pub is_encrypted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
 }
 
 /// Create a proof pack (ZIP archive) containing video + manifest + public key + README
@@ -82,13 +88,16 @@ pub fn create_proof_pack<P: AsRef<Path>>(
     zip.start_file("README.txt", options)?;
     zip.write_all(readme.as_bytes())?;
 
-    // Add metadata
+    // Add metadata (including custom metadata from manifest)
     let metadata = ProofPackMetadata {
         version: "1.0".to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         notari_version: env!("CARGO_PKG_VERSION").to_string(),
         recording_filename: video_filename.to_string(),
         is_encrypted: manifest.recording.encrypted,
+        title: manifest.metadata.custom.as_ref().and_then(|c| c.title.clone()),
+        description: manifest.metadata.custom.as_ref().and_then(|c| c.description.clone()),
+        tags: manifest.metadata.custom.as_ref().and_then(|c| c.tags.clone()),
     };
 
     zip.start_file("metadata.json", options)?;

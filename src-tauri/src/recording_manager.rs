@@ -58,6 +58,10 @@ pub struct ActiveRecording {
     pub window_metadata: Option<WindowMetadata>,
     #[serde(skip_serializing)]
     pub encryption_password: Option<String>,
+    // Custom metadata fields
+    pub recording_title: Option<String>,
+    pub recording_description: Option<String>,
+    pub recording_tags: Option<Vec<String>>,
 }
 
 /// Enhanced recording status with more detailed information
@@ -209,6 +213,9 @@ pub fn create_recording_session(
         preferences: preferences.clone(),
         window_metadata: None,     // Will be set after window lookup
         encryption_password: None, // Will be set if encryption is enabled
+        recording_title: None,
+        recording_description: None,
+        recording_tags: None,
     }
 }
 

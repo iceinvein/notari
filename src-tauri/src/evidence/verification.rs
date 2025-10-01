@@ -48,6 +48,12 @@ pub struct RecordingInfoSummary {
     pub created_at: DateTime<Utc>,
     pub duration_seconds: f64,
     pub window_title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -144,6 +150,9 @@ impl Verifier {
                     created_at: manifest.timestamps.started_at,
                     duration_seconds: manifest.recording.duration_seconds,
                     window_title: manifest.metadata.window.title.clone(),
+                    title: manifest.metadata.custom.as_ref().and_then(|c| c.title.clone()),
+                    description: manifest.metadata.custom.as_ref().and_then(|c| c.description.clone()),
+                    tags: manifest.metadata.custom.as_ref().and_then(|c| c.tags.clone()),
                 },
                 signature_info: SignatureInfoSummary {
                     algorithm: manifest.signature.algorithm.clone(),
@@ -195,6 +204,7 @@ mod tests {
                 frame_rate: 30,
                 codec: "H.264".to_string(),
             },
+            custom: None,
         };
 
         let system = SystemInfo {
@@ -265,6 +275,7 @@ mod tests {
                 frame_rate: 30,
                 codec: "H.264".to_string(),
             },
+            custom: None,
         };
 
         let system = SystemInfo {

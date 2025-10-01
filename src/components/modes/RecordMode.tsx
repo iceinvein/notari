@@ -36,20 +36,29 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 	const [showSettings, setShowSettings] = useState(false);
 	const [showWindowPicker, setShowWindowPicker] = useState(false);
 	const [encryptionPassword, setEncryptionPassword] = useState("");
+	const [recordingTitle, setRecordingTitle] = useState("");
+	const [recordingDescription, setRecordingDescription] = useState("");
+	const [recordingTags, setRecordingTags] = useState<string[]>([]);
 	const startRecordingMutation = useStartRecordingMutation();
 
 	const handleWindowSelect = async (window: WindowInfo) => {
 		try {
-			// Start recording with or without password
+			// Start recording with or without password and metadata
 			const password = encryptionPassword || null;
 			await startRecordingMutation.mutateAsync({
 				windowId: window.id,
 				encryptionPassword: password,
+				recordingTitle: recordingTitle || undefined,
+				recordingDescription: recordingDescription || undefined,
+				recordingTags: recordingTags.length > 0 ? recordingTags : undefined,
 			});
 
-			// Close window picker
+			// Close window picker and reset form
 			setShowWindowPicker(false);
 			setEncryptionPassword("");
+			setRecordingTitle("");
+			setRecordingDescription("");
+			setRecordingTags([]);
 
 			// Call parent handler
 			onStartRecording();
@@ -108,6 +117,12 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 								onOpenWindowPicker={handleOpenWindowPicker}
 								encryptionPassword={encryptionPassword}
 								setEncryptionPassword={setEncryptionPassword}
+								recordingTitle={recordingTitle}
+								setRecordingTitle={setRecordingTitle}
+								recordingDescription={recordingDescription}
+								setRecordingDescription={setRecordingDescription}
+								recordingTags={recordingTags}
+								setRecordingTags={setRecordingTags}
 							/>
 						</Tab>
 

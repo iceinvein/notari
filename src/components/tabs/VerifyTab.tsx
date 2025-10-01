@@ -20,6 +20,9 @@ type VerificationReport = {
 			created_at: string;
 			duration_seconds: number;
 			window_title: string;
+			title?: string;
+			description?: string;
+			tags?: string[];
 		};
 		signature_info: {
 			algorithm: string;
@@ -244,6 +247,45 @@ export default function VerifyTab() {
 							</div>
 						</CardBody>
 					</Card>
+
+					{/* Custom Metadata */}
+					{(verificationResult.verification.recording_info.title ||
+						verificationResult.verification.recording_info.description ||
+						(verificationResult.verification.recording_info.tags &&
+							verificationResult.verification.recording_info.tags.length > 0)) && (
+						<Card className="bg-content2">
+							<CardBody className="space-y-3">
+								<h4 className="text-sm font-medium text-foreground">Recording Metadata</h4>
+								{verificationResult.verification.recording_info.title && (
+									<div className="space-y-1">
+										<p className="text-xs text-foreground-500">Title</p>
+										<p className="text-sm font-medium">
+											{verificationResult.verification.recording_info.title}
+										</p>
+									</div>
+								)}
+								{verificationResult.verification.recording_info.description && (
+									<div className="space-y-1">
+										<p className="text-xs text-foreground-500">Description</p>
+										<p className="text-sm">{verificationResult.verification.recording_info.description}</p>
+									</div>
+								)}
+								{verificationResult.verification.recording_info.tags &&
+									verificationResult.verification.recording_info.tags.length > 0 && (
+										<div className="space-y-1">
+											<p className="text-xs text-foreground-500">Tags</p>
+											<div className="flex flex-wrap gap-1">
+												{verificationResult.verification.recording_info.tags.map((tag) => (
+													<Chip key={tag} size="sm" variant="flat" color="primary">
+														{tag}
+													</Chip>
+												))}
+											</div>
+										</div>
+									)}
+							</CardBody>
+						</Card>
+					)}
 
 					{/* Recording Info */}
 					<Card className="bg-content2">

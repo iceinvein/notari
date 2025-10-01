@@ -1,3 +1,4 @@
+use crate::evidence::proof_pack::ProofPackMetadata;
 use crate::logger::{LogEntry, LogLevel, LOGGER};
 use crate::recording_manager::{
     create_recording_manager, ActiveRecording, RecordingInfo, RecordingManager,
@@ -140,6 +141,9 @@ pub async fn start_window_recording(
     window_id: String,
     preferences: Option<RecordingPreferences>,
     encryption_password: Option<String>,
+    recording_title: Option<String>,
+    recording_description: Option<String>,
+    recording_tags: Option<Vec<String>>,
     state: State<'_, WindowManagerState>,
 ) -> Result<ActiveRecording, String> {
     LOGGER.log(
@@ -176,14 +180,20 @@ pub async fn start_window_recording(
         state.recording_state.clone(),
     )?;
 
-    // Store encryption password in session (will be used during stop_recording)
+    // Store encryption password and metadata in session (will be used during stop_recording)
     session.encryption_password = encryption_password;
+    session.recording_title = recording_title;
+    session.recording_description = recording_description;
+    session.recording_tags = recording_tags;
 
     // Update the session in the recording state
     {
         let mut recording_state = state.recording_state.lock().map_err(|e| e.to_string())?;
         if let Some(ref mut active) = recording_state.active_recording {
             active.session.encryption_password = session.encryption_password.clone();
+            active.session.recording_title = session.recording_title.clone();
+            active.session.recording_description = session.recording_description.clone();
+            active.session.recording_tags = session.recording_tags.clone();
         }
     }
 
@@ -757,6 +767,109 @@ pub async fn delete_file(path: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Update custom metadata in a .notari file
+#[tauri::command]
+pub async fn update_recording_metadata(
+    notari_path: String,
+    title: Option<String>,
+    description: Option<String>,
+    tags: Option<Vec<String>>,
+) -> Result<(), String> {
+    use std::fs;
+    use std::io::Write;
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Updating metadata for: {}", notari_path),
+        "recording_commands",
+    );
+
+    // Extract the .notari file to temp
+    let temp_dir = std::env::temp_dir().join(format!("notari_update_{}", uuid::Uuid::new_v4()));
+    fs::create_dir_all(&temp_dir)
+        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+
+    let (video_path, manifest_path, _) =
+        resolve_recording_paths(&notari_path, &notari_path)?;
+
+    // Load manifest
+    let mut manifest = crate::evidence::EvidenceManifest::load(&manifest_path)
+        .map_err(|e| format!("Failed to load manifest: {}", e))?;
+
+    // Update custom metadata
+    let custom_metadata = crate::evidence::CustomMetadata {
+        title,
+        description,
+        tags,
+    };
+    manifest.metadata.custom = Some(custom_metadata);
+
+    // Re-sign the manifest
+    if crate::evidence::keychain::has_signing_key() {
+        let key_bytes = crate::evidence::keychain::retrieve_signing_key()
+            .map_err(|e| format!("Failed to retrieve signing key: {}", e))?;
+        let key_manager = crate::evidence::signature::KeyManager::from_bytes(&key_bytes)
+            .map_err(|e| format!("Failed to load key manager: {}", e))?;
+        manifest.sign(&key_manager);
+    }
+
+    // Save updated manifest
+    manifest
+        .save(&manifest_path)
+        .map_err(|e| format!("Failed to save manifest: {}", e))?;
+
+    // Recreate the .notari file with updated manifest
+    let file = fs::File::create(&notari_path)
+        .map_err(|e| format!("Failed to create .notari file: {}", e))?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .unix_permissions(0o644);
+
+    // Add video file
+    let video_data = fs::read(&video_path)
+        .map_err(|e| format!("Failed to read video file: {}", e))?;
+    zip.start_file("recording.mov", options)
+        .map_err(|e| format!("Failed to add video to zip: {}", e))?;
+    zip.write_all(&video_data)
+        .map_err(|e| format!("Failed to write video to zip: {}", e))?;
+
+    // Add manifest file
+    let manifest_data = fs::read(&manifest_path)
+        .map_err(|e| format!("Failed to read manifest file: {}", e))?;
+    zip.start_file("manifest.json", options)
+        .map_err(|e| format!("Failed to add manifest to zip: {}", e))?;
+    zip.write_all(&manifest_data)
+        .map_err(|e| format!("Failed to write manifest to zip: {}", e))?;
+
+    // Add metadata.json
+    let metadata_json = serde_json::json!({
+        "version": "1.0",
+        "created_at": chrono::Utc::now().to_rfc3339(),
+        "notari_version": env!("CARGO_PKG_VERSION"),
+        "recording_filename": "recording.mov",
+        "is_encrypted": manifest.recording.encrypted,
+    });
+    zip.start_file("metadata.json", options)
+        .map_err(|e| format!("Failed to add metadata to zip: {}", e))?;
+    zip.write_all(serde_json::to_string_pretty(&metadata_json).unwrap().as_bytes())
+        .map_err(|e| format!("Failed to write metadata to zip: {}", e))?;
+
+    zip.finish()
+        .map_err(|e| format!("Failed to finalize zip: {}", e))?;
+
+    // Cleanup temp directory
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    LOGGER.log(
+        LogLevel::Info,
+        "Metadata updated successfully",
+        "recording_commands",
+    );
+
+    Ok(())
+}
+
 /// Create a proof pack (ZIP archive) containing video + manifest + public key + README
 #[tauri::command]
 pub async fn create_proof_pack(
@@ -821,6 +934,9 @@ pub struct RecordingEntry {
     pub file_size_bytes: u64,
     pub is_encrypted: bool,
     pub has_manifest: bool,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub tags: Option<Vec<String>>,
 }
 
 /// Helper: Extract video and manifest from .notari file
@@ -892,33 +1008,37 @@ pub async fn list_recordings(
                     .unwrap_or("unknown")
                     .to_string();
 
-                // Extract metadata from .notari file to determine encryption status
-                let is_encrypted = if let Ok(file) = fs::File::open(&path) {
+                // Extract metadata (including custom metadata) from metadata.json
+                let (is_encrypted, title, description, tags) = if let Ok(file) = fs::File::open(&path) {
                     if let Ok(mut archive) = zip::ZipArchive::new(file) {
                         if let Ok(mut metadata_file) = archive.by_name("metadata.json") {
                             let mut contents = String::new();
                             if metadata_file.read_to_string(&mut contents).is_ok() {
                                 if let Ok(metadata) =
-                                    serde_json::from_str::<serde_json::Value>(&contents)
+                                    serde_json::from_str::<ProofPackMetadata>(&contents)
                                 {
-                                    metadata
-                                        .get("is_encrypted")
-                                        .and_then(|v| v.as_bool())
-                                        .unwrap_or(false)
+                                    println!("DEBUG: Found metadata - encrypted: {}, title: {:?}, desc: {:?}, tags: {:?}",
+                                        metadata.is_encrypted, metadata.title, metadata.description, metadata.tags);
+                                    (metadata.is_encrypted, metadata.title, metadata.description, metadata.tags)
                                 } else {
-                                    false
+                                    println!("DEBUG: Failed to parse metadata.json");
+                                    (false, None, None, None)
                                 }
                             } else {
-                                false
+                                println!("DEBUG: Failed to read metadata.json contents");
+                                (false, None, None, None)
                             }
                         } else {
-                            false
+                            println!("DEBUG: metadata.json not found in archive");
+                            (false, None, None, None)
                         }
                     } else {
-                        false
+                        println!("DEBUG: Failed to open zip archive");
+                        (false, None, None, None)
                     }
                 } else {
-                    false
+                    println!("DEBUG: Failed to open .notari file");
+                    (false, None, None, None)
                 };
 
                 // For .notari files, the video_path is the .notari file itself
@@ -957,6 +1077,9 @@ pub async fn list_recordings(
                     file_size_bytes,
                     is_encrypted,
                     has_manifest,
+                    title,
+                    description,
+                    tags,
                 });
             }
         }
@@ -1069,7 +1192,7 @@ pub async fn start_video_playback(
 ) -> Result<String, String> {
     LOGGER.log(
         LogLevel::Info,
-        &format!("Starting video playback for: {}", recording_path),
+        &format!("Starting video playback for: {} (password length: {})", recording_path, password.len()),
         "recording_commands",
     );
 
@@ -1115,14 +1238,41 @@ pub async fn start_video_playback(
         "recording_commands",
     );
 
-    // Get file size
-    let file_size = std::fs::metadata(&video_path)
+    // Get file size (encrypted file size)
+    let encrypted_file_size = std::fs::metadata(&video_path)
         .map_err(|e| format!("Failed to get file size: {}", e))?
         .len();
 
+    // Calculate plaintext size if encrypted
+    let plaintext_size = if let Some(ref enc_info) = encryption_info {
+        if let Some(ref chunked) = enc_info.chunked {
+            // For chunked encryption, sum up the plaintext sizes
+            // Each chunk's plaintext size = chunk_size, except the last chunk
+            let full_chunks = (chunked.total_chunks - 1) as u64;
+            let full_chunks_size = full_chunks * chunked.chunk_size;
+
+            // Last chunk size from the chunks array
+            let last_chunk_plaintext_size = if let Some(last_chunk) = chunked.chunks.last() {
+                // Ciphertext size - 16 bytes (AES-GCM tag)
+                last_chunk.size.saturating_sub(16)
+            } else {
+                0
+            };
+
+            full_chunks_size + last_chunk_plaintext_size
+        } else {
+            // For non-chunked encryption, we can't easily determine plaintext size
+            // Use encrypted size as approximation (will be slightly larger)
+            encrypted_file_size
+        }
+    } else {
+        encrypted_file_size
+    };
+
     LOGGER.log(
         LogLevel::Info,
-        &format!("Video file size: {} bytes", file_size),
+        &format!("Video file size: {} bytes (encrypted: {}, plaintext: {})",
+            plaintext_size, encrypted_file_size, plaintext_size),
         "recording_commands",
     );
 
@@ -1136,7 +1286,7 @@ pub async fn start_video_playback(
             None
         },
         encryption_info,
-        file_size,
+        file_size: plaintext_size,  // Use plaintext size for streaming
         temp_dir: temp_dir.into(),
     };
 

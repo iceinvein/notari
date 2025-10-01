@@ -34,7 +34,7 @@ export default function LogViewer({ onClose }: LogViewerProps) {
 		let cancelled = false;
 		const tick = async () => {
 			try {
-				const entries = (await invoke("dev_log_get")) as BackendLogEntry[];
+				const entries = (await invoke("log_get")) as BackendLogEntry[];
 				if (cancelled || !entries?.length) return;
 				// Only import new entries since last timestamp
 				const lastTs = lastImportedTsRef.current;
@@ -42,7 +42,7 @@ export default function LogViewer({ onClose }: LogViewerProps) {
 				if (newEntries.length) {
 					for (const e of newEntries) {
 						const category = e.source?.toUpperCase?.() || "BACKEND";
-						logger.debug(category, `backend:${e.level} ${e.message}`);
+						logger.info(category, `${e.message}`);
 					}
 					const last = newEntries[newEntries.length - 1];
 					if (last) lastImportedTsRef.current = last.timestamp;

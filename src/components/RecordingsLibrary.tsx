@@ -39,6 +39,9 @@ type VerificationReport = {
 			created_at: string;
 			duration_seconds: number;
 			window_title: string;
+			title?: string;
+			description?: string;
+			tags?: string[];
 		};
 		signature_info: {
 			algorithm: string;
@@ -117,10 +120,21 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 		setDecryptError(null);
 
 		try {
+			logger.info("RecordingsLibrary", "Attempting to decrypt and play", {
+				path: selectedRecording.manifest_path,
+				is_encrypted: selectedRecording.is_encrypted,
+			});
+
 			// Validate password by loading manifest
 			const manifest = await invoke<EvidenceManifest>("get_evidence_manifest", {
 				manifestPath: selectedRecording.manifest_path,
 			});
+
+			logger.info("RecordingsLibrary", "Manifest loaded", {
+				encrypted: manifest.recording?.encrypted,
+				has_encryption_info: !!manifest.recording?.encryption,
+			});
+
 			const encryptionInfo = manifest.recording?.encryption;
 			if (!encryptionInfo) {
 				throw new Error(
@@ -129,6 +143,11 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 			}
 
 			// Password is valid, open in video player
+			logger.info("RecordingsLibrary", "Opening video player with password", {
+				password_length: decryptPassword.length,
+				has_password: decryptPassword.length > 0,
+			});
+
 			setVideoPlayerRecording(selectedRecording);
 			setVideoPlayerPassword(decryptPassword);
 			setShowVideoPlayer(true);
@@ -139,6 +158,7 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 			setSelectedRecording(null);
 		} catch (err) {
 			console.error("Failed to validate password:", err);
+			logger.error("RecordingsLibrary", "Decrypt and play failed", err as Error);
 			setDecryptError(err instanceof Error ? err.message : "Invalid password");
 		} finally {
 			setIsDecrypting(false);
@@ -330,19 +350,14 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 							onPress={() => handlePlayVideo(recording)}
 						>
 							<CardBody className="p-4">
-								<div className="flex items-center gap-4">
-									{/* Icon */}
-									<div className="flex-shrink-0">
-										<div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-											<FileVideo className="w-6 h-6 text-primary" />
-										</div>
-									</div>
-
+								<div className="flex items-start gap-4">
 									{/* Content */}
-									<div className="flex-1 min-w-0">
+									<div className="flex-1 min-w-0 space-y-2">
 										{/* Title and badges */}
-										<div className="flex items-center gap-2 mb-1">
-											<p className="font-medium text-sm truncate">{recording.filename}</p>
+										<div className="flex items-center gap-2">
+											<p className="font-medium text-sm truncate">
+												{recording.title || recording.filename}
+											</p>
 											{recording.is_encrypted && (
 												<Lock className="w-3.5 h-3.5 text-warning flex-shrink-0" />
 											)}
@@ -351,8 +366,37 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 											)}
 										</div>
 
-										{/* Metadata */}
-										<div className="flex items-center gap-3 text-xs text-foreground-500">
+										{/* Show filename if custom title exists */}
+										{recording.title && (
+											<p className="text-xs text-foreground-400 truncate">{recording.filename}</p>
+										)}
+
+										{/* Description */}
+										{recording.description && (
+											<p className="text-xs text-foreground-500 line-clamp-2">
+												{recording.description}
+											</p>
+										)}
+
+										{/* Tags */}
+										{recording.tags && recording.tags.length > 0 && (
+											<div className="flex flex-wrap gap-1">
+												{recording.tags.slice(0, 3).map((tag) => (
+													<Chip key={tag} size="sm" variant="flat" color="primary">
+														{tag}
+													</Chip>
+												))}
+												{recording.tags.length > 3 && (
+													<Chip size="sm" variant="flat" color="default">
+														+{recording.tags.length - 3}
+													</Chip>
+												)}
+											</div>
+										)}
+
+										{/* File metadata */}
+										<div className="flex items-center gap-2 text-xs text-foreground-400">
+											<FileVideo className="w-3.5 h-3.5" />
 											<span>{formatDate(recording.created_at)}</span>
 											<span>•</span>
 											<span>{formatFileSize(recording.file_size_bytes)}</span>
@@ -575,6 +619,43 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 										</Chip>
 									</div>
 								</div>
+
+								{/* Custom Metadata */}
+								{(verifyResult.verification.recording_info.title ||
+									verifyResult.verification.recording_info.description ||
+									(verifyResult.verification.recording_info.tags &&
+										verifyResult.verification.recording_info.tags.length > 0)) && (
+									<div className="p-3 bg-content2 rounded-lg space-y-2">
+										<p className="text-xs font-medium text-foreground-500">Recording Metadata</p>
+										{verifyResult.verification.recording_info.title && (
+											<div className="space-y-1">
+												<p className="text-xs text-foreground-500">Title</p>
+												<p className="text-sm font-medium">
+													{verifyResult.verification.recording_info.title}
+												</p>
+											</div>
+										)}
+										{verifyResult.verification.recording_info.description && (
+											<div className="space-y-1">
+												<p className="text-xs text-foreground-500">Description</p>
+												<p className="text-sm">{verifyResult.verification.recording_info.description}</p>
+											</div>
+										)}
+										{verifyResult.verification.recording_info.tags &&
+											verifyResult.verification.recording_info.tags.length > 0 && (
+												<div className="space-y-1">
+													<p className="text-xs text-foreground-500">Tags</p>
+													<div className="flex flex-wrap gap-1">
+														{verifyResult.verification.recording_info.tags.map((tag) => (
+															<Chip key={tag} size="sm" variant="flat" color="primary">
+																{tag}
+															</Chip>
+														))}
+													</div>
+												</div>
+											)}
+									</div>
+								)}
 
 								{/* Recording Info */}
 								{verifyResult.verification.recording_info.window_title && (

@@ -69,6 +69,18 @@ pub struct KeyDerivationInfo {
 pub struct Metadata {
     pub window: WindowInfo,
     pub video: VideoInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom: Option<CustomMetadata>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +223,7 @@ mod tests {
                 frame_rate: 30,
                 codec: "H.264".to_string(),
             },
+            custom: None,
         };
 
         let system = SystemInfo {
@@ -258,6 +271,7 @@ mod tests {
                 frame_rate: 30,
                 codec: "H.264".to_string(),
             },
+            custom: None,
         };
 
         let system = SystemInfo {

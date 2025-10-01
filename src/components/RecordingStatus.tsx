@@ -51,10 +51,6 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 	const resumeRecordingMutation = useResumeRecordingMutation();
 	const clearRecordingMutation = useClearActiveRecordingMutation();
 
-	// Metadata fields
-	const [recordingTitle, setRecordingTitle] = useState("");
-	const [recordingDescription, setRecordingDescription] = useState("");
-	const [recordingTags, setRecordingTags] = useState("");
 
 	// Decrypt and play state
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -320,30 +316,36 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 						</div>
 					)}
 
-					{/* Metadata Fields - Only show when stopped */}
-					{activeSession.status === "Stopped" && (
-						<div className="space-y-3">
-							<Input
-								size="sm"
-								label="Title"
-								placeholder="Give this recording a name..."
-								value={recordingTitle}
-								onValueChange={setRecordingTitle}
-							/>
-							<Input
-								size="sm"
-								label="Description"
-								placeholder="What does this recording show?"
-								value={recordingDescription}
-								onValueChange={setRecordingDescription}
-							/>
-							<Input
-								size="sm"
-								label="Tags"
-								placeholder="meeting, demo, bug-report (comma-separated)"
-								value={recordingTags}
-								onValueChange={setRecordingTags}
-							/>
+					{/* Metadata Display */}
+					{(activeSession.recording_title ||
+						activeSession.recording_description ||
+						(activeSession.recording_tags && activeSession.recording_tags.length > 0)) && (
+						<div className="p-3 bg-content2 rounded-lg space-y-2">
+							<p className="text-xs font-medium text-foreground-500">Recording Metadata</p>
+							{activeSession.recording_title && (
+								<div className="space-y-1">
+									<p className="text-xs text-foreground-500">Title</p>
+									<p className="text-sm font-medium">{activeSession.recording_title}</p>
+								</div>
+							)}
+							{activeSession.recording_description && (
+								<div className="space-y-1">
+									<p className="text-xs text-foreground-500">Description</p>
+									<p className="text-sm">{activeSession.recording_description}</p>
+								</div>
+							)}
+							{activeSession.recording_tags && activeSession.recording_tags.length > 0 && (
+								<div className="space-y-1">
+									<p className="text-xs text-foreground-500">Tags</p>
+									<div className="flex flex-wrap gap-1">
+										{activeSession.recording_tags.map((tag) => (
+											<Chip key={tag} size="sm" variant="flat" color="primary">
+												{tag}
+											</Chip>
+										))}
+									</div>
+								</div>
+							)}
 						</div>
 					)}
 

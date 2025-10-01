@@ -95,15 +95,24 @@ export function useStartRecordingMutation() {
 			windowId,
 			preferences,
 			encryptionPassword,
+			recordingTitle,
+			recordingDescription,
+			recordingTags,
 		}: {
 			windowId: string;
 			preferences?: RecordingPreferences;
 			encryptionPassword?: string | null;
+			recordingTitle?: string;
+			recordingDescription?: string;
+			recordingTags?: string[];
 		}) => {
 			return await invoke<ActiveRecording>("start_window_recording", {
 				windowId,
 				preferences,
 				encryptionPassword,
+				recordingTitle: recordingTitle || null,
+				recordingDescription: recordingDescription || null,
+				recordingTags: recordingTags && recordingTags.length > 0 ? recordingTags : null,
 			});
 		},
 		onSuccess: () => {
@@ -249,6 +258,9 @@ export type RecordingEntry = {
 	file_size_bytes: number;
 	is_encrypted: boolean;
 	has_manifest: boolean;
+	title?: string;
+	description?: string;
+	tags?: string[];
 };
 
 export function useRecordingsQuery() {

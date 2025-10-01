@@ -33,6 +33,9 @@ export type ActiveRecording = {
 	status: RecordingStatus;
 	preferences: RecordingPreferences;
 	window_metadata?: WindowMetadata;
+	recording_title?: string;
+	recording_description?: string;
+	recording_tags?: string[];
 };
 
 export type RecordingInfo = {

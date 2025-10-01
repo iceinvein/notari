@@ -15,6 +15,8 @@ use crate::evidence::manifest::{
     ChunkInfo, ChunkedEncryptionInfo, EncryptionInfo, KeyDerivationInfo,
 };
 
+use crate::logger::{LogLevel, LOGGER};
+
 // Constants
 const SALT_SIZE: usize = 32;
 const NONCE_SIZE: usize = 12;
@@ -150,7 +152,7 @@ impl VideoEncryptor {
             // Write encrypted chunk
             output_file.write_all(&ciphertext)?;
 
-            // Store chunk info
+            // Store chunk info (offset is the position in the OUTPUT file)
             chunks.push(ChunkInfo {
                 index: chunk_index,
                 offset,
@@ -158,7 +160,9 @@ impl VideoEncryptor {
                 nonce: general_purpose::STANDARD.encode(&nonce_bytes),
             });
 
-            offset += current_chunk_size as u64;
+            // Move offset by ciphertext size (not plaintext size!)
+            // Ciphertext is larger due to AES-GCM authentication tag
+            offset += ciphertext.len() as u64;
             chunk_index += 1;
         }
 
@@ -312,10 +316,23 @@ impl VideoEncryptor {
             .as_ref()
             .ok_or("Not a chunked encryption")?;
 
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Decrypting chunk {} of {} total chunks", chunk_index, chunked_info.total_chunks),
+            "encryption",
+        );
+
         let chunk_info = chunked_info
             .chunks
             .get(chunk_index)
-            .ok_or(format!("Chunk index {} out of bounds", chunk_index))?;
+            .ok_or(format!("Chunk index {} out of bounds (total chunks: {})", chunk_index, chunked_info.chunks.len()))?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Chunk {} info - offset: {}, size: {}, nonce length: {}",
+                chunk_index, chunk_info.offset, chunk_info.size, chunk_info.nonce.len()),
+            "encryption",
+        );
 
         // Decode salt
         let salt = general_purpose::STANDARD.decode(&encryption_info.key_derivation.salt)?;
@@ -334,7 +351,23 @@ impl VideoEncryptor {
         let cipher = Aes256Gcm::new(key);
 
         // Decode nonce for this chunk
-        let nonce_bytes = general_purpose::STANDARD.decode(&chunk_info.nonce)?;
+        let nonce_bytes = general_purpose::STANDARD.decode(&chunk_info.nonce)
+            .map_err(|e| {
+                LOGGER.log(
+                    LogLevel::Error,
+                    &format!("Failed to decode nonce for chunk {}: {}", chunk_index, e),
+                    "encryption",
+                );
+                format!("Failed to decode nonce for chunk {}: {}", chunk_index, e)
+            })?;
+
+        if nonce_bytes.len() != NONCE_SIZE {
+            let err_msg = format!("Invalid nonce size for chunk {}: expected {}, got {}",
+                chunk_index, NONCE_SIZE, nonce_bytes.len());
+            LOGGER.log(LogLevel::Error, &err_msg, "encryption");
+            return Err(err_msg.into());
+        }
+
         let nonce = Nonce::from_slice(&nonce_bytes);
 
         // Open input file and seek to chunk
@@ -344,15 +377,40 @@ impl VideoEncryptor {
 
         // Read encrypted chunk
         let mut ciphertext = vec![0u8; chunk_info.size as usize];
-        input_file.read_exact(&mut ciphertext)?;
+        input_file.read_exact(&mut ciphertext)
+            .map_err(|e| {
+                LOGGER.log(
+                    LogLevel::Error,
+                    &format!("Failed to read chunk {} at offset {}: {}", chunk_index, chunk_info.offset, e),
+                    "encryption",
+                );
+                format!("Failed to read chunk {} at offset {}: {}", chunk_index, chunk_info.offset, e)
+            })?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Read {} bytes of ciphertext for chunk {}", ciphertext.len(), chunk_index),
+            "encryption",
+        );
 
         // Decrypt chunk
-        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|_| {
+        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|e| {
+            LOGGER.log(
+                LogLevel::Error,
+                &format!("Decryption error for chunk {}: {:?}", chunk_index, e),
+                "encryption",
+            );
             format!(
                 "Decryption failed for chunk {}: incorrect password or corrupted file",
                 chunk_index
             )
         })?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Successfully decrypted chunk {} - plaintext size: {}", chunk_index, plaintext.len()),
+            "encryption",
+        );
 
         Ok(plaintext)
     }
@@ -365,6 +423,12 @@ impl VideoEncryptor {
         password: &str,
         encryption_info: &EncryptionInfo,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("decrypt_byte_range: requested bytes {}-{} (total {} bytes)", start, end, end - start + 1),
+            "encryption",
+        );
+
         let chunked_info = encryption_info
             .chunked
             .as_ref()
@@ -374,6 +438,12 @@ impl VideoEncryptor {
         let chunk_size = chunked_info.chunk_size;
         let start_chunk = (start / chunk_size) as usize;
         let end_chunk = (end / chunk_size) as usize;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("decrypt_byte_range: need chunks {}-{} (chunk_size={})", start_chunk, end_chunk, chunk_size),
+            "encryption",
+        );
 
         let mut result = Vec::new();
 
@@ -402,8 +472,21 @@ impl VideoEncryptor {
                 chunk_data.len()
             };
 
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("decrypt_byte_range: chunk {} - chunk_offset={}-{}, copy_range={}..{}, copying {} bytes",
+                    chunk_idx, chunk_start_offset, chunk_end_offset, copy_start, copy_end, copy_end - copy_start),
+                "encryption",
+            );
+
             result.extend_from_slice(&chunk_data[copy_start..copy_end]);
         }
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("decrypt_byte_range: returning {} bytes (requested {})", result.len(), end - start + 1),
+            "encryption",
+        );
 
         Ok(result)
     }
