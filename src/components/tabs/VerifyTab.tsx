@@ -172,7 +172,7 @@ export default function VerifyTab() {
 					{/* Status Card */}
 					<Card className="bg-content2">
 						<CardBody className="space-y-4">
-							<div className="flex items-center justify-between">
+							<div className="flex items-center justify-between gap-2">
 								<div className="flex items-center space-x-3">
 									{getStatusIcon(verificationResult.verification.status)}
 									<div>
@@ -250,19 +250,19 @@ export default function VerifyTab() {
 						<CardBody className="space-y-3">
 							<h4 className="text-sm font-medium text-foreground">Recording Information</h4>
 							<div className="space-y-2 text-xs">
-								<div className="flex justify-between">
+								<div className="flex gap-1">
 									<span className="text-foreground-500">Window:</span>
-									<span className="text-foreground break-all text-right max-w-[60%]">
+									<span className="text-foreground break-all">
 										{verificationResult.verification.recording_info.window_title}
 									</span>
 								</div>
-								<div className="flex justify-between">
+								<div className="flex gap-1">
 									<span className="text-foreground-500">Duration:</span>
 									<span className="text-foreground">
 										{verificationResult.verification.recording_info.duration_seconds.toFixed(1)}s
 									</span>
 								</div>
-								<div className="flex justify-between">
+								<div className="flex gap-1">
 									<span className="text-foreground-500">Verified By:</span>
 									<span className="text-foreground text-xs">
 										{verificationResult.verification.signature_info.verified_by}

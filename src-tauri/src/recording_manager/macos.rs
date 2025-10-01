@@ -634,9 +634,10 @@ impl MacOSRecordingManager {
             "recording_manager",
         );
 
-        // Encrypt the video file
-        let encryption_info = VideoEncryptor::encrypt_file(input_path, &encrypted_path, password)
-            .map_err(|e| format!("Encryption failed: {}", e))?;
+        // Encrypt the video file with chunked encryption (for streaming)
+        let encryption_info =
+            VideoEncryptor::encrypt_file_chunked(input_path, &encrypted_path, password)
+                .map_err(|e| format!("Encryption failed: {}", e))?;
 
         // Delete the original unencrypted file
         if let Err(e) = std::fs::remove_file(input_path) {

@@ -1050,6 +1050,198 @@ pub async fn decrypt_and_play_video(
     Ok(temp_path_str)
 }
 
+// ============================================================================
+// Video Streaming Commands
+// ============================================================================
+
+use once_cell::sync::Lazy;
+use tokio::sync::RwLock as TokioRwLock;
+
+// Global video server state
+pub static VIDEO_SERVER: Lazy<TokioRwLock<Option<(u16, crate::video_server::VideoServerState)>>> =
+    Lazy::new(|| TokioRwLock::new(None));
+
+/// Start video playback - returns stream URL
+#[tauri::command]
+pub async fn start_video_playback(
+    recording_path: String,
+    password: String,
+) -> Result<String, String> {
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Starting video playback for: {}", recording_path),
+        "recording_commands",
+    );
+
+    // Ensure server is running
+    let mut server = VIDEO_SERVER.write().await;
+    if server.is_none() {
+        LOGGER.log(
+            LogLevel::Info,
+            "Starting video server...",
+            "recording_commands",
+        );
+        let (port, state) = crate::video_server::start_video_server().await?;
+        *server = Some((port, state));
+    }
+
+    let (_port, state) = server.as_ref().unwrap();
+
+    // Extract from .notari
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Extracting from .notari: {}", recording_path),
+        "recording_commands",
+    );
+    let (video_path, manifest_path, temp_dir) =
+        resolve_recording_paths(&recording_path, &recording_path)?;
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Extracted video path: {}", video_path),
+        "recording_commands",
+    );
+
+    // Get encryption info (if encrypted)
+    let manifest = crate::evidence::EvidenceManifest::load(&manifest_path)
+        .map_err(|e| format!("Failed to load manifest: {}", e))?;
+
+    let encryption_info = manifest.recording.encryption;
+    let is_encrypted = encryption_info.is_some();
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Video is encrypted: {}", is_encrypted),
+        "recording_commands",
+    );
+
+    // Get file size
+    let file_size = std::fs::metadata(&video_path)
+        .map_err(|e| format!("Failed to get file size: {}", e))?
+        .len();
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Video file size: {} bytes", file_size),
+        "recording_commands",
+    );
+
+    // Create stream
+    let stream_id = uuid::Uuid::new_v4().to_string();
+    let stream = crate::video_server::VideoStream {
+        video_path: video_path.into(),
+        password: if is_encrypted {
+            Some(password)
+        } else {
+            None
+        },
+        encryption_info,
+        file_size,
+        temp_dir: temp_dir.into(),
+    };
+
+    // Store stream
+    state
+        .streams
+        .write()
+        .await
+        .insert(stream_id.clone(), stream);
+
+    // Return HTTP URL
+    let url = format!("http://127.0.0.1:{}/video/{}", _port, stream_id);
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Video stream created: {}", url),
+        "recording_commands",
+    );
+
+    // Log health check URL for debugging
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Health check: http://127.0.0.1:{}/health", _port),
+        "recording_commands",
+    );
+
+    Ok(url)
+}
+
+/// Test video server connectivity
+#[tauri::command]
+pub async fn test_video_server() -> Result<String, String> {
+    let server = VIDEO_SERVER.read().await;
+    if let Some((port, _state)) = server.as_ref() {
+        Ok(format!("Server running on port {}", port))
+    } else {
+        Err("Server not running".to_string())
+    }
+}
+
+/// Get video chunk for streaming
+#[tauri::command]
+pub async fn get_video_chunk(
+    stream_id: String,
+    start: u64,
+    end: u64,
+) -> Result<Vec<u8>, String> {
+    LOGGER.log(
+        LogLevel::Debug,
+        &format!("Getting video chunk: {} bytes {}-{}", stream_id, start, end),
+        "recording_commands",
+    );
+
+    let server = VIDEO_SERVER.read().await;
+    let (_port, state) = server.as_ref().ok_or("Video server not started")?;
+
+    let streams = state.streams.read().await;
+    let stream = streams.get(&stream_id).ok_or("Stream not found")?;
+
+    // Decrypt/read the chunk
+    let data = crate::video_server::decrypt_chunk(stream, start, end)
+        .await
+        .map_err(|e| format!("Failed to get chunk: {}", e))?;
+
+    Ok(data)
+}
+
+/// Get video metadata
+#[tauri::command]
+pub async fn get_video_metadata(stream_id: String) -> Result<(u64, bool), String> {
+    let server = VIDEO_SERVER.read().await;
+    let (_port, state) = server.as_ref().ok_or("Video server not started")?;
+
+    let streams = state.streams.read().await;
+    let stream = streams.get(&stream_id).ok_or("Stream not found")?;
+
+    Ok((stream.file_size, stream.encryption_info.is_some()))
+}
+
+/// Stop video playback and cleanup
+#[tauri::command]
+pub async fn stop_video_playback(stream_id: String) -> Result<(), String> {
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Stopping video playback: {}", stream_id),
+        "recording_commands",
+    );
+
+    let server = VIDEO_SERVER.read().await;
+    if let Some((_, state)) = server.as_ref() {
+        let mut streams = state.streams.write().await;
+        if let Some(stream) = streams.remove(&stream_id) {
+            // Cleanup temp directory
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Cleaning up temp directory: {}", stream.temp_dir.display()),
+                "recording_commands",
+            );
+            let _ = std::fs::remove_dir_all(&stream.temp_dir);
+        }
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -12,7 +12,6 @@ import {
 	Clock,
 	Eye,
 	EyeOff,
-	HardDrive,
 	Lock,
 	Pause,
 	Play,
@@ -20,11 +19,6 @@ import {
 	Square,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import {
-	formatPublicKeyFingerprint,
-	useHasSigningKeyQuery,
-	usePublicKeyQuery,
-} from "../hooks/useEvidence";
 import {
 	useActiveRecordingSessionQuery,
 	useClearActiveRecordingMutation,
@@ -57,9 +51,10 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 	const resumeRecordingMutation = useResumeRecordingMutation();
 	const clearRecordingMutation = useClearActiveRecordingMutation();
 
-	// Evidence system queries
-	const { data: hasSigningKey } = useHasSigningKeyQuery();
-	const { data: publicKey } = usePublicKeyQuery();
+	// Metadata fields
+	const [recordingTitle, setRecordingTitle] = useState("");
+	const [recordingDescription, setRecordingDescription] = useState("");
+	const [recordingTags, setRecordingTags] = useState("");
 
 	// Decrypt and play state
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -226,85 +221,93 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 	return (
 		<>
 			<Card className={`w-full ${className}`}>
-				<CardBody className="p-4">
-					<div className="flex items-center justify-between mb-3">
-						<div className="flex items-center space-x-2">
-							<Chip
-								color={getStatusColor(activeSession.status)}
-								variant="flat"
-								startContent={getStatusIcon(activeSession.status)}
-							>
-								{typeof activeSession.status === "string" ? activeSession.status : "Error"}
-							</Chip>
-							<span className="text-sm text-foreground-600">
-								Session: {activeSession.session_id.slice(0, 8)}...
-							</span>
+				<CardBody className="p-4 space-y-4">
+					{/* Header with Status and Controls */}
+					<div className="flex items-center justify-between">
+						<div className="flex items-center gap-3">
+							<div className={`w-3 h-3 rounded-full ${
+								activeSession.status === "Recording" ? "bg-danger animate-pulse" :
+								activeSession.status === "Paused" ? "bg-warning" :
+								"bg-success"
+							}`} />
+							<div>
+								<p className="text-sm font-medium">
+									{typeof activeSession.status === "string" ? activeSession.status : "Error"}
+								</p>
+								<p className="text-xs text-foreground-500">
+									{formatRecordingDuration(duration)} • {fileSize ? formatFileSize(fileSize) : "0 B"}
+								</p>
+							</div>
 						</div>
 
-						<div className="flex items-center space-x-2">
+						<div className="flex items-center gap-2">
 							{activeSession.status === "Recording" && (
 								<Button
+									isIconOnly
 									size="sm"
 									variant="flat"
 									color="secondary"
 									onPress={handlePause}
 									isLoading={pauseRecordingMutation.isPending}
-									startContent={<Pause className="w-4 h-4" />}
+									aria-label="Pause"
 								>
-									Pause
+									<Pause className="w-4 h-4" />
 								</Button>
 							)}
 
 							{activeSession.status === "Paused" && (
 								<Button
+									isIconOnly
 									size="sm"
 									variant="flat"
 									color="primary"
 									onPress={handleResume}
 									isLoading={resumeRecordingMutation.isPending}
-									startContent={<Play className="w-4 h-4" />}
+									aria-label="Resume"
 								>
-									Resume
+									<Play className="w-4 h-4" />
 								</Button>
 							)}
 
 							{isRecordingActive(activeSession.status) && (
 								<Button
+									isIconOnly
 									size="sm"
 									color="danger"
 									variant="flat"
 									onPress={handleStop}
 									isLoading={stopRecordingMutation.isPending}
-									startContent={<Square className="w-4 h-4" />}
+									aria-label="Stop"
 								>
-									Stop
+									<Square className="w-4 h-4" />
 								</Button>
 							)}
 
 							{(activeSession.status === "Stopped" || isRecordingError(activeSession.status)) && (
 								<>
 									<Button
+										isIconOnly
 										size="sm"
 										variant="flat"
 										color="primary"
 										onPress={handleOpenVideo}
-										startContent={
-											activeSession.output_path?.endsWith(".enc") ? (
-												<Lock className="w-4 h-4" />
-											) : (
-												<Play className="w-4 h-4" />
-											)
-										}
+										aria-label="Open Video"
 									>
-										Open Video
+										{activeSession.output_path?.endsWith(".enc") ? (
+											<Lock className="w-4 h-4" />
+										) : (
+											<Play className="w-4 h-4" />
+										)}
 									</Button>
 									<Button
+										isIconOnly
 										size="sm"
 										variant="flat"
 										onPress={handleClear}
 										isLoading={clearRecordingMutation.isPending}
+										aria-label="Clear"
 									>
-										Clear
+										<Circle className="w-4 h-4" />
 									</Button>
 								</>
 							)}
@@ -312,62 +315,57 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 					</div>
 
 					{errorMessage && (
-						<div className="mb-3 p-2 bg-danger-50 border border-danger-200 rounded-lg">
-							<p className="text-sm text-danger-700">{errorMessage}</p>
+						<div className="p-2 bg-danger-50 dark:bg-danger-900/20 border border-danger-200 dark:border-danger-800 rounded-lg">
+							<p className="text-sm text-danger-700 dark:text-danger-300">{errorMessage}</p>
 						</div>
 					)}
 
-					<div className="grid grid-cols-2 gap-4 text-sm">
-						<div className="flex items-center space-x-2">
-							<Clock className="w-4 h-4 text-foreground-500" />
-							<span>Duration: {formatRecordingDuration(duration)}</span>
-						</div>
-
-						{fileSize && (
-							<div className="flex items-center space-x-2">
-								<HardDrive className="w-4 h-4 text-foreground-500" />
-								<span>Size: {formatFileSize(fileSize)}</span>
-							</div>
-						)}
-					</div>
-
-					{/* Evidence Status */}
-					{hasSigningKey && (
-						<div className="mt-3 p-2 bg-success-50 dark:bg-success-900/20 rounded-lg border border-success-200 dark:border-success-800">
-							<div className="flex items-center space-x-2 text-sm">
-								<Shield className="w-4 h-4 text-success-600 dark:text-success-400" />
-								<span className="text-success-700 dark:text-success-300 font-medium">
-									Evidence Enabled
-								</span>
-								{publicKey && (
-									<span className="text-success-600 dark:text-success-400 text-xs">
-										Key: {formatPublicKeyFingerprint(publicKey)}
-									</span>
-								)}
-							</div>
-							{activeSession.window_metadata && (
-								<div className="mt-1 text-xs text-success-600 dark:text-success-400">
-									Recording: {activeSession.window_metadata.title} (
-									{activeSession.window_metadata.width}x{activeSession.window_metadata.height})
-								</div>
-							)}
-						</div>
-					)}
-
-					{isRecordingActive(activeSession.status) && (
-						<div className="mt-3">
-							<Progress
+					{/* Metadata Fields - Only show when stopped */}
+					{activeSession.status === "Stopped" && (
+						<div className="space-y-3">
+							<Input
 								size="sm"
-								color="success"
-								isIndeterminate
-								aria-label="Recording in progress"
+								label="Title"
+								placeholder="Give this recording a name..."
+								value={recordingTitle}
+								onValueChange={setRecordingTitle}
+							/>
+							<Input
+								size="sm"
+								label="Description"
+								placeholder="What does this recording show?"
+								value={recordingDescription}
+								onValueChange={setRecordingDescription}
+							/>
+							<Input
+								size="sm"
+								label="Tags"
+								placeholder="meeting, demo, bug-report (comma-separated)"
+								value={recordingTags}
+								onValueChange={setRecordingTags}
 							/>
 						</div>
 					)}
 
-					<div className="mt-2 text-xs text-foreground-500">
-						Output: {activeSession.output_path}
-					</div>
+					{/* Recording Info */}
+					{activeSession.window_metadata && isRecordingActive(activeSession.status) && (
+						<div className="flex items-center gap-2 text-xs text-foreground-500">
+							<Shield className="w-3.5 h-3.5" />
+							<span className="truncate">
+								{activeSession.window_metadata.title} ({activeSession.window_metadata.width}x{activeSession.window_metadata.height})
+							</span>
+						</div>
+					)}
+
+					{/* Progress Bar */}
+					{isRecordingActive(activeSession.status) && (
+						<Progress
+							size="sm"
+							color="success"
+							isIndeterminate
+							aria-label="Recording in progress"
+						/>
+					)}
 				</CardBody>
 			</Card>
 

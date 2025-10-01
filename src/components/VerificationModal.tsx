@@ -211,21 +211,21 @@ function VerificationResults({ report }: { report: VerificationReport }) {
 				<CardBody className="p-4">
 					<h4 className="font-semibold mb-3">Recording Information</h4>
 					<div className="space-y-2 text-sm">
-						<div className="flex justify-between">
+						<div className="flex gap-2">
 							<span className="text-foreground-500">Session ID:</span>
 							<span className="font-mono">
 								{verification.recording_info.session_id.slice(0, 16)}...
 							</span>
 						</div>
-						<div className="flex justify-between">
+						<div className="flex gap-2">
 							<span className="text-foreground-500">Window:</span>
 							<span>{verification.recording_info.window_title}</span>
 						</div>
-						<div className="flex justify-between">
+						<div className="flex gap-2">
 							<span className="text-foreground-500">Duration:</span>
 							<span>{verification.recording_info.duration_seconds}s</span>
 						</div>
-						<div className="flex justify-between">
+						<div className="flex gap-2">
 							<span className="text-foreground-500">Created:</span>
 							<span>{new Date(verification.recording_info.created_at).toLocaleString()}</span>
 						</div>
@@ -238,17 +238,17 @@ function VerificationResults({ report }: { report: VerificationReport }) {
 				<CardBody className="p-4">
 					<h4 className="font-semibold mb-3">Signature Information</h4>
 					<div className="space-y-2 text-sm">
-						<div className="flex justify-between">
+						<div className="flex gap-2">
 							<span className="text-foreground-500">Algorithm:</span>
 							<span className="font-mono">{verification.signature_info.algorithm}</span>
 						</div>
-						<div className="flex justify-between">
+						<div className="flex gap-2">
 							<span className="text-foreground-500">Public Key:</span>
 							<span className="font-mono text-xs">
 								{verification.signature_info.public_key.slice(0, 24)}...
 							</span>
 						</div>
-						<div className="flex justify-between">
+						<div className="flex gap-2">
 							<span className="text-foreground-500">Verified By:</span>
 							<span>{verification.signature_info.verified_by}</span>
 						</div>

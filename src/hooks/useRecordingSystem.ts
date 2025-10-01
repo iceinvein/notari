@@ -122,6 +122,7 @@ export function useStopRecordingMutation() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["recording"] });
+			queryClient.invalidateQueries({ queryKey: RECORDING_QUERY_KEYS.recordings });
 		},
 	});
 }
@@ -161,6 +162,7 @@ export function useClearActiveRecordingMutation() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["recording"] });
+			queryClient.invalidateQueries({ queryKey: RECORDING_QUERY_KEYS.recordings });
 		},
 	});
 }
@@ -264,22 +266,15 @@ export function useDeleteRecordingMutation() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
-		mutationFn: async ({
-			videoPath,
-			manifestPath,
-		}: {
-			videoPath: string;
-			manifestPath?: string;
-		}) => {
-			// Delete video file
-			await invoke("delete_file", { path: videoPath });
+		mutationFn: async ({ videoPath }: { videoPath: string }) => {
+			recordingLogger.info("Starting delete mutation", { videoPath });
 
-			// Delete manifest file if provided
-			if (manifestPath) {
-				await invoke("delete_file", { path: manifestPath });
-			}
+			// Delete .notari file (manifest is embedded, so this deletes everything)
+			await invoke("delete_file", { path: videoPath });
+			recordingLogger.info("Recording deleted successfully", { videoPath });
 		},
 		onSuccess: () => {
+			recordingLogger.info("Delete mutation onSuccess called, invalidating queries");
 			// Invalidate recordings list to trigger refetch
 			queryClient.invalidateQueries({ queryKey: RECORDING_QUERY_KEYS.recordings });
 		},

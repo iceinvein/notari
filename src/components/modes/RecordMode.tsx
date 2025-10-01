@@ -120,7 +120,7 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 								</div>
 							}
 						>
-							<RecordedVideosTab />
+							<RecordedVideosTab onSettings={() => setShowSettings(true)} />
 						</Tab>
 
 						<Tab

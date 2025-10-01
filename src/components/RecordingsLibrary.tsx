@@ -12,7 +12,6 @@ import {
 	FileVideo,
 	FolderOpen,
 	Lock,
-	Play,
 	RefreshCw,
 	Shield,
 	Trash2,
@@ -23,6 +22,8 @@ import {
 	useDeleteRecordingMutation,
 	useRecordingsQuery,
 } from "../hooks/useRecordingSystem";
+import { logger } from "../utils/logger";
+import { VideoPlayer } from "./VideoPlayer";
 
 type VerificationReport = {
 	verification: {
@@ -65,7 +66,11 @@ type EvidenceManifest = {
 	};
 };
 
-export default function RecordingsLibrary() {
+type RecordingsLibraryProps = {
+	onSettings?: () => void;
+};
+
+export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps = {}) {
 	// React Query hooks
 	const { data: recordings = [], isLoading, error, refetch } = useRecordingsQuery();
 	const deleteRecordingMutation = useDeleteRecordingMutation();
@@ -87,16 +92,21 @@ export default function RecordingsLibrary() {
 	const [verifyResult, setVerifyResult] = useState<VerificationReport | null>(null);
 	const [isVerifying, setIsVerifying] = useState(false);
 
+	// Video player state
+	const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+	const [videoPlayerRecording, setVideoPlayerRecording] = useState<RecordingEntry | null>(null);
+	const [videoPlayerPassword, setVideoPlayerPassword] = useState("");
+
 	const handlePlayVideo = async (recording: RecordingEntry) => {
 		if (recording.is_encrypted) {
+			// Show password modal for encrypted videos
 			setSelectedRecording(recording);
 			setShowPasswordModal(true);
 		} else {
-			try {
-				await invoke("open_file_in_default_app", { path: recording.video_path });
-			} catch (err) {
-				console.error("Failed to open video:", err);
-			}
+			// Open unencrypted videos directly in player
+			setVideoPlayerRecording(recording);
+			setVideoPlayerPassword("");
+			setShowVideoPlayer(true);
 		}
 	};
 
@@ -107,7 +117,7 @@ export default function RecordingsLibrary() {
 		setDecryptError(null);
 
 		try {
-			// Load manifest to get encryption info (extracts from .notari automatically)
+			// Validate password by loading manifest
 			const manifest = await invoke<EvidenceManifest>("get_evidence_manifest", {
 				manifestPath: selectedRecording.manifest_path,
 			});
@@ -118,23 +128,27 @@ export default function RecordingsLibrary() {
 				);
 			}
 
-			// Decrypt and play
-			await invoke("decrypt_and_play_video", {
-				encryptedPath: selectedRecording.video_path,
-				password: decryptPassword,
-				encryptionInfo,
-			});
+			// Password is valid, open in video player
+			setVideoPlayerRecording(selectedRecording);
+			setVideoPlayerPassword(decryptPassword);
+			setShowVideoPlayer(true);
 
-			// Close modal on success
+			// Close password modal
 			setShowPasswordModal(false);
 			setDecryptPassword("");
 			setSelectedRecording(null);
 		} catch (err) {
-			console.error("Failed to decrypt video:", err);
-			setDecryptError(err instanceof Error ? err.message : "Decryption failed");
+			console.error("Failed to validate password:", err);
+			setDecryptError(err instanceof Error ? err.message : "Invalid password");
 		} finally {
 			setIsDecrypting(false);
 		}
+	};
+
+	const handleCloseVideoPlayer = () => {
+		setShowVideoPlayer(false);
+		setVideoPlayerRecording(null);
+		setVideoPlayerPassword("");
 	};
 
 	const handleVerifyRecording = async (recording: RecordingEntry) => {
@@ -187,29 +201,40 @@ export default function RecordingsLibrary() {
 		setShowDeleteConfirm(true);
 	};
 
-	const confirmDelete = async () => {
+	const confirmDelete = () => {
 		if (!recordingToDelete) return;
 
-		try {
-			await deleteRecordingMutation.mutateAsync({
-				videoPath: recordingToDelete.video_path,
-				manifestPath: recordingToDelete.has_manifest ? recordingToDelete.manifest_path : undefined,
-			});
+		logger.info("RECORDINGS_LIBRARY", "confirmDelete: Starting delete", { filename: recordingToDelete.filename });
 
-			// Close modal and reset state
-			setShowDeleteConfirm(false);
-			setRecordingToDelete(null);
-		} catch (error) {
-			console.error("Delete failed:", error);
-			alert(
-				`Failed to delete recording: ${error instanceof Error ? error.message : "Unknown error"}`
-			);
-		}
+		// .notari files are self-contained (manifest is embedded), so just delete the file
+		deleteRecordingMutation.mutate(
+			{
+				videoPath: recordingToDelete.video_path,
+			},
+			{
+				onSuccess: () => {
+					logger.info("RECORDINGS_LIBRARY", "confirmDelete: onSuccess callback called");
+					// Close modal and reset state on success
+					setShowDeleteConfirm(false);
+					setRecordingToDelete(null);
+					logger.info("RECORDINGS_LIBRARY", "confirmDelete: Modal closed and state reset");
+				},
+				onError: (error) => {
+					logger.error("RECORDINGS_LIBRARY", "confirmDelete: onError callback called", error as Error);
+					alert(
+						`Failed to delete recording: ${error instanceof Error ? error.message : "Unknown error"}`
+					);
+				},
+			}
+		);
+
+		logger.info("RECORDINGS_LIBRARY", "confirmDelete: Mutation triggered");
 	};
 
 	const cancelDelete = () => {
 		setShowDeleteConfirm(false);
 		setRecordingToDelete(null);
+		deleteRecordingMutation.reset(); // Reset mutation state
 	};
 
 	const handleOpenInFinder = async (recording: RecordingEntry) => {
@@ -296,92 +321,82 @@ export default function RecordingsLibrary() {
 					</Button>
 				</div>
 
-				<div className="grid gap-4">
+				<div className="grid gap-3">
 					{recordings.map((recording) => (
-						<Card key={recording.video_path} className="w-full">
-							<CardBody className="p-4 space-y-3">
-								{/* File Info - Top */}
-								<div className="space-y-2">
-									<div className="flex items-start gap-2">
-										<FileVideo className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-										<div className="flex-1 min-w-0">
-											<p className="font-medium text-sm break-words">{recording.filename}</p>
-											<div className="flex items-center gap-2 mt-1 flex-wrap">
-												{recording.is_encrypted && (
-													<Chip
-														size="sm"
-														color="warning"
-														variant="flat"
-														startContent={<Lock className="w-3 h-3" />}
-													>
-														Encrypted
-													</Chip>
-												)}
-												{recording.has_manifest && (
-													<Chip
-														size="sm"
-														color="success"
-														variant="flat"
-														startContent={<Shield className="w-3 h-3" />}
-													>
-														Verified
-													</Chip>
-												)}
-											</div>
+						<Card
+							key={recording.video_path}
+							className="w-full hover:bg-default-100 transition-colors cursor-pointer"
+							isPressable
+							onPress={() => handlePlayVideo(recording)}
+						>
+							<CardBody className="p-4">
+								<div className="flex items-center gap-4">
+									{/* Icon */}
+									<div className="flex-shrink-0">
+										<div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
+											<FileVideo className="w-6 h-6 text-primary" />
 										</div>
 									</div>
 
-									<div className="text-xs text-foreground-500 space-y-0.5 pl-7">
-										<p>Created: {formatDate(recording.created_at)}</p>
-										<p>Size: {formatFileSize(recording.file_size_bytes)}</p>
-									</div>
-								</div>
+									{/* Content */}
+									<div className="flex-1 min-w-0">
+										{/* Title and badges */}
+										<div className="flex items-center gap-2 mb-1">
+											<p className="font-medium text-sm truncate">{recording.filename}</p>
+											{recording.is_encrypted && (
+												<Lock className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+											)}
+											{recording.has_manifest && (
+												<Shield className="w-3.5 h-3.5 text-success flex-shrink-0" />
+											)}
+										</div>
 
-								{/* Action Buttons - Bottom */}
-								<div className="flex items-center gap-2 flex-wrap pt-2 border-t border-divider">
-									<Button
-										size="sm"
-										color="primary"
-										variant="flat"
-										onPress={() => handlePlayVideo(recording)}
-										startContent={
-											recording.is_encrypted ? (
-												<Lock className="w-4 h-4" />
-											) : (
-												<Play className="w-4 h-4" />
-											)
-										}
+										{/* Metadata */}
+										<div className="flex items-center gap-3 text-xs text-foreground-500">
+											<span>{formatDate(recording.created_at)}</span>
+											<span>•</span>
+											<span>{formatFileSize(recording.file_size_bytes)}</span>
+										</div>
+									</div>
+
+									{/* Actions */}
+									<div
+										className="flex items-center gap-1 flex-shrink-0"
+										onClick={(e) => e.stopPropagation()}
+										onKeyDown={(e) => e.stopPropagation()}
 									>
-										Play
-									</Button>
-									{recording.has_manifest && (
+										{recording.has_manifest && (
+											<Button
+												isIconOnly
+												size="sm"
+												variant="light"
+												onPress={() => handleVerifyRecording(recording)}
+												isLoading={isVerifying}
+												aria-label="Verify"
+											>
+												{!isVerifying && <Shield className="w-4 h-4" />}
+											</Button>
+										)}
 										<Button
+											isIconOnly
 											size="sm"
-											variant="flat"
-											onPress={() => handleVerifyRecording(recording)}
-											isLoading={isVerifying}
-											startContent={!isVerifying ? <Shield className="w-4 h-4" /> : undefined}
+											variant="light"
+											onPress={() => handleOpenInFinder(recording)}
+											aria-label="Show in Finder"
 										>
-											Verify
+											<FolderOpen className="w-4 h-4" />
 										</Button>
-									)}
-									<Button
-										size="sm"
-										variant="flat"
-										onPress={() => handleOpenInFinder(recording)}
-										startContent={<FolderOpen className="w-4 h-4" />}
-									>
-										Show
-									</Button>
-									<Button
-										size="sm"
-										color="danger"
-										variant="flat"
-										onPress={() => handleDeleteRecording(recording)}
-										startContent={<Trash2 className="w-4 h-4" />}
-									>
-										Delete
-									</Button>
+										<Button
+											isIconOnly
+											size="sm"
+											variant="light"
+											color="danger"
+											onPress={() => handleDeleteRecording(recording)}
+											aria-label="Delete"
+										>
+											<Trash2 className="w-4 h-4" />
+										</Button>
+									</div>
 								</div>
 							</CardBody>
 						</Card>
@@ -582,6 +597,29 @@ export default function RecordingsLibrary() {
 							Close
 						</Button>
 					</ModalFooter>
+				</ModalContent>
+			</Modal>
+
+			{/* Video Player Modal */}
+			<Modal
+				size="full"
+				isOpen={showVideoPlayer}
+				onClose={handleCloseVideoPlayer}
+				hideCloseButton
+				classNames={{
+					base: "m-0 max-w-full max-h-full",
+					wrapper: "items-center justify-center",
+				}}
+			>
+				<ModalContent className="h-screen">
+					{videoPlayerRecording && (
+						<VideoPlayer
+							recordingPath={videoPlayerRecording.video_path}
+							password={videoPlayerPassword}
+							onClose={handleCloseVideoPlayer}
+							onSettings={onSettings}
+						/>
+					)}
 				</ModalContent>
 			</Modal>
 		</>

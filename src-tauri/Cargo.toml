@@ -33,8 +33,14 @@ chrono = { version = "0.4", features = ["serde"] }
 lazy_static = "1.4"
 dirs = "6.0.0"
 tauri-plugin-dialog = "2.4.0"
-tokio = { version = "1.0", features = ["sync", "time"] }
+tokio = { version = "1.0", features = ["sync", "time", "rt-multi-thread", "macros"] }
 crossbeam-channel = "0.5"
+
+# Video streaming server
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors"] }
+once_cell = "1.19"
 
 # Evidence system (Phase 1)
 ed25519-dalek = "2.1"

@@ -1,9 +1,13 @@
 import RecordingsLibrary from "../RecordingsLibrary";
 
-export default function RecordedVideosTab() {
+type RecordedVideosTabProps = {
+	onSettings?: () => void;
+};
+
+export default function RecordedVideosTab({ onSettings }: RecordedVideosTabProps = {}) {
 	return (
 		<div className="h-full overflow-auto">
-			<RecordingsLibrary />
+			<RecordingsLibrary onSettings={onSettings} />
 		</div>
 	);
 }

@@ -8,6 +8,7 @@ mod evidence;
 mod logger;
 mod recording_commands;
 mod recording_manager;
+mod video_server;
 mod window_manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -15,6 +16,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .register_asynchronous_uri_scheme_protocol("stream", video_server::handle_stream_protocol)
         .manage(recording_commands::WindowManagerState::new())
         .manage(recording_commands::PopoverGuard::default())
         .invoke_handler(tauri::generate_handler![
@@ -65,6 +67,11 @@ pub fn run() {
             recording_commands::extract_proof_pack,
             recording_commands::popover_guard_push,
             recording_commands::popover_guard_pop,
+            recording_commands::start_video_playback,
+            recording_commands::stop_video_playback,
+            recording_commands::get_video_chunk,
+            recording_commands::get_video_metadata,
+            recording_commands::test_video_server,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

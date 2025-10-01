@@ -33,8 +33,29 @@ pub struct RecordingInfo {
 pub struct EncryptionInfo {
     pub algorithm: String,
     pub key_derivation: KeyDerivationInfo,
+    // For backward compatibility with file-level encryption
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub nonce: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag: Option<String>,
+    // For chunk-based encryption
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub chunked: Option<ChunkedEncryptionInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkedEncryptionInfo {
+    pub chunk_size: u64,
+    pub total_chunks: usize,
+    pub chunks: Vec<ChunkInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChunkInfo {
+    pub index: usize,
+    pub offset: u64,
+    pub size: u64,
     pub nonce: String,
-    pub tag: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
