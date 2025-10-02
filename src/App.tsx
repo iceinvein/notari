@@ -1,4 +1,5 @@
 import { HeroUIProvider } from "@heroui/react";
+import { ToastProvider } from "@heroui/toast";
 import { QueryClientProvider } from "@tanstack/react-query";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Popover from "@/components/Popover";
@@ -11,9 +12,10 @@ function App() {
 			<QueryClientProvider client={queryClient}>
 				<ThemeProvider>
 					<HeroUIProvider>
-						<div className="w-full h-screen">
-							<Popover />
-						</div>
+						<ToastProvider placement="bottom-center" maxVisibleToasts={3} />
+							<div className="w-full h-screen">
+								<Popover />
+							</div>
 					</HeroUIProvider>
 				</ThemeProvider>
 			</QueryClientProvider>

@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { AlertCircle, Anchor, CheckCircle2, ExternalLink, Info, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { BlockchainAnchorInfo } from "../hooks/useRecordingSystem";
+import { useToast } from "../hooks/useToast";
 
 type BlockchainConfig = {
 	enabled: boolean;
@@ -59,6 +60,7 @@ export default function BlockchainAnchorButton({
 	const [localAnchor, setLocalAnchor] = useState<BlockchainAnchorInfo | null>(null);
 	const [blockchainConfig, setBlockchainConfig] = useState<BlockchainConfig | null>(null);
 	const [configLoading, setConfigLoading] = useState(true);
+	const toast = useToast();
 
 	// Use local anchor if available (optimistic update), otherwise use prop
 	const displayAnchor = localAnchor || anchor;
@@ -104,12 +106,22 @@ export default function BlockchainAnchorButton({
 
 				// Notify parent to refresh
 				onAnchored?.();
+
+				// Show success toast
+				toast.success(
+					"Recording Anchored",
+					`Successfully anchored to ${anchorInfo.chain_name}`
+				);
 			}
 		} catch (err) {
 			console.error("Failed to anchor recording:", err);
-			setError(err as string);
+			const errorMessage = err instanceof Error ? err.message : String(err);
+			setError(errorMessage);
 			// Show error for 5 seconds
 			setTimeout(() => setError(null), 5000);
+
+			// Show error toast
+			toast.error("Anchoring Failed", errorMessage);
 		} finally {
 			setIsAnchoring(false);
 		}

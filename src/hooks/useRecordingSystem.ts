@@ -7,6 +7,7 @@ import type {
 	RecordingSystemStatus,
 } from "../types/recording";
 import { recordingLogger } from "../utils/logger";
+import { useToast } from "./useToast";
 
 // Query keys
 const RECORDING_QUERY_KEYS = {
@@ -89,6 +90,7 @@ export function useRecordingSystemStatusQuery() {
 // Recording control mutations
 export function useStartRecordingMutation() {
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async ({
@@ -118,12 +120,24 @@ export function useStartRecordingMutation() {
 		onSuccess: () => {
 			// Invalidate all recording-related queries
 			queryClient.invalidateQueries({ queryKey: ["recording"] });
+			toast.success("Recording Started", "Your recording session has begun");
+		},
+		onError: (error) => {
+			recordingLogger.error(
+				"Start recording failed",
+				error instanceof Error ? error : new Error(String(error))
+			);
+			toast.error(
+				"Failed to Start Recording",
+				error instanceof Error ? error.message : "Unknown error occurred"
+			);
 		},
 	});
 }
 
 export function useStopRecordingMutation() {
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async (sessionId: string) => {
@@ -132,12 +146,24 @@ export function useStopRecordingMutation() {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["recording"] });
 			queryClient.invalidateQueries({ queryKey: RECORDING_QUERY_KEYS.recordings });
+			toast.success("Recording Stopped", "Your recording has been saved successfully");
+		},
+		onError: (error) => {
+			recordingLogger.error(
+				"Stop recording failed",
+				error instanceof Error ? error : new Error(String(error))
+			);
+			toast.error(
+				"Failed to Stop Recording",
+				error instanceof Error ? error.message : "Unknown error occurred"
+			);
 		},
 	});
 }
 
 export function usePauseRecordingMutation() {
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async (sessionId: string) => {
@@ -145,12 +171,20 @@ export function usePauseRecordingMutation() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["recording"] });
+			toast.info("Recording Paused");
+		},
+		onError: (error) => {
+			toast.error(
+				"Failed to Pause Recording",
+				error instanceof Error ? error.message : "Unknown error occurred"
+			);
 		},
 	});
 }
 
 export function useResumeRecordingMutation() {
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async (sessionId: string) => {
@@ -158,6 +192,13 @@ export function useResumeRecordingMutation() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["recording"] });
+			toast.info("Recording Resumed");
+		},
+		onError: (error) => {
+			toast.error(
+				"Failed to Resume Recording",
+				error instanceof Error ? error.message : "Unknown error occurred"
+			);
 		},
 	});
 }
@@ -284,6 +325,7 @@ export function useRecordingsQuery() {
 
 export function useDeleteRecordingMutation() {
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async ({ videoPath }: { videoPath: string }) => {
@@ -297,11 +339,16 @@ export function useDeleteRecordingMutation() {
 			recordingLogger.info("Delete mutation onSuccess called, invalidating queries");
 			// Invalidate recordings list to trigger refetch
 			queryClient.invalidateQueries({ queryKey: RECORDING_QUERY_KEYS.recordings });
+			toast.success("Recording Deleted", "The recording has been permanently removed");
 		},
 		onError: (error) => {
 			recordingLogger.error(
 				"Delete recording failed",
 				error instanceof Error ? error : new Error(String(error))
+			);
+			toast.error(
+				"Failed to Delete Recording",
+				error instanceof Error ? error.message : "Unknown error occurred"
 			);
 		},
 	});

@@ -283,9 +283,7 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 						"confirmDelete: onError callback called",
 						error as Error
 					);
-					alert(
-						`Failed to delete recording: ${error instanceof Error ? error.message : "Unknown error"}`
-					);
+					// Toast is already shown by the mutation hook
 				},
 			}
 		);
