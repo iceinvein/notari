@@ -1,7 +1,6 @@
 use crate::app_log;
 use crate::evidence::{
-    BlockchainAnchorer, BlockchainConfig, BlockchainEnvironment, ChainConfig, EthereumAnchorer,
-    MockAnchorer, WalletManager,
+    BlockchainAnchorerFactory, BlockchainConfig, BlockchainEnvironment, ChainConfig, WalletManager,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
@@ -254,30 +253,15 @@ pub async fn get_balance(state: State<'_, BlockchainState>) -> Result<f64, Strin
         )
     };
 
-    match environment {
-        BlockchainEnvironment::Mock => {
-            let anchorer = MockAnchorer::new();
-            anchorer.get_balance().await.map_err(|e| e.to_string())
-        }
-        _ => {
-            let wallet = wallet_config.ok_or("No wallet configured")?;
-            let private_key =
-                WalletManager::get_private_key(chain_config.chain_id, &wallet.address)
-                    .map_err(|e| e.to_string())?;
+    // Create anchorer using factory
+    let anchorer = BlockchainAnchorerFactory::create_from_components(
+        &environment,
+        &chain_config,
+        &wallet_config,
+    )
+    .map_err(|e| e.to_string())?;
 
-            let anchorer = EthereumAnchorer::new(
-                &chain_config.rpc_url,
-                &private_key,
-                &chain_config.contract_address,
-                chain_config.chain_id,
-                &chain_config.name,
-                &chain_config.explorer_url,
-            )
-            .map_err(|e| e.to_string())?;
-
-            anchorer.get_balance().await.map_err(|e| e.to_string())
-        }
-    }
+    anchorer.get_balance().await.map_err(|e| e.to_string())
 }
 
 /// Estimate cost of anchoring
@@ -294,30 +278,15 @@ pub async fn estimate_anchor_cost(state: State<'_, BlockchainState>) -> Result<f
         )
     };
 
-    match environment {
-        BlockchainEnvironment::Mock => {
-            let anchorer = MockAnchorer::new();
-            anchorer.estimate_cost().await.map_err(|e| e.to_string())
-        }
-        _ => {
-            let wallet = wallet_config.ok_or("No wallet configured")?;
-            let private_key =
-                WalletManager::get_private_key(chain_config.chain_id, &wallet.address)
-                    .map_err(|e| e.to_string())?;
+    // Create anchorer using factory
+    let anchorer = BlockchainAnchorerFactory::create_from_components(
+        &environment,
+        &chain_config,
+        &wallet_config,
+    )
+    .map_err(|e| e.to_string())?;
 
-            let anchorer = EthereumAnchorer::new(
-                &chain_config.rpc_url,
-                &private_key,
-                &chain_config.contract_address,
-                chain_config.chain_id,
-                &chain_config.name,
-                &chain_config.explorer_url,
-            )
-            .map_err(|e| e.to_string())?;
-
-            anchorer.estimate_cost().await.map_err(|e| e.to_string())
-        }
-    }
+    anchorer.estimate_cost().await.map_err(|e| e.to_string())
 }
 
 /// Test blockchain connection
@@ -337,18 +306,11 @@ pub async fn test_connection(state: State<'_, BlockchainState>) -> Result<String
     match environment {
         BlockchainEnvironment::Mock => Ok("Mock environment - always connected".to_string()),
         _ => {
-            let wallet = wallet_config.ok_or("No wallet configured")?;
-            let private_key =
-                WalletManager::get_private_key(chain_config.chain_id, &wallet.address)
-                    .map_err(|e| e.to_string())?;
-
-            let anchorer = EthereumAnchorer::new(
-                &chain_config.rpc_url,
-                &private_key,
-                &chain_config.contract_address,
-                chain_config.chain_id,
-                &chain_config.name,
-                &chain_config.explorer_url,
+            // Create anchorer using factory
+            let anchorer = BlockchainAnchorerFactory::create_from_components(
+                &environment,
+                &chain_config,
+                &wallet_config,
             )
             .map_err(|e| e.to_string())?;
 
@@ -442,28 +404,13 @@ pub async fn anchor_recording(
     hasher.update(manifest_json.as_bytes());
     let manifest_hash = format!("{:x}", hasher.finalize());
 
-    // Create anchorer based on environment
-    let anchorer: Box<dyn BlockchainAnchorer> = match environment {
-        BlockchainEnvironment::Mock => Box::new(MockAnchorer::new()),
-        _ => {
-            let wallet = wallet_config.ok_or("No wallet configured")?;
-            let private_key =
-                WalletManager::get_private_key(chain_config.chain_id, &wallet.address)
-                    .map_err(|e| e.to_string())?;
-
-            Box::new(
-                EthereumAnchorer::new(
-                    &chain_config.rpc_url,
-                    &private_key,
-                    &chain_config.contract_address,
-                    chain_config.chain_id,
-                    &chain_config.name,
-                    &chain_config.explorer_url,
-                )
-                .map_err(|e| e.to_string())?,
-            )
-        }
-    };
+    // Create anchorer using factory
+    let anchorer = BlockchainAnchorerFactory::create_from_components(
+        &environment,
+        &chain_config,
+        &wallet_config,
+    )
+    .map_err(|e| e.to_string())?;
 
     // Anchor the hash
     app_log!(crate::logger::LogLevel::Info, "Anchoring manifest hash: {}", &manifest_hash[..16.min(manifest_hash.len())]);

@@ -5,6 +5,8 @@ use std::process::Child;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
+use crate::error::NotariResult;
+
 /// Recording preferences that can be configured by the user
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingPreferences {
@@ -150,36 +152,35 @@ pub trait RecordingManager: Send + Sync {
         preferences: &RecordingPreferences,
         window_info: Option<crate::window_manager::WindowInfo>,
         state: SharedRecordingState,
-    ) -> Result<ActiveRecording, String>;
+    ) -> NotariResult<ActiveRecording>;
 
     /// Stop the current recording
-    fn stop_recording(&self, session_id: &str, state: SharedRecordingState) -> Result<(), String>;
+    fn stop_recording(&self, session_id: &str, state: SharedRecordingState) -> NotariResult<()>;
 
     /// Pause the current recording (if supported)
-    fn pause_recording(&self, session_id: &str, state: SharedRecordingState) -> Result<(), String>;
+    fn pause_recording(&self, session_id: &str, state: SharedRecordingState) -> NotariResult<()>;
 
     /// Resume a paused recording (if supported)
-    fn resume_recording(&self, session_id: &str, state: SharedRecordingState)
-        -> Result<(), String>;
+    fn resume_recording(&self, session_id: &str, state: SharedRecordingState) -> NotariResult<()>;
 
     /// Get detailed information about a recording session
     fn get_recording_info(
         &self,
         session_id: &str,
         state: SharedRecordingState,
-    ) -> Result<RecordingInfo, String>;
+    ) -> NotariResult<RecordingInfo>;
 
     /// Check health of active recording and update status
-    fn check_recording_health(&self, state: SharedRecordingState) -> Result<(), String>;
+    fn check_recording_health(&self, state: SharedRecordingState) -> NotariResult<()>;
 
     /// Clean up any orphaned processes or temp files
-    fn cleanup_orphaned_recordings(&self) -> Result<(), String>;
+    fn cleanup_orphaned_recordings(&self) -> NotariResult<()>;
 
     /// Get default save directory for recordings
-    fn get_default_save_directory(&self) -> Result<PathBuf, String>;
+    fn get_default_save_directory(&self) -> NotariResult<PathBuf>;
 
     /// Validate that a directory is writable for recordings
-    fn validate_save_directory(&self, path: &PathBuf) -> Result<bool, String>;
+    fn validate_save_directory(&self, path: &PathBuf) -> NotariResult<bool>;
 }
 
 /// Utility functions for recording management

@@ -1,7 +1,7 @@
 use base64::{engine::general_purpose, Engine as _};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
-use std::error::Error;
+use crate::error::{NotariError, NotariResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignatureInfo {
@@ -23,9 +23,9 @@ impl KeyManager {
     }
 
     /// Load keypair from bytes
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Box<dyn Error>> {
+    pub fn from_bytes(bytes: &[u8]) -> NotariResult<Self> {
         if bytes.len() != 32 {
-            return Err("Invalid key length: expected 32 bytes".into());
+            return Err(NotariError::SigningFailed("Invalid key length: expected 32 bytes".to_string()));
         }
         let mut key_bytes = [0u8; 32];
         key_bytes.copy_from_slice(bytes);
@@ -67,20 +67,21 @@ impl KeyManager {
         public_key_b64: &str,
         signature_b64: &str,
         data: &[u8],
-    ) -> Result<bool, Box<dyn Error>> {
+    ) -> NotariResult<bool> {
         let public_key_bytes = general_purpose::STANDARD.decode(public_key_b64)?;
         let signature_bytes = general_purpose::STANDARD.decode(signature_b64)?;
 
         if public_key_bytes.len() != 32 {
-            return Err("Invalid public key length".into());
+            return Err(NotariError::VerificationFailed("Invalid public key length".to_string()));
         }
         if signature_bytes.len() != 64 {
-            return Err("Invalid signature length".into());
+            return Err(NotariError::VerificationFailed("Invalid signature length".to_string()));
         }
 
         let mut pk_array = [0u8; 32];
         pk_array.copy_from_slice(&public_key_bytes);
-        let public_key = VerifyingKey::from_bytes(&pk_array)?;
+        let public_key = VerifyingKey::from_bytes(&pk_array)
+            .map_err(|e| NotariError::VerificationFailed(format!("Invalid public key: {}", e)))?;
 
         let mut sig_array = [0u8; 64];
         sig_array.copy_from_slice(&signature_bytes);

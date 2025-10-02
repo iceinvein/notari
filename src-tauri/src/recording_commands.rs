@@ -61,7 +61,7 @@ pub async fn request_recording_permission(
     state: State<'_, WindowManagerState>,
 ) -> Result<bool, String> {
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
-    manager.request_permission()
+    manager.request_permission().map_err(Into::into)
 }
 
 /// Get list of available windows for recording
@@ -75,7 +75,7 @@ pub async fn get_available_windows(
         "backend",
     );
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
-    let windows = manager.get_windows();
+    let windows = manager.get_windows().map_err(Into::into);
     match &windows {
         Ok(window_list) => LOGGER.log(
             LogLevel::Info,
@@ -103,7 +103,7 @@ pub async fn get_window_thumbnail(
         "backend",
     );
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
-    let result = manager.get_window_thumbnail(&window_id);
+    let result = manager.get_window_thumbnail(&window_id).map_err(Into::into);
     match &result {
         Ok(Some(thumbnail)) => LOGGER.log(
             LogLevel::Info,
@@ -132,7 +132,7 @@ pub async fn get_window_thumbnail(
 #[tauri::command]
 pub async fn open_system_settings(state: State<'_, WindowManagerState>) -> Result<(), String> {
     let manager = state.manager.lock().map_err(|e| e.to_string())?;
-    manager.open_system_settings()
+    manager.open_system_settings().map_err(Into::into)
 }
 
 /// Start recording a specific window
@@ -314,7 +314,7 @@ pub async fn validate_save_directory(
     state: State<'_, WindowManagerState>,
 ) -> Result<bool, String> {
     let path_buf = std::path::PathBuf::from(path);
-    state.recording_manager.validate_save_directory(&path_buf)
+    state.recording_manager.validate_save_directory(&path_buf).map_err(Into::into)
 }
 
 /// Open file dialog to select save directory
@@ -404,6 +404,7 @@ pub async fn check_recording_health(state: State<'_, WindowManagerState>) -> Res
     state
         .recording_manager
         .check_recording_health(state.recording_state.clone())
+        .map_err(Into::into)
 }
 
 /// Clean up any orphaned recording processes
@@ -416,7 +417,7 @@ pub async fn cleanup_orphaned_recordings(
         "Cleaning up orphaned recordings",
         "recording_commands",
     );
-    state.recording_manager.cleanup_orphaned_recordings()
+    state.recording_manager.cleanup_orphaned_recordings().map_err(Into::into)
 }
 
 /// Pause recording session
@@ -434,6 +435,7 @@ pub async fn pause_recording(
     state
         .recording_manager
         .pause_recording(&session_id, state.recording_state.clone())
+        .map_err(Into::into)
 }
 
 /// Resume recording session
@@ -451,6 +453,7 @@ pub async fn resume_recording(
     state
         .recording_manager
         .resume_recording(&session_id, state.recording_state.clone())
+        .map_err(Into::into)
 }
 
 /// Get current active recording session (if any)
@@ -808,7 +811,7 @@ pub async fn decrypt_video(
 #[tauri::command]
 pub async fn validate_encryption_password(password: String) -> Result<(), String> {
     use crate::evidence::validate_password;
-    validate_password(&password)
+    validate_password(&password).map_err(Into::into)
 }
 
 /// Read a file's contents as a string

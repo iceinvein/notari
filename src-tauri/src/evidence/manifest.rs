@@ -182,7 +182,7 @@ impl EvidenceManifest {
     }
 
     /// Verify the manifest signature
-    pub fn verify_signature(&self) -> Result<bool, Box<dyn std::error::Error>> {
+    pub fn verify_signature(&self) -> crate::error::NotariResult<bool> {
         let data = self.signable_data();
         super::signature::KeyManager::verify(
             &self.signature.public_key,

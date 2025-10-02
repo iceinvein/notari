@@ -2,6 +2,7 @@ use super::{
     create_recording_session, ActiveRecording, InternalRecordingState, RecordingInfo,
     RecordingManager, RecordingPreferences, RecordingStatus, SharedRecordingState,
 };
+use crate::error::{NotariError, NotariResult};
 use crate::evidence::keychain;
 use crate::evidence::{
     EvidenceManifest, HashInfo, KeyManager, Metadata, SystemInfo, Timestamps, VideoInfo,
@@ -48,7 +49,7 @@ impl MacOSRecordingManager {
     }
 
     /// Check if a recording process is still running and healthy
-    fn check_process_health(&self, process: &mut Child) -> Result<bool, String> {
+    fn check_process_health(&self, process: &mut Child) -> NotariResult<bool> {
         match process.try_wait() {
             Ok(Some(status)) => {
                 // Process has exited
@@ -62,7 +63,7 @@ impl MacOSRecordingManager {
                 } else {
                     let error_msg = format!("Recording process exited with error: {}", status);
                     LOGGER.log(LogLevel::Error, &error_msg, "backend");
-                    Err(error_msg)
+                    Err(NotariError::RecordingProcessError(error_msg))
                 }
             }
             Ok(None) => {
@@ -72,7 +73,7 @@ impl MacOSRecordingManager {
             Err(e) => {
                 let error_msg = format!("Failed to check process status: {}", e);
                 LOGGER.log(LogLevel::Error, &error_msg, "backend");
-                Err(error_msg)
+                Err(NotariError::RecordingProcessError(error_msg))
             }
         }
     }
@@ -82,11 +83,11 @@ impl MacOSRecordingManager {
         &self,
         output_path: &PathBuf,
         estimated_size_mb: u64,
-    ) -> Result<(), String> {
+    ) -> NotariResult<()> {
         // Get the parent directory of the output file
         let dir = output_path
             .parent()
-            .ok_or_else(|| "Invalid output path".to_string())?;
+            .ok_or_else(|| NotariError::InvalidPath(output_path.to_string_lossy().to_string()))?;
 
         // Use df command to check available space
         match std::process::Command::new("df")
@@ -104,10 +105,10 @@ impl MacOSRecordingManager {
                         if parts.len() >= 4 {
                             if let Ok(available_mb) = parts[3].parse::<u64>() {
                                 if available_mb < estimated_size_mb {
-                                    return Err(format!(
-                                        "Insufficient disk space. Available: {}MB, Required: {}MB",
-                                        available_mb, estimated_size_mb
-                                    ));
+                                    return Err(NotariError::InsufficientDiskSpace {
+                                        required: estimated_size_mb,
+                                        available: available_mb,
+                                    });
                                 }
                                 return Ok(());
                             }
@@ -135,35 +136,29 @@ impl MacOSRecordingManager {
     }
 
     /// Terminate recording process gracefully
-    fn terminate_process(&self, process: &mut Child) -> Result<(), String> {
+    fn terminate_process(&self, process: &mut Child) -> NotariResult<()> {
         LOGGER.log(LogLevel::Info, "Terminating recording process", "backend");
 
         // Send SIGTERM for graceful shutdown
-        match process.kill() {
-            Ok(_) => {
-                // Wait for process to exit (with timeout)
-                match process.wait() {
-                    Ok(status) => {
-                        LOGGER.log(
-                            LogLevel::Info,
-                            &format!("Recording process terminated with status: {}", status),
-                            "recording_manager",
-                        );
-                        Ok(())
-                    }
-                    Err(e) => {
-                        let error_msg = format!("Failed to wait for process termination: {}", e);
-                        LOGGER.log(LogLevel::Error, &error_msg, "backend");
-                        Err(error_msg)
-                    }
-                }
-            }
-            Err(e) => {
-                let error_msg = format!("Failed to terminate recording process: {}", e);
-                LOGGER.log(LogLevel::Error, &error_msg, "backend");
-                Err(error_msg)
-            }
-        }
+        process.kill().map_err(|e| {
+            let error_msg = format!("Failed to terminate recording process: {}", e);
+            LOGGER.log(LogLevel::Error, &error_msg, "backend");
+            NotariError::RecordingStopFailed(error_msg)
+        })?;
+
+        // Wait for process to exit (with timeout)
+        process.wait().map_err(|e| {
+            let error_msg = format!("Failed to wait for process termination: {}", e);
+            LOGGER.log(LogLevel::Error, &error_msg, "backend");
+            NotariError::RecordingStopFailed(error_msg)
+        })?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            "Recording process terminated successfully",
+            "recording_manager",
+        );
+        Ok(())
     }
 
     /// Get file size of recording output
@@ -185,7 +180,7 @@ impl RecordingManager for MacOSRecordingManager {
         preferences: &RecordingPreferences,
         window_info: Option<crate::window_manager::WindowInfo>,
         state: SharedRecordingState,
-    ) -> Result<ActiveRecording, String> {
+    ) -> NotariResult<ActiveRecording> {
         LOGGER.log(
             LogLevel::Info,
             &format!("Starting recording for window: {}", window_id),
@@ -194,16 +189,16 @@ impl RecordingManager for MacOSRecordingManager {
 
         // Check if there's already an active recording
         {
-            let state_guard = state.lock().map_err(|e| e.to_string())?;
+            let state_guard = state.lock()?;
             if state_guard.has_active_recording() {
-                return Err("Another recording is already in progress".to_string());
+                return Err(NotariError::RecordingInProgress);
             }
         }
 
         // Parse window ID
         let cg_window_id = self
             .parse_window_id(window_id)
-            .ok_or_else(|| format!("Invalid window ID format: {}", window_id))?;
+            .ok_or_else(|| NotariError::InvalidWindowId(window_id.to_string()))?;
 
         // Get default save directory
         let default_dir = self.get_default_save_directory()?;
@@ -211,7 +206,7 @@ impl RecordingManager for MacOSRecordingManager {
         // Ensure save directory exists
         let save_dir = preferences.save_directory.as_ref().unwrap_or(&default_dir);
         std::fs::create_dir_all(save_dir)
-            .map_err(|e| format!("Failed to create save directory: {}", e))?;
+            .map_err(|e| NotariError::DirectoryCreationFailed(e.to_string()))?;
 
         // Generate output path
         let timestamp = Utc::now();
@@ -282,7 +277,7 @@ impl RecordingManager for MacOSRecordingManager {
                 }
 
                 // Started SCK sidecar successfully
-                let mut state_guard = state.lock().map_err(|e| e.to_string())?;
+                let mut state_guard = state.lock()?;
                 state_guard.active_recording = Some(InternalRecordingState {
                     session: session.clone(),
                     process: Some(child),
@@ -297,13 +292,13 @@ impl RecordingManager for MacOSRecordingManager {
             Err(e) => {
                 let msg = format!("Failed to spawn SCK sidecar: {}", e);
                 LOGGER.log(LogLevel::Error, &msg, "backend");
-                return Err(msg);
+                return Err(NotariError::SidecarError(msg));
             }
         }
 
         // Update status to recording
         {
-            let mut state_guard = state.lock().map_err(|e| e.to_string())?;
+            let mut state_guard = state.lock()?;
             state_guard.update_status(RecordingStatus::Recording);
             // Update the session status in our local copy too
             session.status = RecordingStatus::Recording;
@@ -318,18 +313,18 @@ impl RecordingManager for MacOSRecordingManager {
         Ok(session)
     }
 
-    fn stop_recording(&self, session_id: &str, state: SharedRecordingState) -> Result<(), String> {
+    fn stop_recording(&self, session_id: &str, state: SharedRecordingState) -> NotariResult<()> {
         LOGGER.log(
             LogLevel::Info,
             &format!("Stopping recording: {}", session_id),
             "recording_manager",
         );
 
-        let mut state_guard = state.lock().map_err(|e| e.to_string())?;
+        let mut state_guard = state.lock()?;
 
         if let Some(ref mut recording) = state_guard.active_recording {
             if recording.session.session_id != session_id {
-                return Err("Session ID mismatch".to_string());
+                return Err(NotariError::SessionNotFound(session_id.to_string()));
             }
 
             // Update status to stopping
@@ -474,7 +469,7 @@ impl RecordingManager for MacOSRecordingManager {
             // query the final status and file information. The frontend should call
             // clear_active_recording when it's done with the session.
         } else {
-            return Err("No active recording found".to_string());
+            return Err(NotariError::NoActiveRecording);
         }
 
         Ok(())
@@ -484,28 +479,28 @@ impl RecordingManager for MacOSRecordingManager {
         &self,
         _session_id: &str,
         _state: SharedRecordingState,
-    ) -> Result<(), String> {
-        Err("Pause/resume not supported".to_string())
+    ) -> NotariResult<()> {
+        Err(NotariError::PlatformNotSupported)
     }
 
     fn resume_recording(
         &self,
         _session_id: &str,
         _state: SharedRecordingState,
-    ) -> Result<(), String> {
-        Err("Pause/resume not supported".to_string())
+    ) -> NotariResult<()> {
+        Err(NotariError::PlatformNotSupported)
     }
 
     fn get_recording_info(
         &self,
         session_id: &str,
         state: SharedRecordingState,
-    ) -> Result<RecordingInfo, String> {
-        let state_guard = state.lock().map_err(|e| e.to_string())?;
+    ) -> NotariResult<RecordingInfo> {
+        let state_guard = state.lock()?;
 
         if let Some(ref recording) = state_guard.active_recording {
             if recording.session.session_id != session_id {
-                return Err("Session ID mismatch".to_string());
+                return Err(NotariError::SessionNotFound(session_id.to_string()));
             }
 
             let duration = self.calculate_duration(recording.session.start_time);
@@ -518,12 +513,12 @@ impl RecordingManager for MacOSRecordingManager {
                 estimated_final_size_bytes: file_size, // For now, just use current size
             })
         } else {
-            Err("No active recording found".to_string())
+            Err(NotariError::NoActiveRecording)
         }
     }
 
-    fn check_recording_health(&self, state: SharedRecordingState) -> Result<(), String> {
-        let mut state_guard = state.lock().map_err(|e| e.to_string())?;
+    fn check_recording_health(&self, state: SharedRecordingState) -> NotariResult<()> {
+        let mut state_guard = state.lock()?;
 
         if let Some(ref mut recording) = state_guard.active_recording {
             if let Some(ref mut process) = recording.process {
@@ -557,7 +552,7 @@ impl RecordingManager for MacOSRecordingManager {
                     }
                     Err(e) => {
                         // Process error
-                        recording.session.status = RecordingStatus::Error(e.clone());
+                        recording.session.status = RecordingStatus::Error(e.to_string());
                         // Clear process on error as well to avoid repeated polling
                         recording.process = None;
                         LOGGER.log(
@@ -581,22 +576,23 @@ impl RecordingManager for MacOSRecordingManager {
         }
     }
 
-    fn cleanup_orphaned_recordings(&self) -> Result<(), String> {
+    fn cleanup_orphaned_recordings(&self) -> NotariResult<()> {
         Ok(())
     }
 
-    fn get_default_save_directory(&self) -> Result<PathBuf, String> {
+    fn get_default_save_directory(&self) -> NotariResult<PathBuf> {
         // Use ~/Movies/Notari as default
-        let home_dir =
-            dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
+        let home_dir = dirs::home_dir()
+            .ok_or_else(|| NotariError::ConfigError("Could not determine home directory".to_string()))?;
 
         Ok(home_dir.join("Movies").join("Notari"))
     }
 
-    fn validate_save_directory(&self, path: &PathBuf) -> Result<bool, String> {
+    fn validate_save_directory(&self, path: &PathBuf) -> NotariResult<bool> {
         // Check if directory exists or can be created
         if !path.exists() {
-            std::fs::create_dir_all(path).map_err(|e| format!("Cannot create directory: {}", e))?;
+            std::fs::create_dir_all(path)
+                .map_err(|e| NotariError::DirectoryCreationFailed(e.to_string()))?;
         }
 
         // Check if directory is writable
@@ -606,7 +602,7 @@ impl RecordingManager for MacOSRecordingManager {
                 let _ = std::fs::remove_file(&test_file);
                 Ok(true)
             }
-            Err(e) => Err(format!("Directory not writable: {}", e)),
+            Err(e) => Err(NotariError::DirectoryCreationFailed(format!("Directory not writable: {}", e))),
         }
     }
 }

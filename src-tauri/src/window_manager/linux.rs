@@ -1,4 +1,5 @@
 use super::{PermissionStatus, WindowBounds, WindowInfo, WindowManager};
+use crate::error::{NotariError, NotariResult};
 use std::collections::HashMap;
 
 pub struct LinuxWindowManager;
@@ -17,12 +18,12 @@ impl LinuxWindowManager {
     }
 
     #[cfg(feature = "x11")]
-    fn get_x11_windows(&self) -> Result<Vec<WindowInfo>, String> {
+    fn get_x11_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         use x11rb::connection::Connection;
         use x11rb::protocol::xproto::*;
 
         let (conn, screen_num) =
-            x11rb::connect(None).map_err(|e| format!("Failed to connect to X11: {}", e))?;
+            x11rb::connect(None).map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to connect to X11: {}", e)))?;
 
         let screen = &conn.setup().roots[screen_num];
         let root = screen.root;
@@ -30,9 +31,9 @@ impl LinuxWindowManager {
         // Query for all windows
         let tree_reply = conn
             .query_tree(root)
-            .map_err(|e| format!("Failed to query window tree: {}", e))?
+            .map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to query window tree: {}", e)))?
             .reply()
-            .map_err(|e| format!("Failed to get tree reply: {}", e))?;
+            .map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to get tree reply: {}", e)))?;
 
         let mut windows = Vec::new();
 
@@ -91,15 +92,15 @@ impl LinuxWindowManager {
     }
 
     #[cfg(not(feature = "x11"))]
-    fn get_x11_windows(&self) -> Result<Vec<WindowInfo>, String> {
-        Err("X11 support not compiled in".to_string())
+    fn get_x11_windows(&self) -> NotariResult<Vec<WindowInfo>> {
+        Err(NotariError::DisplayServerNotSupported("X11 support not compiled in".to_string()))
     }
 
-    fn get_wayland_windows(&self) -> Result<Vec<WindowInfo>, String> {
+    fn get_wayland_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         // Wayland doesn't allow direct window enumeration for security reasons
         // We would need to use portals, which is more complex
         // For now, return an error suggesting the user use the portal-based approach
-        Err("Wayland window enumeration requires portal support (not yet implemented)".to_string())
+        Err(NotariError::DisplayServerNotSupported("Wayland window enumeration requires portal support (not yet implemented)".to_string()))
     }
 }
 
@@ -129,27 +130,27 @@ impl WindowManager for LinuxWindowManager {
         }
     }
 
-    fn request_permission(&self) -> Result<bool, String> {
+    fn request_permission(&self) -> NotariResult<bool> {
         let status = self.check_permission();
         Ok(status.granted)
     }
 
-    fn get_windows(&self) -> Result<Vec<WindowInfo>, String> {
+    fn get_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         if self.is_wayland() {
             self.get_wayland_windows()
         } else if self.is_x11() {
             self.get_x11_windows()
         } else {
-            Err("No supported display server detected".to_string())
+            Err(NotariError::DisplayServerNotSupported("No supported display server detected".to_string()))
         }
     }
 
-    fn get_window_thumbnail(&self, _window_id: &str) -> Result<Option<String>, String> {
+    fn get_window_thumbnail(&self, _window_id: &str) -> NotariResult<Option<String>> {
         // TODO: Implement thumbnail generation
         Ok(None)
     }
 
-    fn open_system_settings(&self) -> Result<(), String> {
+    fn open_system_settings(&self) -> NotariResult<()> {
         // Linux doesn't have a unified settings app, but we could try to open
         // the desktop environment's settings
         Ok(())

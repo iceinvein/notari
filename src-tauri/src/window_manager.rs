@@ -1,3 +1,4 @@
+use crate::error::NotariResult;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,16 +32,16 @@ pub trait WindowManager: Send {
     fn check_permission(&self) -> PermissionStatus;
 
     /// Request screen recording permission
-    fn request_permission(&self) -> Result<bool, String>;
+    fn request_permission(&self) -> NotariResult<bool>;
 
     /// Get list of available windows
-    fn get_windows(&self) -> Result<Vec<WindowInfo>, String>;
+    fn get_windows(&self) -> NotariResult<Vec<WindowInfo>>;
 
     /// Get thumbnail for a specific window
-    fn get_window_thumbnail(&self, window_id: &str) -> Result<Option<String>, String>;
+    fn get_window_thumbnail(&self, window_id: &str) -> NotariResult<Option<String>>;
 
     /// Open system settings for permission management
-    fn open_system_settings(&self) -> Result<(), String>;
+    fn open_system_settings(&self) -> NotariResult<()>;
 }
 
 // Platform-specific implementations

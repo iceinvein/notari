@@ -1,8 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::error::Error;
 use std::path::Path;
 
+use crate::error::NotariResult;
 use super::{EvidenceManifest, HashInfo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -95,7 +95,7 @@ impl Verifier {
     pub fn verify<P: AsRef<Path>>(
         manifest_path: P,
         video_path: P,
-    ) -> Result<VerificationReport, Box<dyn Error>> {
+    ) -> NotariResult<VerificationReport> {
         use crate::logger::{LogLevel, LOGGER};
 
         // Load manifest
@@ -215,7 +215,7 @@ impl Verifier {
     }
 
     /// Quick verification (just signature, no hash)
-    pub fn verify_signature_only<P: AsRef<Path>>(manifest_path: P) -> Result<bool, Box<dyn Error>> {
+    pub fn verify_signature_only<P: AsRef<Path>>(manifest_path: P) -> NotariResult<bool> {
         let manifest = EvidenceManifest::load(&manifest_path)?;
         manifest.verify_signature()
     }
@@ -226,7 +226,7 @@ impl Verifier {
         manifest_path: P,
         video_path: P,
         anchorer: &dyn crate::evidence::blockchain::BlockchainAnchorer,
-    ) -> Result<VerificationReport, Box<dyn Error>> {
+    ) -> NotariResult<VerificationReport> {
         use crate::logger::{LogLevel, LOGGER};
 
         // First perform standard verification

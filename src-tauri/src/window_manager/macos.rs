@@ -1,4 +1,5 @@
 use super::{PermissionStatus, WindowBounds, WindowInfo, WindowManager};
+use crate::error::{NotariError, NotariResult};
 use crate::logger::{LogLevel, LOGGER};
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, TCFType};
@@ -38,7 +39,7 @@ impl MacOSWindowManager {
     }
 
     /// Create a thumbnail for a specific window using ScreenCaptureKit (screencapturekit-rs)
-    fn create_window_thumbnail(&self, window_id: u32) -> Result<Option<String>, String> {
+    fn create_window_thumbnail(&self, window_id: u32) -> NotariResult<Option<String>> {
         LOGGER.log(
             LogLevel::Info,
             &format!("Creating thumbnail via SCK for window ID: {}", window_id),
@@ -46,7 +47,7 @@ impl MacOSWindowManager {
         );
         // 1) Find matching SCWindow by CoreGraphics window_id
         let shareable = SCShareableContent::get()
-            .map_err(|e| format!("SCShareableContent::get failed: {e}"))?;
+            .map_err(|e| NotariError::WindowEnumerationFailed(format!("SCShareableContent::get failed: {e}")))?;
         let sc_window_opt = shareable
             .windows()
             .into_iter()
@@ -69,21 +70,21 @@ impl MacOSWindowManager {
         // 3) Configure capture: use 16:9 aspect to match most windows, force BGRA
         let config = SCStreamConfiguration::new()
             .set_width(480)
-            .map_err(|e| format!("set_width: {e}"))?
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("set_width: {e}")))?
             .set_height(270)
-            .map_err(|e| format!("set_height: {e}"))?
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("set_height: {e}")))?
             .set_pixel_format(PixelFormat::BGRA)
-            .map_err(|e| format!("set_pixel_format: {e}"))?;
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("set_pixel_format: {e}")))?;
 
         // 4) Capture a single frame
         let sample = screenshot_manager::capture(&filter, &config)
-            .map_err(|e| format!("SCScreenshotManager::capture failed: {e}"))?;
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("SCScreenshotManager::capture failed: {e}")))?;
 
         // 5) Extract pixel buffer and convert BGRA -> RGBA PNG in-memory
         // Get CVPixelBuffer directly and lock to access bytes
         let pixel_buffer = sample
             .get_pixel_buffer()
-            .map_err(|e| format!("No pixel buffer in sample: {e}"))?;
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("No pixel buffer in sample: {e}")))?;
         let width = pixel_buffer.get_width() as usize;
         let height = pixel_buffer.get_height() as usize;
         let bytes_per_row = pixel_buffer.get_bytes_per_row() as usize;
@@ -100,7 +101,7 @@ impl MacOSWindowManager {
         use screencapturekit::output::LockTrait;
         let guard = pixel_buffer
             .lock()
-            .map_err(|e| format!("CVPixelBuffer lock failed: {e}"))?;
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("CVPixelBuffer lock failed: {e}")))?;
         let bytes = guard.as_slice();
         if bytes.len() < bytes_per_row * height {
             LOGGER.log(
@@ -139,7 +140,7 @@ impl MacOSWindowManager {
         let mut png_data = Vec::new();
         dyn_img
             .write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
-            .map_err(|e| format!("Failed to encode PNG: {e}"))?;
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to encode PNG: {e}")))?;
 
         // Reuse existing thumbnail scaler/encoder
         let result = self.create_thumbnail_from_data(&png_data);
@@ -167,16 +168,16 @@ impl MacOSWindowManager {
     }
 
     /// Create a thumbnail from image data
-    fn create_thumbnail_from_data(&self, image_data: &[u8]) -> Result<Option<String>, String> {
+    fn create_thumbnail_from_data(&self, image_data: &[u8]) -> NotariResult<Option<String>> {
         use image::io::Reader as ImageReader;
         use std::io::Cursor;
 
         // Load image from data
         let img = ImageReader::new(Cursor::new(image_data))
             .with_guessed_format()
-            .map_err(|e| format!("Failed to guess image format: {}", e))?
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to guess image format: {}", e)))?
             .decode()
-            .map_err(|e| format!("Failed to decode image: {}", e))?;
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to decode image: {}", e)))?;
 
         // Resize to thumbnail size
         let max_dimension = 300;
@@ -208,7 +209,7 @@ impl MacOSWindowManager {
         let mut png_data = Vec::new();
         thumbnail
             .write_to(&mut Cursor::new(&mut png_data), image::ImageFormat::Png)
-            .map_err(|e| format!("Failed to encode PNG: {}", e))?;
+            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to encode PNG: {}", e)))?;
 
         use base64::{engine::general_purpose, Engine as _};
         let base64_string = general_purpose::STANDARD.encode(&png_data);
@@ -258,17 +259,17 @@ impl MacOSWindowManager {
         }
     }
 
-    fn get_real_windows(&self) -> Result<Vec<WindowInfo>, String> {
+    fn get_real_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         self.get_windows_coregraphics()
     }
 
-    fn get_windows_coregraphics(&self) -> Result<Vec<WindowInfo>, String> {
+    fn get_windows_coregraphics(&self) -> NotariResult<Vec<WindowInfo>> {
         unsafe {
             let options = kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements;
             let window_list_info = CGWindowListCopyWindowInfo(options, kCGNullWindowID);
 
             if window_list_info.is_null() {
-                return Err("CoreGraphics API returned null - likely permission issue".to_string());
+                return Err(NotariError::WindowEnumerationFailed("CoreGraphics API returned null - likely permission issue".to_string()));
             }
 
             let arr: CFArray<CFType> = CFArray::wrap_under_create_rule(window_list_info);
@@ -482,7 +483,7 @@ impl WindowManager for MacOSWindowManager {
         }
     }
 
-    fn request_permission(&self) -> Result<bool, String> {
+    fn request_permission(&self) -> NotariResult<bool> {
         // On macOS, we can't programmatically request screen recording permission
         // We need to guide the user to System Preferences
         self.open_system_settings()?;
@@ -491,7 +492,7 @@ impl WindowManager for MacOSWindowManager {
         Ok(false)
     }
 
-    fn get_windows(&self) -> Result<Vec<WindowInfo>, String> {
+    fn get_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         LOGGER.log(
             LogLevel::Info,
             "Getting windows - starting process",
@@ -506,7 +507,7 @@ impl WindowManager for MacOSWindowManager {
                 "Permission not granted, returning error",
                 "backend",
             );
-            return Err("Screen recording permission not granted".to_string());
+            return Err(NotariError::PermissionDenied);
         }
 
         LOGGER.log(
@@ -519,7 +520,7 @@ impl WindowManager for MacOSWindowManager {
         self.get_real_windows()
     }
 
-    fn get_window_thumbnail(&self, window_id: &str) -> Result<Option<String>, String> {
+    fn get_window_thumbnail(&self, window_id: &str) -> NotariResult<Option<String>> {
         LOGGER.log(
             LogLevel::Info,
             &format!("Getting thumbnail for window ID: {}", window_id),
@@ -561,13 +562,13 @@ impl WindowManager for MacOSWindowManager {
         self.create_window_thumbnail(cg_window_id)
     }
 
-    fn open_system_settings(&self) -> Result<(), String> {
+    fn open_system_settings(&self) -> NotariResult<()> {
         // For Phase 1, we'll use a simple command to open System Preferences
         // In Phase 2, we'll implement proper Cocoa API calls
         std::process::Command::new("open")
             .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
             .spawn()
-            .map_err(|e| format!("Failed to open System Preferences: {}", e))?;
+            .map_err(|e| NotariError::SystemSettingsOpenFailed(format!("Failed to open System Preferences: {}", e)))?;
         Ok(())
     }
 }

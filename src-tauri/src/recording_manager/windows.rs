@@ -1,6 +1,7 @@
 use super::{
     ActiveRecording, RecordingInfo, RecordingManager, RecordingPreferences, SharedRecordingState,
 };
+use crate::error::{NotariError, NotariResult};
 use std::path::PathBuf;
 
 pub struct WindowsRecordingManager;
@@ -18,62 +19,63 @@ impl RecordingManager for WindowsRecordingManager {
         _preferences: &RecordingPreferences,
         _window_info: Option<crate::window_manager::WindowInfo>,
         _state: SharedRecordingState,
-    ) -> Result<ActiveRecording, String> {
-        Err("Recording not implemented for Windows yet".to_string())
+    ) -> NotariResult<ActiveRecording> {
+        Err(NotariError::PlatformNotSupported)
     }
 
     fn stop_recording(
         &self,
         _session_id: &str,
         _state: SharedRecordingState,
-    ) -> Result<(), String> {
-        Err("Recording not implemented for Windows yet".to_string())
+    ) -> NotariResult<()> {
+        Err(NotariError::PlatformNotSupported)
     }
 
     fn pause_recording(
         &self,
         _session_id: &str,
         _state: SharedRecordingState,
-    ) -> Result<(), String> {
-        Err("Recording not implemented for Windows yet".to_string())
+    ) -> NotariResult<()> {
+        Err(NotariError::PlatformNotSupported)
     }
 
     fn resume_recording(
         &self,
         _session_id: &str,
         _state: SharedRecordingState,
-    ) -> Result<(), String> {
-        Err("Recording not implemented for Windows yet".to_string())
+    ) -> NotariResult<()> {
+        Err(NotariError::PlatformNotSupported)
     }
 
     fn get_recording_info(
         &self,
         _session_id: &str,
         _state: SharedRecordingState,
-    ) -> Result<RecordingInfo, String> {
-        Err("Recording not implemented for Windows yet".to_string())
+    ) -> NotariResult<RecordingInfo> {
+        Err(NotariError::PlatformNotSupported)
     }
 
-    fn check_recording_health(&self, _state: SharedRecordingState) -> Result<(), String> {
+    fn check_recording_health(&self, _state: SharedRecordingState) -> NotariResult<()> {
         Ok(()) // No-op for now
     }
 
-    fn cleanup_orphaned_recordings(&self) -> Result<(), String> {
+    fn cleanup_orphaned_recordings(&self) -> NotariResult<()> {
         Ok(()) // No-op for now
     }
 
-    fn get_default_save_directory(&self) -> Result<PathBuf, String> {
+    fn get_default_save_directory(&self) -> NotariResult<PathBuf> {
         // Use %USERPROFILE%\Videos\Notari as default on Windows
-        let home_dir =
-            dirs::home_dir().ok_or_else(|| "Could not determine home directory".to_string())?;
+        let home_dir = dirs::home_dir()
+            .ok_or_else(|| NotariError::ConfigError("Could not determine home directory".to_string()))?;
 
         Ok(home_dir.join("Videos").join("Notari"))
     }
 
-    fn validate_save_directory(&self, path: &PathBuf) -> Result<bool, String> {
+    fn validate_save_directory(&self, path: &PathBuf) -> NotariResult<bool> {
         // Check if directory exists or can be created
         if !path.exists() {
-            std::fs::create_dir_all(path).map_err(|e| format!("Cannot create directory: {}", e))?;
+            std::fs::create_dir_all(path)
+                .map_err(|e| NotariError::DirectoryCreationFailed(e.to_string()))?;
         }
 
         // Check if directory is writable
@@ -83,7 +85,7 @@ impl RecordingManager for WindowsRecordingManager {
                 let _ = std::fs::remove_file(&test_file);
                 Ok(true)
             }
-            Err(e) => Err(format!("Directory not writable: {}", e)),
+            Err(e) => Err(NotariError::DirectoryCreationFailed(format!("Directory not writable: {}", e))),
         }
     }
 }

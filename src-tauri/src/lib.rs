@@ -5,6 +5,7 @@ use tauri::{
 };
 
 mod blockchain_commands;
+pub mod error;
 pub mod evidence;
 mod logger;
 mod recording_commands;

@@ -36,6 +36,7 @@ tauri-plugin-dialog = "2.4.0"
 tokio = { version = "1.0", features = ["sync", "time", "rt-multi-thread", "macros"] }
 crossbeam-channel = "0.5"
 async-trait = "0.1"
+thiserror = "2.0"
 
 # Video streaming server
 axum = "0.7"

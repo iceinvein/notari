@@ -1,10 +1,10 @@
-use std::error::Error;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use zip::write::FileOptions;
 use zip::ZipWriter;
 
+use crate::error::{NotariError, NotariResult};
 use super::keychain;
 use super::manifest::EvidenceManifest;
 use super::signature::KeyManager;
@@ -30,7 +30,7 @@ pub fn create_proof_pack<P: AsRef<Path>>(
     video_path: P,
     manifest_path: P,
     output_path: P,
-) -> Result<PathBuf, Box<dyn Error>> {
+) -> NotariResult<PathBuf> {
     let video_path = video_path.as_ref();
     let manifest_path = manifest_path.as_ref();
     let output_path = output_path.as_ref();
@@ -45,7 +45,7 @@ pub fn create_proof_pack<P: AsRef<Path>>(
         use base64::{engine::general_purpose, Engine as _};
         general_purpose::STANDARD.encode(public_key_bytes.as_bytes())
     } else {
-        return Err("No signing key found in keychain".into());
+        return Err(NotariError::NoSigningKey("No signing key found in keychain".to_string()));
     };
 
     // Create ZIP file
@@ -59,7 +59,7 @@ pub fn create_proof_pack<P: AsRef<Path>>(
     let video_filename = video_path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or("Invalid video filename")?;
+        .ok_or_else(|| NotariError::ProofPackCreationFailed("Invalid video filename".to_string()))?;
 
     zip.start_file(format!("evidence/{}", video_filename), options)?;
     let mut video_file = File::open(video_path)?;
@@ -71,7 +71,7 @@ pub fn create_proof_pack<P: AsRef<Path>>(
     let manifest_filename = manifest_path
         .file_name()
         .and_then(|n| n.to_str())
-        .ok_or("Invalid manifest filename")?;
+        .ok_or_else(|| NotariError::ProofPackCreationFailed("Invalid manifest filename".to_string()))?;
 
     zip.start_file(format!("evidence/{}", manifest_filename), options)?;
     let mut manifest_file = File::open(manifest_path)?;
@@ -126,7 +126,7 @@ pub fn create_proof_pack<P: AsRef<Path>>(
 pub fn extract_proof_pack<P: AsRef<Path>>(
     proof_pack_path: P,
     extract_dir: P,
-) -> Result<(PathBuf, PathBuf), Box<dyn Error>> {
+) -> NotariResult<(PathBuf, PathBuf)> {
     let proof_pack_path = proof_pack_path.as_ref();
     let extract_dir = extract_dir.as_ref();
 
@@ -135,14 +135,16 @@ pub fn extract_proof_pack<P: AsRef<Path>>(
 
     // Open ZIP file
     let file = File::open(proof_pack_path)?;
-    let mut archive = zip::ZipArchive::new(file)?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| NotariError::ProofPackExtractionFailed(format!("Failed to open ZIP archive: {}", e)))?;
 
     let mut video_path: Option<PathBuf> = None;
     let mut manifest_path: Option<PathBuf> = None;
 
     // Extract all files
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i)?;
+        let mut file = archive.by_index(i)
+            .map_err(|e| NotariError::ProofPackExtractionFailed(format!("Failed to read ZIP entry: {}", e)))?;
         let outpath = extract_dir.join(file.name());
 
         if file.name().ends_with('/') {
@@ -165,8 +167,8 @@ pub fn extract_proof_pack<P: AsRef<Path>>(
         }
     }
 
-    let video_path = video_path.ok_or("No video file found in proof pack")?;
-    let manifest_path = manifest_path.ok_or("No manifest file found in proof pack")?;
+    let video_path = video_path.ok_or_else(|| NotariError::InvalidProofPack("No video file found in proof pack".to_string()))?;
+    let manifest_path = manifest_path.ok_or_else(|| NotariError::InvalidProofPack("No manifest file found in proof pack".to_string()))?;
 
     Ok((video_path, manifest_path))
 }

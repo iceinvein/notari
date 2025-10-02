@@ -1,7 +1,7 @@
 use super::{AnchorProof, BlockchainAnchorer};
 use async_trait::async_trait;
+use crate::error::{NotariError, NotariResult};
 use ethers::prelude::*;
-use std::error::Error;
 use std::sync::Arc;
 
 // ABI for NotariRegistry contract
@@ -35,17 +35,20 @@ impl EthereumAnchorer {
         chain_id: u64,
         chain_name: &str,
         explorer_url: &str,
-    ) -> Result<Self, Box<dyn Error>> {
+    ) -> NotariResult<Self> {
         // Create provider
-        let provider = Provider::<Http>::try_from(rpc_url)?;
+        let provider = Provider::<Http>::try_from(rpc_url)
+            .map_err(|e| NotariError::BlockchainNotConfigured(format!("Invalid RPC URL: {}", e)))?;
         let provider = Arc::new(provider);
 
         // Create wallet from private key
-        let wallet: LocalWallet = private_key.parse()?;
+        let wallet: LocalWallet = private_key.parse()
+            .map_err(|e| NotariError::BlockchainNotConfigured(format!("Invalid private key: {}", e)))?;
         let wallet = wallet.with_chain_id(chain_id);
 
         // Parse contract address
-        let contract_address: Address = contract_address.parse()?;
+        let contract_address: Address = contract_address.parse()
+            .map_err(|e| NotariError::BlockchainNotConfigured(format!("Invalid contract address: {}", e)))?;
 
         Ok(Self {
             provider,
@@ -68,11 +71,12 @@ impl EthereumAnchorer {
     }
 
     /// Convert hex string to bytes32
-    fn hex_to_bytes32(hex: &str) -> Result<[u8; 32], Box<dyn Error>> {
+    fn hex_to_bytes32(hex: &str) -> NotariResult<[u8; 32]> {
         let hex = hex.trim_start_matches("0x");
-        let bytes = hex::decode(hex)?;
+        let bytes = hex::decode(hex)
+            .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Invalid hex: {}", e)))?;
         if bytes.len() != 32 {
-            return Err("Hash must be 32 bytes".into());
+            return Err(NotariError::BlockchainAnchorFailed("Hash must be 32 bytes".to_string()));
         }
         let mut array = [0u8; 32];
         array.copy_from_slice(&bytes);
@@ -87,7 +91,7 @@ impl EthereumAnchorer {
 
 #[async_trait]
 impl BlockchainAnchorer for EthereumAnchorer {
-    async fn anchor(&self, hash: &str) -> Result<AnchorProof, Box<dyn Error>> {
+    async fn anchor(&self, hash: &str) -> NotariResult<AnchorProof> {
         // Convert hash to bytes32
         let hash_bytes = Self::hex_to_bytes32(hash)?;
 
@@ -97,11 +101,16 @@ impl BlockchainAnchorer for EthereumAnchorer {
 
         // Call anchor function and wait for receipt
         let call = contract.anchor(hash_bytes);
-        let pending_tx = call.send().await?;
-        let receipt = pending_tx.await?.ok_or("Transaction failed")?;
+        let pending_tx = call.send().await
+            .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Failed to send transaction: {}", e)))?;
+        let receipt = pending_tx.await
+            .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Transaction failed: {}", e)))?
+            .ok_or_else(|| NotariError::BlockchainAnchorFailed("Transaction failed".to_string()))?;
 
         // Get block number
-        let block_number = receipt.block_number.ok_or("No block number")?.as_u64();
+        let block_number = receipt.block_number
+            .ok_or_else(|| NotariError::BlockchainAnchorFailed("No block number".to_string()))?
+            .as_u64();
 
         // Get transaction hash
         let tx_hash = format!("0x{:x}", receipt.transaction_hash);
@@ -116,7 +125,7 @@ impl BlockchainAnchorer for EthereumAnchorer {
         })
     }
 
-    async fn verify(&self, hash: &str, proof: &AnchorProof) -> Result<bool, Box<dyn Error>> {
+    async fn verify(&self, hash: &str, proof: &AnchorProof) -> NotariResult<bool> {
         // Extract Ethereum proof details
         let (chain_id, contract_addr, _tx_hash) = match proof {
             AnchorProof::Ethereum {
@@ -125,7 +134,7 @@ impl BlockchainAnchorer for EthereumAnchorer {
                 tx_hash,
                 ..
             } => (chain_id, contract_address, tx_hash),
-            _ => return Err("Invalid proof type for Ethereum verifier".into()),
+            _ => return Err(NotariError::BlockchainAnchorFailed("Invalid proof type for Ethereum verifier".to_string())),
         };
 
         // Verify chain ID matches
@@ -144,15 +153,17 @@ impl BlockchainAnchorer for EthereumAnchorer {
 
         // Query contract to check if hash is anchored
         let contract = self.contract();
-        let timestamp = contract.is_anchored(hash_bytes).call().await?;
+        let timestamp = contract.is_anchored(hash_bytes).call().await
+            .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Failed to verify anchor: {}", e)))?;
 
         // If timestamp is non-zero, hash is anchored
         Ok(timestamp.as_u64() > 0)
     }
 
-    async fn estimate_cost(&self) -> Result<f64, Box<dyn Error>> {
+    async fn estimate_cost(&self) -> NotariResult<f64> {
         // Get current gas price
-        let gas_price = self.provider.get_gas_price().await?;
+        let gas_price = self.provider.get_gas_price().await
+            .map_err(|e| NotariError::NetworkError(format!("Failed to get gas price: {}", e)))?;
 
         // Estimate gas for anchor transaction (typical: ~50,000 gas)
         let estimated_gas = U256::from(50_000);
@@ -166,12 +177,13 @@ impl BlockchainAnchorer for EthereumAnchorer {
         Ok(cost_eth)
     }
 
-    async fn get_balance(&self) -> Result<f64, Box<dyn Error>> {
+    async fn get_balance(&self) -> NotariResult<f64> {
         // Get wallet address
         let address = self.wallet.address();
 
         // Get balance
-        let balance = self.provider.get_balance(address, None).await?;
+        let balance = self.provider.get_balance(address, None).await
+            .map_err(|e| NotariError::NetworkError(format!("Failed to get balance: {}", e)))?;
 
         // Convert to ETH (or native token)
         let balance_eth = balance.as_u128() as f64 / 1e18;

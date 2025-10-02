@@ -8,8 +8,9 @@ pub mod signature;
 pub mod verification;
 
 pub use blockchain::{
-    AnchorProof, BlockchainAnchor, BlockchainAnchorer, BlockchainConfig, BlockchainEnvironment,
-    ChainConfig, EthereumAnchorer, MockAnchorer, WalletConfig, WalletManager,
+    AnchorProof, BlockchainAnchor, BlockchainAnchorer, BlockchainAnchorerFactory,
+    BlockchainConfig, BlockchainEnvironment, ChainConfig, EthereumAnchorer, MockAnchorer,
+    WalletConfig, WalletManager,
 };
 pub use encryption::{validate_password, VideoEncryptor};
 pub use hash::HashInfo;

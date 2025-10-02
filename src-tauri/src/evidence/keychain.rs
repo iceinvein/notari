@@ -1,4 +1,4 @@
-use std::error::Error;
+use crate::error::{NotariError, NotariResult};
 
 #[cfg(target_os = "macos")]
 use security_framework::passwords::{
@@ -10,22 +10,25 @@ const ACCOUNT_NAME: &str = "signing_key";
 
 /// Store signing key in macOS Keychain
 #[cfg(target_os = "macos")]
-pub fn store_signing_key(key_bytes: &[u8]) -> Result<(), Box<dyn Error>> {
-    set_generic_password(SERVICE_NAME, ACCOUNT_NAME, key_bytes)?;
+pub fn store_signing_key(key_bytes: &[u8]) -> NotariResult<()> {
+    set_generic_password(SERVICE_NAME, ACCOUNT_NAME, key_bytes)
+        .map_err(|e| NotariError::KeychainStoreFailed(format!("Failed to store signing key: {}", e)))?;
     Ok(())
 }
 
 /// Retrieve signing key from macOS Keychain
 #[cfg(target_os = "macos")]
-pub fn retrieve_signing_key() -> Result<Vec<u8>, Box<dyn Error>> {
-    let key_bytes = get_generic_password(SERVICE_NAME, ACCOUNT_NAME)?;
+pub fn retrieve_signing_key() -> NotariResult<Vec<u8>> {
+    let key_bytes = get_generic_password(SERVICE_NAME, ACCOUNT_NAME)
+        .map_err(|e| NotariError::NoSigningKey(format!("Failed to retrieve signing key: {}", e)))?;
     Ok(key_bytes)
 }
 
 /// Delete signing key from macOS Keychain
 #[cfg(target_os = "macos")]
-pub fn delete_signing_key() -> Result<(), Box<dyn Error>> {
-    delete_generic_password(SERVICE_NAME, ACCOUNT_NAME)?;
+pub fn delete_signing_key() -> NotariResult<()> {
+    delete_generic_password(SERVICE_NAME, ACCOUNT_NAME)
+        .map_err(|e| NotariError::KeychainDeleteFailed(format!("Failed to delete signing key: {}", e)))?;
     Ok(())
 }
 
@@ -37,18 +40,18 @@ pub fn has_signing_key() -> bool {
 
 // Stub implementations for non-macOS platforms
 #[cfg(not(target_os = "macos"))]
-pub fn store_signing_key(_key_bytes: &[u8]) -> Result<(), Box<dyn Error>> {
-    Err("Keychain storage not supported on this platform".into())
+pub fn store_signing_key(_key_bytes: &[u8]) -> NotariResult<()> {
+    Err(NotariError::PlatformNotSupported)
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn retrieve_signing_key() -> Result<Vec<u8>, Box<dyn Error>> {
-    Err("Keychain storage not supported on this platform".into())
+pub fn retrieve_signing_key() -> NotariResult<Vec<u8>> {
+    Err(NotariError::PlatformNotSupported)
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn delete_signing_key() -> Result<(), Box<dyn Error>> {
-    Err("Keychain storage not supported on this platform".into())
+pub fn delete_signing_key() -> NotariResult<()> {
+    Err(NotariError::PlatformNotSupported)
 }
 
 #[cfg(not(target_os = "macos"))]

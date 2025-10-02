@@ -1,4 +1,5 @@
 use crate::app_log;
+use crate::error::{NotariError, NotariResult};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -38,34 +39,33 @@ impl StorageManager {
     }
 
     /// Get the store instance
-    fn get_store(&self) -> Result<Arc<tauri_plugin_store::Store<tauri::Wry>>, String> {
+    fn get_store(&self) -> NotariResult<Arc<tauri_plugin_store::Store<tauri::Wry>>> {
         self.store
-            .lock()
-            .map_err(|e| e.to_string())?
+            .lock()?
             .clone()
-            .ok_or_else(|| "Storage not initialized".to_string())
+            .ok_or_else(|| NotariError::StorageNotInitialized)
     }
 
     /// Save blockchain configuration
     pub fn save_blockchain_config(
         &self,
         config: &crate::evidence::BlockchainConfig,
-    ) -> Result<(), String> {
+    ) -> NotariResult<()> {
         let store = self.get_store()?;
-        let json = serde_json::to_value(config).map_err(|e| e.to_string())?;
+        let json = serde_json::to_value(config)?;
         store.set(BLOCKCHAIN_CONFIG_KEY.to_string(), json);
-        store.save().map_err(|e| e.to_string())?;
+        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
     /// Load blockchain configuration
     pub fn load_blockchain_config(
         &self,
-    ) -> Result<Option<crate::evidence::BlockchainConfig>, String> {
+    ) -> NotariResult<Option<crate::evidence::BlockchainConfig>> {
         let store = self.get_store()?;
         if let Some(value) = store.get(BLOCKCHAIN_CONFIG_KEY) {
             let config: crate::evidence::BlockchainConfig =
-                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+                serde_json::from_value(value.clone())?;
             Ok(Some(config))
         } else {
             Ok(None)
@@ -76,22 +76,22 @@ impl StorageManager {
     pub fn save_mock_anchors(
         &self,
         anchors: &HashMap<String, crate::evidence::blockchain::AnchorProof>,
-    ) -> Result<(), String> {
+    ) -> NotariResult<()> {
         let store = self.get_store()?;
-        let json = serde_json::to_value(anchors).map_err(|e| e.to_string())?;
+        let json = serde_json::to_value(anchors)?;
         store.set(MOCK_ANCHORS_KEY.to_string(), json);
-        store.save().map_err(|e| e.to_string())?;
+        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
     /// Load mock anchored hashes
     pub fn load_mock_anchors(
         &self,
-    ) -> Result<HashMap<String, crate::evidence::blockchain::AnchorProof>, String> {
+    ) -> NotariResult<HashMap<String, crate::evidence::blockchain::AnchorProof>> {
         let store = self.get_store()?;
         if let Some(value) = store.get(MOCK_ANCHORS_KEY) {
             let anchors: HashMap<String, crate::evidence::blockchain::AnchorProof> =
-                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+                serde_json::from_value(value.clone())?;
             Ok(anchors)
         } else {
             Ok(HashMap::new())
@@ -99,10 +99,10 @@ impl StorageManager {
     }
 
     /// Clear all mock anchored hashes
-    pub fn clear_mock_anchors(&self) -> Result<(), String> {
+    pub fn clear_mock_anchors(&self) -> NotariResult<()> {
         let store = self.get_store()?;
         store.delete(MOCK_ANCHORS_KEY.to_string());
-        store.save().map_err(|e| e.to_string())?;
+        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
@@ -110,22 +110,22 @@ impl StorageManager {
     pub fn save_recording_preferences(
         &self,
         preferences: &crate::recording_manager::RecordingPreferences,
-    ) -> Result<(), String> {
+    ) -> NotariResult<()> {
         let store = self.get_store()?;
-        let json = serde_json::to_value(preferences).map_err(|e| e.to_string())?;
+        let json = serde_json::to_value(preferences)?;
         store.set(RECORDING_PREFERENCES_KEY.to_string(), json);
-        store.save().map_err(|e| e.to_string())?;
+        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
     /// Load recording preferences
     pub fn load_recording_preferences(
         &self,
-    ) -> Result<Option<crate::recording_manager::RecordingPreferences>, String> {
+    ) -> NotariResult<Option<crate::recording_manager::RecordingPreferences>> {
         let store = self.get_store()?;
         if let Some(value) = store.get(RECORDING_PREFERENCES_KEY) {
             let preferences: crate::recording_manager::RecordingPreferences =
-                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+                serde_json::from_value(value.clone())?;
             Ok(Some(preferences))
         } else {
             Ok(None)

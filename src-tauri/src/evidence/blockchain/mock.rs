@@ -3,8 +3,8 @@ use super::BlockchainAnchorer;
 use async_trait::async_trait;
 use chrono::Utc;
 use crate::app_log;
+use crate::error::{NotariError, NotariResult};
 use std::collections::HashMap;
-use std::error::Error;
 use std::sync::{Arc, Mutex};
 use tokio::time::{sleep, Duration};
 
@@ -95,7 +95,7 @@ impl Default for MockAnchorer {
 
 #[async_trait]
 impl BlockchainAnchorer for MockAnchorer {
-    async fn anchor(&self, hash: &str) -> Result<AnchorProof, Box<dyn Error>> {
+    async fn anchor(&self, hash: &str) -> NotariResult<AnchorProof> {
         // Simulate network delay
         if self.delay_ms > 0 {
             sleep(Duration::from_millis(self.delay_ms)).await;
@@ -124,7 +124,7 @@ impl BlockchainAnchorer for MockAnchorer {
         Ok(proof)
     }
 
-    async fn verify(&self, hash: &str, proof: &AnchorProof) -> Result<bool, Box<dyn Error>> {
+    async fn verify(&self, hash: &str, proof: &AnchorProof) -> NotariResult<bool> {
         // Simulate network delay
         if self.delay_ms > 0 {
             sleep(Duration::from_millis(self.delay_ms)).await;
@@ -153,15 +153,15 @@ impl BlockchainAnchorer for MockAnchorer {
                     Ok(true)
                 }
             }
-            _ => Err("Invalid proof type for mock anchorer".into()),
+            _ => Err(NotariError::BlockchainAnchorFailed("Invalid proof type for mock anchorer".to_string())),
         }
     }
 
-    async fn estimate_cost(&self) -> Result<f64, Box<dyn Error>> {
+    async fn estimate_cost(&self) -> NotariResult<f64> {
         Ok(self.cost_per_anchor)
     }
 
-    async fn get_balance(&self) -> Result<f64, Box<dyn Error>> {
+    async fn get_balance(&self) -> NotariResult<f64> {
         Ok(self.balance)
     }
 }

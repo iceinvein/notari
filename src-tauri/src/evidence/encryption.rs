@@ -5,7 +5,6 @@ use aes_gcm::{
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use sha2::Sha256;
-use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::Path;
@@ -14,7 +13,7 @@ use std::path::Path;
 use crate::evidence::manifest::{
     ChunkInfo, ChunkedEncryptionInfo, EncryptionInfo, KeyDerivationInfo,
 };
-
+use crate::error::{NotariError, NotariResult};
 use crate::logger::{LogLevel, LOGGER};
 
 // Constants
@@ -33,7 +32,7 @@ impl VideoEncryptor {
         input_path: P,
         output_path: P,
         password: &str,
-    ) -> Result<EncryptionInfo, Box<dyn Error>> {
+    ) -> NotariResult<EncryptionInfo> {
         // Generate random salt
         let mut salt = [0u8; SALT_SIZE];
         OsRng.fill_bytes(&mut salt);
@@ -64,7 +63,7 @@ impl VideoEncryptor {
         // Encrypt
         let ciphertext = cipher
             .encrypt(nonce, plaintext.as_ref())
-            .map_err(|e| format!("Encryption failed: {}", e))?;
+            .map_err(|e| NotariError::EncryptionFailed(format!("Encryption failed: {}", e)))?;
 
         // In AES-GCM, the authentication tag is appended to the ciphertext
         // Extract the last 16 bytes as the tag
@@ -95,7 +94,7 @@ impl VideoEncryptor {
         input_path: P,
         output_path: P,
         password: &str,
-    ) -> Result<EncryptionInfo, Box<dyn Error>> {
+    ) -> NotariResult<EncryptionInfo> {
         use base64::{engine::general_purpose, Engine as _};
 
         // Generate random salt
@@ -148,7 +147,7 @@ impl VideoEncryptor {
             // Encrypt chunk
             let ciphertext = cipher
                 .encrypt(nonce, plaintext_chunk.as_ref())
-                .map_err(|e| format!("Encryption failed for chunk {}: {}", chunk_index, e))?;
+                .map_err(|e| NotariError::EncryptionFailed(format!("Encryption failed for chunk {}: {}", chunk_index, e)))?;
 
             // Write encrypted chunk
             output_file.write_all(&ciphertext)?;
@@ -190,7 +189,7 @@ impl VideoEncryptor {
         output_path: P,
         password: &str,
         encryption_info: &EncryptionInfo,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> NotariResult<()> {
         // Check if chunked encryption
         if let Some(chunked_info) = &encryption_info.chunked {
             return Self::decrypt_file_chunked(
@@ -209,7 +208,7 @@ impl VideoEncryptor {
             encryption_info
                 .nonce
                 .as_ref()
-                .ok_or("Missing nonce for file-level encryption")?,
+                .ok_or_else(|| NotariError::DecryptionFailed("Missing nonce for file-level encryption".to_string()))?,
         )?;
 
         // Derive key from password using same parameters
@@ -234,7 +233,7 @@ impl VideoEncryptor {
         // Decrypt
         let plaintext = cipher
             .decrypt(nonce, ciphertext.as_ref())
-            .map_err(|_| "Decryption failed: incorrect password or corrupted file")?;
+            .map_err(|_| NotariError::DecryptionFailed("Decryption failed: incorrect password or corrupted file".to_string()))?;
 
         // Write decrypted file
         let mut output_file = File::create(&output_path)?;
@@ -250,7 +249,7 @@ impl VideoEncryptor {
         password: &str,
         encryption_info: &EncryptionInfo,
         chunked_info: &ChunkedEncryptionInfo,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> NotariResult<()> {
         use base64::{engine::general_purpose, Engine as _};
 
         // Decode salt
@@ -289,10 +288,10 @@ impl VideoEncryptor {
 
             // Decrypt chunk
             let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|_| {
-                format!(
+                NotariError::DecryptionFailed(format!(
                     "Decryption failed for chunk {}: incorrect password or corrupted file",
                     chunk_info.index
-                )
+                ))
             })?;
 
             // Write decrypted chunk
@@ -308,13 +307,13 @@ impl VideoEncryptor {
         chunk_index: usize,
         password: &str,
         encryption_info: &EncryptionInfo,
-    ) -> Result<Vec<u8>, Box<dyn Error>> {
+    ) -> NotariResult<Vec<u8>> {
         use base64::{engine::general_purpose, Engine as _};
 
         let chunked_info = encryption_info
             .chunked
             .as_ref()
-            .ok_or("Not a chunked encryption")?;
+            .ok_or_else(|| NotariError::DecryptionFailed("Not a chunked encryption".to_string()))?;
 
         LOGGER.log(
             LogLevel::Info,
@@ -325,11 +324,13 @@ impl VideoEncryptor {
             "encryption",
         );
 
-        let chunk_info = chunked_info.chunks.get(chunk_index).ok_or(format!(
-            "Chunk index {} out of bounds (total chunks: {})",
-            chunk_index,
-            chunked_info.chunks.len()
-        ))?;
+        let chunk_info = chunked_info.chunks.get(chunk_index).ok_or_else(|| {
+            NotariError::DecryptionFailed(format!(
+                "Chunk index {} out of bounds (total chunks: {})",
+                chunk_index,
+                chunked_info.chunks.len()
+            ))
+        })?;
 
         LOGGER.log(
             LogLevel::Info,
@@ -379,7 +380,7 @@ impl VideoEncryptor {
                 nonce_bytes.len()
             );
             LOGGER.log(LogLevel::Error, &err_msg, "encryption");
-            return Err(err_msg.into());
+            return Err(NotariError::DecryptionFailed(err_msg));
         }
 
         let nonce = Nonce::from_slice(&nonce_bytes);
@@ -400,10 +401,10 @@ impl VideoEncryptor {
                 ),
                 "encryption",
             );
-            format!(
+            NotariError::DecryptionFailed(format!(
                 "Failed to read chunk {} at offset {}: {}",
                 chunk_index, chunk_info.offset, e
-            )
+            ))
         })?;
 
         LOGGER.log(
@@ -423,10 +424,10 @@ impl VideoEncryptor {
                 &format!("Decryption error for chunk {}: {:?}", chunk_index, e),
                 "encryption",
             );
-            format!(
+            NotariError::DecryptionFailed(format!(
                 "Decryption failed for chunk {}: incorrect password or corrupted file",
                 chunk_index
-            )
+            ))
         })?;
 
         LOGGER.log(
@@ -449,7 +450,7 @@ impl VideoEncryptor {
         end: u64,
         password: &str,
         encryption_info: &EncryptionInfo,
-    ) -> Result<Vec<u8>, Box<dyn Error>> {
+    ) -> NotariResult<Vec<u8>> {
         LOGGER.log(
             LogLevel::Info,
             &format!(
@@ -464,7 +465,7 @@ impl VideoEncryptor {
         let chunked_info = encryption_info
             .chunked
             .as_ref()
-            .ok_or("Not a chunked encryption")?;
+            .ok_or_else(|| NotariError::DecryptionFailed("Not a chunked encryption".to_string()))?;
 
         // Calculate which chunks we need
         let chunk_size = chunked_info.chunk_size;
@@ -532,9 +533,9 @@ impl VideoEncryptor {
 }
 
 /// Validate password strength
-pub fn validate_password(password: &str) -> Result<(), String> {
+pub fn validate_password(password: &str) -> NotariResult<()> {
     if password.len() < 8 {
-        return Err("Password must be at least 8 characters long".to_string());
+        return Err(NotariError::InvalidPassword("Password must be at least 8 characters long".to_string()));
     }
 
     let has_uppercase = password.chars().any(|c| c.is_uppercase());
@@ -542,9 +543,9 @@ pub fn validate_password(password: &str) -> Result<(), String> {
     let has_digit = password.chars().any(|c| c.is_numeric());
 
     if !has_uppercase || !has_lowercase || !has_digit {
-        return Err(
+        return Err(NotariError::InvalidPassword(
             "Password must contain uppercase, lowercase, and numeric characters".to_string(),
-        );
+        ));
     }
 
     Ok(())

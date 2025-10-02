@@ -1,4 +1,5 @@
 use super::{PermissionStatus, WindowBounds, WindowInfo, WindowManager};
+use crate::error::{NotariError, NotariResult};
 use std::collections::HashMap;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT};
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -12,14 +13,14 @@ impl WindowsWindowManager {
         Self
     }
 
-    fn enumerate_windows(&self) -> Result<Vec<WindowInfo>, String> {
+    fn enumerate_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         let mut windows = Vec::new();
 
         unsafe {
             let windows_ptr = &mut windows as *mut Vec<WindowInfo>;
 
             EnumWindows(Some(enum_windows_proc), LPARAM(windows_ptr as isize))
-                .map_err(|e| format!("Failed to enumerate windows: {}", e))?;
+                .map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to enumerate windows: {}", e)))?;
         }
 
         Ok(windows)
@@ -88,23 +89,23 @@ impl WindowManager for WindowsWindowManager {
         }
     }
 
-    fn request_permission(&self) -> Result<bool, String> {
+    fn request_permission(&self) -> NotariResult<bool> {
         // On Windows, permission is requested when starting capture
         // For now, we'll return true as the actual permission request
         // happens during the Graphics Capture API initialization
         Ok(true)
     }
 
-    fn get_windows(&self) -> Result<Vec<WindowInfo>, String> {
+    fn get_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         self.enumerate_windows()
     }
 
-    fn get_window_thumbnail(&self, _window_id: &str) -> Result<Option<String>, String> {
+    fn get_window_thumbnail(&self, _window_id: &str) -> NotariResult<Option<String>> {
         // TODO: Implement thumbnail generation using Windows APIs
         Ok(None)
     }
 
-    fn open_system_settings(&self) -> Result<(), String> {
+    fn open_system_settings(&self) -> NotariResult<()> {
         // On Windows, we might open Privacy settings for screen capture
         // For now, this is a placeholder
         Ok(())
