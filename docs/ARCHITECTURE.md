@@ -372,6 +372,7 @@ notari/
 - **[README.md](../README.md)** - Project overview and quick start
 - **[docs/recording.md](recording.md)** - Recording system details
 - **[docs/encryption.md](encryption.md)** - Encryption and playback
+- **[docs/anchoring.md](anchoring.md)** - Blockchain anchoring and verification
 - **[docs/ARCHITECTURE.md](ARCHITECTURE.md)** - This document
 - **[docs/dev/encryption-implementation.md](dev/encryption-implementation.md)** - Implementation guide
 - **[docs/dev/encryption-quick-reference.md](dev/encryption-quick-reference.md)** - Quick reference

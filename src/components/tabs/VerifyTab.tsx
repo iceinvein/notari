@@ -15,11 +15,19 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 
+type OnChainVerificationResult = {
+	verified: boolean;
+	chain_name: string;
+	contract_address: string;
+	error?: string;
+};
+
 type BlockchainAnchorCheck = {
 	present: boolean;
 	algorithm: string;
 	anchored_at: string;
 	explorer_url?: string;
+	on_chain_verified?: OnChainVerificationResult;
 };
 
 type VerificationReport = {
@@ -54,6 +62,7 @@ export default function VerifyTab() {
 	const [isVerifying, setIsVerifying] = useState(false);
 	const [verificationResult, setVerificationResult] = useState<VerificationReport | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [verificationMode, setVerificationMode] = useState<"standard" | "deep">("standard");
 
 	const handleSelectFile = async () => {
 		try {
@@ -95,7 +104,8 @@ export default function VerifyTab() {
 		try {
 			// For .notari files, both manifestPath and videoPath are the same
 			// The backend will extract and verify automatically
-			const result = await invoke<VerificationReport>("verify_recording", {
+			const command = verificationMode === "deep" ? "verify_recording_deep" : "verify_recording";
+			const result = await invoke<VerificationReport>(command, {
 				manifestPath: selectedFile,
 				videoPath: selectedFile,
 			});
@@ -159,6 +169,38 @@ export default function VerifyTab() {
 						</Button>
 					</div>
 
+					{/* Verification Mode Selector */}
+					<div className="space-y-2">
+						<h4 className="text-sm font-medium text-foreground">Verification Mode</h4>
+						<div className="flex gap-2">
+							<Button
+								size="sm"
+								variant={verificationMode === "standard" ? "solid" : "flat"}
+								color={verificationMode === "standard" ? "primary" : "default"}
+								onPress={() => setVerificationMode("standard")}
+								className="flex-1"
+								startContent={<Shield className="w-4 h-4" />}
+							>
+								Standard
+							</Button>
+							<Button
+								size="sm"
+								variant={verificationMode === "deep" ? "solid" : "flat"}
+								color={verificationMode === "deep" ? "primary" : "default"}
+								onPress={() => setVerificationMode("deep")}
+								className="flex-1"
+								startContent={<Anchor className="w-4 h-4" />}
+							>
+								Deep
+							</Button>
+						</div>
+						<p className="text-xs text-foreground-500">
+							{verificationMode === "standard"
+								? "Offline verification: signature, hash, and anchor metadata"
+								: "On-chain verification: includes blockchain query to confirm anchor"}
+						</p>
+					</div>
+
 					<Button
 						color="primary"
 						size="lg"
@@ -168,7 +210,7 @@ export default function VerifyTab() {
 						isLoading={isVerifying}
 						startContent={!isVerifying && <FileSearch className="w-5 h-5" />}
 					>
-						Verify Recording
+						{verificationMode === "deep" ? "Deep Verify Recording" : "Verify Recording"}
 					</Button>
 				</CardBody>
 			</Card>
@@ -264,47 +306,112 @@ export default function VerifyTab() {
 
 								{/* Blockchain Anchor Check */}
 								{verificationResult.verification.checks.blockchain_anchor && (
-									<div className="flex items-center justify-between text-sm pt-2 border-t border-divider">
-										<div className="flex flex-col gap-1">
-											<div className="flex items-center gap-2">
-												<Anchor className="w-3.5 h-3.5 text-foreground-500" />
-												<span className="text-foreground-500">Blockchain Anchor</span>
+									<div className="flex flex-col gap-2 pt-2 border-t border-divider">
+										<div className="flex items-center justify-between text-sm">
+											<div className="flex flex-col gap-1">
+												<div className="flex items-center gap-2">
+													<Anchor className="w-3.5 h-3.5 text-foreground-500" />
+													<span className="text-foreground-500">Blockchain Anchor</span>
+												</div>
+												<span className="text-xs text-foreground-400 ml-5">
+													{verificationResult.verification.checks.blockchain_anchor.algorithm}
+												</span>
+												<span className="text-xs text-foreground-400 ml-5">
+													{new Date(
+														verificationResult.verification.checks.blockchain_anchor.anchored_at
+													).toLocaleString()}
+												</span>
 											</div>
-											<span className="text-xs text-foreground-400 ml-5">
-												{verificationResult.verification.checks.blockchain_anchor.algorithm}
-											</span>
-											<span className="text-xs text-foreground-400 ml-5">
-												{new Date(
-													verificationResult.verification.checks.blockchain_anchor.anchored_at
-												).toLocaleString()}
-											</span>
+											<div className="flex items-center gap-2">
+												<Chip size="sm" color="success" variant="flat">
+													Present
+												</Chip>
+												{verificationResult.verification.checks.blockchain_anchor.explorer_url && (
+													<Button
+														isIconOnly
+														size="sm"
+														variant="light"
+														onPress={() => {
+															if (
+																verificationResult.verification.checks.blockchain_anchor?.explorer_url
+															) {
+																window.open(
+																	verificationResult.verification.checks.blockchain_anchor
+																		.explorer_url,
+																	"_blank"
+																);
+															}
+														}}
+														aria-label="View on blockchain explorer"
+													>
+														<ExternalLink className="w-3.5 h-3.5" />
+													</Button>
+												)}
+											</div>
 										</div>
-										<div className="flex items-center gap-2">
-											<Chip size="sm" color="success" variant="flat">
-												Present
-											</Chip>
-											{verificationResult.verification.checks.blockchain_anchor.explorer_url && (
-												<Button
-													isIconOnly
-													size="sm"
-													variant="light"
-													onPress={() => {
-														if (
-															verificationResult.verification.checks.blockchain_anchor?.explorer_url
-														) {
-															window.open(
+
+										{/* On-chain Verification Result */}
+										{verificationResult.verification.checks.blockchain_anchor.on_chain_verified && (
+											<div className="ml-5 p-2 rounded-lg bg-content2">
+												<div className="flex items-center justify-between">
+													<div className="flex items-center gap-2">
+														<span className="text-xs font-medium text-foreground-500">
+															On-chain Verification:
+														</span>
+														<Chip
+															size="sm"
+															color={
 																verificationResult.verification.checks.blockchain_anchor
-																	.explorer_url,
-																"_blank"
-															);
+																	.on_chain_verified.verified
+																	? "success"
+																	: "danger"
+															}
+															variant="flat"
+															startContent={
+																verificationResult.verification.checks.blockchain_anchor
+																	.on_chain_verified.verified ? (
+																	<CheckCircle className="w-3 h-3" />
+																) : (
+																	<XCircle className="w-3 h-3" />
+																)
+															}
+														>
+															{verificationResult.verification.checks.blockchain_anchor
+																.on_chain_verified.verified
+																? "Verified"
+																: "Failed"}
+														</Chip>
+													</div>
+												</div>
+												<div className="mt-1 text-xs text-foreground-400 space-y-0.5">
+													<div>
+														Chain:{" "}
+														{
+															verificationResult.verification.checks.blockchain_anchor
+																.on_chain_verified.chain_name
 														}
-													}}
-													aria-label="View on blockchain explorer"
-												>
-													<ExternalLink className="w-3.5 h-3.5" />
-												</Button>
-											)}
-										</div>
+													</div>
+													<div className="font-mono text-[10px]">
+														Contract:{" "}
+														{verificationResult.verification.checks.blockchain_anchor.on_chain_verified.contract_address.slice(
+															0,
+															10
+														)}
+														...
+													</div>
+													{verificationResult.verification.checks.blockchain_anchor
+														.on_chain_verified.error && (
+														<div className="text-danger">
+															Error:{" "}
+															{
+																verificationResult.verification.checks.blockchain_anchor
+																	.on_chain_verified.error
+															}
+														</div>
+													)}
+												</div>
+											</div>
+										)}
 									</div>
 								)}
 							</div>

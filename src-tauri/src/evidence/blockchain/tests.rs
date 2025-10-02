@@ -13,6 +13,9 @@ mod integration_tests {
 
     #[tokio::test]
     async fn test_full_workflow_with_blockchain_anchor() {
+        // Clear mock storage before test to avoid interference from other tests
+        MockAnchorer::clear_storage();
+
         // 1. Create a test video file
         let mut temp_video = tempfile::NamedTempFile::new().unwrap();
         temp_video.write_all(b"test video content").unwrap();

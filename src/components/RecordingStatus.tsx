@@ -39,9 +39,14 @@ import {
 type RecordingStatusProps = {
 	className?: string;
 	compact?: boolean;
+	onRecordingComplete?: () => void;
 };
 
-export default function RecordingStatus({ className = "", compact = false }: RecordingStatusProps) {
+export default function RecordingStatus({
+	className = "",
+	compact = false,
+	onRecordingComplete,
+}: RecordingStatusProps) {
 	const { data: activeSession } = useActiveRecordingSessionQuery();
 	const { data: recordingInfo } = useRecordingInfoQuery(activeSession?.session_id || null);
 	const [localDuration, setLocalDuration] = useState(0);
@@ -80,7 +85,17 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 
 	const handleStop = () => {
 		if (activeSession) {
-			stopRecordingMutation.mutate(activeSession.session_id);
+			stopRecordingMutation.mutate(activeSession.session_id, {
+				onSuccess: () => {
+					// Navigate to recorded videos tab after stopping
+					if (onRecordingComplete) {
+						// Small delay to ensure the recording is fully processed
+						setTimeout(() => {
+							onRecordingComplete();
+						}, 500);
+					}
+				},
+			});
 		}
 	};
 

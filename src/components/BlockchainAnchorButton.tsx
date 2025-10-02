@@ -1,9 +1,10 @@
 import { Button } from "@heroui/button";
 import { Chip } from "@heroui/chip";
 import { Tooltip } from "@heroui/tooltip";
+import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { AlertCircle, Anchor, CheckCircle2, ExternalLink, Info, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { BlockchainAnchorInfo } from "../hooks/useRecordingSystem";
 import { useToast } from "../hooks/useToast";
 
@@ -58,27 +59,20 @@ export default function BlockchainAnchorButton({
 	const [isAnchoring, setIsAnchoring] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [localAnchor, setLocalAnchor] = useState<BlockchainAnchorInfo | null>(null);
-	const [blockchainConfig, setBlockchainConfig] = useState<BlockchainConfig | null>(null);
-	const [configLoading, setConfigLoading] = useState(true);
 	const toast = useToast();
 
 	// Use local anchor if available (optimistic update), otherwise use prop
 	const displayAnchor = localAnchor || anchor;
 
-	// Load blockchain config on mount
-	useEffect(() => {
-		const loadConfig = async () => {
-			try {
-				const config = await invoke<BlockchainConfig>("get_blockchain_config");
-				setBlockchainConfig(config);
-			} catch (err) {
-				console.error("Failed to load blockchain config:", err);
-			} finally {
-				setConfigLoading(false);
-			}
-		};
-		loadConfig();
-	}, []);
+	// Load blockchain config with React Query (will auto-refresh when invalidated)
+	const { data: blockchainConfig, isLoading: configLoading } = useQuery({
+		queryKey: ["blockchain", "config"],
+		queryFn: async () => {
+			return await invoke<BlockchainConfig>("get_blockchain_config");
+		},
+		staleTime: 1000 * 30, // 30 seconds
+		refetchOnWindowFocus: true,
+	});
 
 	const handleAnchor = async () => {
 		setIsAnchoring(true);

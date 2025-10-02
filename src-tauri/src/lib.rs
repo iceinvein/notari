@@ -9,6 +9,7 @@ pub mod evidence;
 mod logger;
 mod recording_commands;
 mod recording_manager;
+mod storage;
 mod video_server;
 mod window_manager;
 
@@ -53,6 +54,7 @@ pub fn run() {
             recording_commands::log_set_min_level,
             recording_commands::log_get_min_level,
             recording_commands::verify_recording,
+            recording_commands::verify_recording_deep,
             recording_commands::get_evidence_manifest,
             recording_commands::export_public_key,
             recording_commands::has_signing_key,
@@ -97,6 +99,23 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            // Initialize storage
+            storage::init_storage(app.handle().clone());
+
+            // Load blockchain config from storage
+            let blockchain_state = app.state::<blockchain_commands::BlockchainState>();
+            if let Ok(config) = storage::get_storage().load_blockchain_config() {
+                if let Some(loaded_config) = config {
+                    if let Ok(mut config_lock) = blockchain_state.config.lock() {
+                        *config_lock = Some(loaded_config);
+                        log::info!("Loaded blockchain configuration from storage");
+                    }
+                }
+            }
+
+            // Load mock anchors from storage
+            evidence::blockchain::MockAnchorer::load_from_storage();
 
             // Initialize recording system
             let state = app.state::<recording_commands::WindowManagerState>();

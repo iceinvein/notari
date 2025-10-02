@@ -62,6 +62,24 @@ impl AnchorProof {
             _ => None,
         }
     }
+
+    /// Get the chain name
+    pub fn chain_name(&self) -> String {
+        match self {
+            AnchorProof::Mock { .. } => "Mock".to_string(),
+            AnchorProof::Ethereum { chain_name, .. } => chain_name.clone(),
+            AnchorProof::OpenTimestamps { .. } => "Bitcoin".to_string(),
+        }
+    }
+
+    /// Get the contract address
+    pub fn contract_address(&self) -> String {
+        match self {
+            AnchorProof::Mock { .. } => "N/A".to_string(),
+            AnchorProof::Ethereum { contract_address, .. } => contract_address.clone(),
+            AnchorProof::OpenTimestamps { .. } => "N/A".to_string(),
+        }
+    }
 }
 
 #[cfg(test)]

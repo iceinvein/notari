@@ -45,6 +45,18 @@ pub struct BlockchainAnchorCheck {
     pub anchored_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub explorer_url: Option<String>,
+    /// On-chain verification status (only present for deep verification)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub on_chain_verified: Option<OnChainVerificationResult>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OnChainVerificationResult {
+    pub verified: bool,
+    pub chain_name: String,
+    pub contract_address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -142,7 +154,7 @@ impl Verifier {
             CheckResult::Fail
         };
 
-        // Check blockchain anchor if present
+        // Check blockchain anchor if present (metadata only, no on-chain verification)
         let blockchain_anchor_check =
             manifest
                 .blockchain_anchor
@@ -152,6 +164,7 @@ impl Verifier {
                     algorithm: anchor.proof.description(),
                     anchored_at: anchor.anchored_at.to_rfc3339(),
                     explorer_url: anchor.proof.explorer_url(),
+                    on_chain_verified: None, // Standard verification doesn't check on-chain
                 });
 
         // Determine overall status
@@ -205,6 +218,80 @@ impl Verifier {
     pub fn verify_signature_only<P: AsRef<Path>>(manifest_path: P) -> Result<bool, Box<dyn Error>> {
         let manifest = EvidenceManifest::load(&manifest_path)?;
         manifest.verify_signature()
+    }
+
+    /// Deep verification with on-chain blockchain verification
+    /// This performs standard verification plus queries the blockchain to confirm the anchor
+    pub async fn verify_deep<P: AsRef<Path>>(
+        manifest_path: P,
+        video_path: P,
+        anchorer: &dyn crate::evidence::blockchain::BlockchainAnchorer,
+    ) -> Result<VerificationReport, Box<dyn Error>> {
+        use crate::logger::{LogLevel, LOGGER};
+
+        // First perform standard verification
+        let mut report = Self::verify(&manifest_path, &video_path)?;
+
+        // If there's a blockchain anchor, verify it on-chain
+        if let Some(ref mut anchor_check) = report.verification.checks.blockchain_anchor {
+            let manifest = EvidenceManifest::load(&manifest_path)?;
+
+            if let Some(ref blockchain_anchor) = manifest.blockchain_anchor {
+                LOGGER.log(
+                    LogLevel::Info,
+                    "Performing on-chain verification of blockchain anchor",
+                    "verifier",
+                );
+
+                // Use the manifest hash that was actually anchored (stored in blockchain_anchor)
+                let anchored_hash = &blockchain_anchor.manifest_hash;
+
+                LOGGER.log(
+                    LogLevel::Info,
+                    &format!("Anchored manifest hash: {}", anchored_hash),
+                    "verifier",
+                );
+
+                // Verify on-chain
+                let verification_result = match anchorer
+                    .verify(anchored_hash, &blockchain_anchor.proof)
+                    .await
+                {
+                    Ok(verified) => {
+                        LOGGER.log(
+                            LogLevel::Info,
+                            &format!("On-chain verification result: {}", verified),
+                            "verifier",
+                        );
+
+                        OnChainVerificationResult {
+                            verified,
+                            chain_name: blockchain_anchor.proof.chain_name(),
+                            contract_address: blockchain_anchor.proof.contract_address(),
+                            error: None,
+                        }
+                    }
+                    Err(e) => {
+                        LOGGER.log(
+                            LogLevel::Error,
+                            &format!("On-chain verification error: {}", e),
+                            "verifier",
+                        );
+
+                        OnChainVerificationResult {
+                            verified: false,
+                            chain_name: blockchain_anchor.proof.chain_name(),
+                            contract_address: blockchain_anchor.proof.contract_address(),
+                            error: Some(e.to_string()),
+                        }
+                    }
+                };
+
+                anchor_check.on_chain_verified = Some(verification_result);
+            }
+        }
+
+        Ok(report)
     }
 }
 

@@ -4,6 +4,7 @@ import { Divider } from "@heroui/divider";
 import { Input } from "@heroui/input";
 import { Select, SelectItem } from "@heroui/select";
 import { Switch } from "@heroui/switch";
+import { useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, Loader2, Wallet } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -34,6 +35,7 @@ export default function BlockchainSettings() {
 	const [loading, setLoading] = useState(true);
 	const [saving, setSaving] = useState(false);
 	const toast = useToast();
+	const queryClient = useQueryClient();
 
 	// Wallet setup
 	const [showWalletSetup, setShowWalletSetup] = useState(false);
@@ -89,6 +91,9 @@ export default function BlockchainSettings() {
 				autoAnchor: config.auto_anchor,
 			});
 			setConfig({ ...config, enabled });
+			// Invalidate caches to refresh blockchain anchor status
+			queryClient.invalidateQueries({ queryKey: ["recordings", "list"] });
+			queryClient.invalidateQueries({ queryKey: ["blockchain", "config"] });
 			toast.success(
 				"Blockchain Settings Updated",
 				`Blockchain anchoring ${enabled ? "enabled" : "disabled"}`
@@ -116,6 +121,9 @@ export default function BlockchainSettings() {
 				autoAnchor: config.auto_anchor,
 			});
 			setConfig({ ...config, chain_id: chain.chain_id, chain_name: chain.name });
+			// Invalidate caches to refresh blockchain anchor status
+			queryClient.invalidateQueries({ queryKey: ["recordings", "list"] });
+			queryClient.invalidateQueries({ queryKey: ["blockchain", "config"] });
 			toast.success("Chain Updated", `Switched to ${chain.name}`);
 		} catch (error) {
 			console.error("Failed to update chain:", error);
@@ -137,6 +145,9 @@ export default function BlockchainSettings() {
 				autoAnchor: config.auto_anchor,
 			});
 			setConfig({ ...config, environment });
+			// Invalidate caches to refresh blockchain anchor status
+			queryClient.invalidateQueries({ queryKey: ["recordings", "list"] });
+			queryClient.invalidateQueries({ queryKey: ["blockchain", "config"] });
 			toast.success("Environment Updated", `Switched to ${environment}`);
 		} catch (error) {
 			console.error("Failed to update environment:", error);
@@ -198,6 +209,9 @@ export default function BlockchainSettings() {
 			setPrivateKey("");
 			setDerivedAddress("");
 			await loadConfig();
+			// Invalidate caches to refresh blockchain anchor status
+			queryClient.invalidateQueries({ queryKey: ["recordings", "list"] });
+			queryClient.invalidateQueries({ queryKey: ["blockchain", "config"] });
 			toast.success("Wallet Configured", "Private key stored successfully");
 		} catch (error) {
 			console.error("Failed to store private key:", error);
@@ -216,6 +230,9 @@ export default function BlockchainSettings() {
 		try {
 			await invoke("delete_private_key");
 			await loadConfig();
+			// Invalidate caches to refresh blockchain anchor status
+			queryClient.invalidateQueries({ queryKey: ["recordings", "list"] });
+			queryClient.invalidateQueries({ queryKey: ["blockchain", "config"] });
 			toast.success("Wallet Deleted", "Wallet deleted successfully");
 		} catch (error) {
 			console.error("Failed to delete wallet:", error);

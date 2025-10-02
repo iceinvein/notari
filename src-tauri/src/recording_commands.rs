@@ -623,7 +623,7 @@ pub async fn log_get_min_level() -> Result<String, String> {
 
 // Evidence System Commands
 
-/// Verify a recording's evidence
+/// Verify a recording's evidence (standard verification - offline only)
 #[tauri::command]
 pub async fn verify_recording(
     manifest_path: String,
@@ -635,6 +635,70 @@ pub async fn verify_recording(
 
     let result = crate::evidence::Verifier::verify(&resolved_manifest, &resolved_video)
         .map_err(|e| format!("Verification failed: {}", e));
+
+    // Cleanup temp files
+    let _ = std::fs::remove_dir_all(&temp_dir);
+
+    result
+}
+
+/// Deep verification with on-chain blockchain verification
+#[tauri::command]
+pub async fn verify_recording_deep(
+    state: tauri::State<'_, crate::blockchain_commands::BlockchainState>,
+    manifest_path: String,
+    video_path: String,
+) -> Result<crate::evidence::VerificationReport, String> {
+    use crate::evidence::blockchain::{
+        BlockchainAnchorer, BlockchainEnvironment, EthereumAnchorer, MockAnchorer, WalletManager,
+    };
+
+    // Extract from .notari file
+    let (resolved_video, resolved_manifest, temp_dir) =
+        resolve_recording_paths(&video_path, &manifest_path)?;
+
+    // Get blockchain config
+    let (environment, chain_config, wallet_config) = {
+        let config_lock = state.config.lock().map_err(|e| e.to_string())?;
+        let config = config_lock.as_ref().ok_or("Blockchain not configured")?;
+
+        (
+            config.environment.clone(),
+            config.chain.clone(),
+            config.wallet.clone(),
+        )
+    };
+
+    // Create anchorer for verification
+    let anchorer: Box<dyn BlockchainAnchorer> = match environment {
+        BlockchainEnvironment::Mock => Box::new(MockAnchorer::new()),
+        _ => {
+            let wallet = wallet_config.ok_or("No wallet configured for deep verification")?;
+            let private_key = WalletManager::get_private_key(chain_config.chain_id, &wallet.address)
+                .map_err(|e| e.to_string())?;
+
+            Box::new(
+                EthereumAnchorer::new(
+                    &chain_config.rpc_url,
+                    &private_key,
+                    &chain_config.contract_address,
+                    chain_config.chain_id,
+                    &chain_config.name,
+                    &chain_config.explorer_url,
+                )
+                .map_err(|e| e.to_string())?,
+            )
+        }
+    };
+
+    // Perform deep verification
+    let result = crate::evidence::Verifier::verify_deep(
+        &resolved_manifest,
+        &resolved_video,
+        anchorer.as_ref(),
+    )
+    .await
+    .map_err(|e| format!("Deep verification failed: {}", e));
 
     // Cleanup temp files
     let _ = std::fs::remove_dir_all(&temp_dir);

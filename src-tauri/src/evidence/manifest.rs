@@ -157,10 +157,11 @@ impl EvidenceManifest {
         }
     }
 
-    /// Get the data to be signed (everything except the signature itself and blockchain anchor)
+    /// Get the data to be signed (everything except the signature itself)
+    /// Note: blockchain_anchor IS included in the signature (if present) to provide
+    /// offline verification of anchor metadata. The manifest is re-signed after anchoring.
     pub fn signable_data(&self) -> Vec<u8> {
-        // Create a copy without signature and blockchain anchor
-        // The blockchain anchor is added after signing, so it should not be part of the signed data
+        // Create a copy without signature (but keep blockchain_anchor if present)
         let mut manifest_copy = self.clone();
         manifest_copy.signature = SignatureInfo {
             algorithm: String::new(),
@@ -168,7 +169,7 @@ impl EvidenceManifest {
             signature: String::new(),
             signed_data_hash: String::new(),
         };
-        manifest_copy.blockchain_anchor = None;
+        // blockchain_anchor is now included in signed data for offline verification
 
         // Serialize to JSON (deterministic)
         serde_json::to_vec(&manifest_copy).unwrap()
@@ -188,6 +189,25 @@ impl EvidenceManifest {
             &self.signature.signature,
             &data,
         )
+    }
+
+    /// Compute the pre-anchor manifest hash (manifest without blockchain_anchor field)
+    /// This is used for on-chain verification, as the blockchain stores the hash of the
+    /// manifest before the anchor was added.
+    pub fn compute_pre_anchor_hash(&self) -> String {
+        use sha2::{Digest, Sha256};
+
+        // Create a copy without blockchain_anchor
+        let mut manifest_copy = self.clone();
+        manifest_copy.blockchain_anchor = None;
+
+        // Serialize to JSON
+        let json = serde_json::to_string(&manifest_copy).unwrap();
+
+        // Compute SHA256 hash
+        let mut hasher = Sha256::new();
+        hasher.update(json.as_bytes());
+        format!("{:x}", hasher.finalize())
     }
 
     /// Save manifest to JSON file
@@ -354,7 +374,7 @@ mod tests {
             session_id, file_path, file_hash, 1024, 60.0, metadata, system, timestamps,
         );
 
-        // Sign the manifest first
+        // Sign the manifest first (without anchor)
         let key_manager = KeyManager::generate();
         manifest.sign(&key_manager);
 
@@ -372,10 +392,19 @@ mod tests {
             },
         });
 
-        // Verify signature still works after adding blockchain anchor
+        // After adding anchor, signature is now invalid (anchor not in original signature)
+        assert!(
+            !manifest.verify_signature().unwrap(),
+            "Signature should be invalid after adding blockchain anchor without re-signing"
+        );
+
+        // Re-sign the manifest to include the anchor
+        manifest.sign(&key_manager);
+
+        // Now signature should be valid again
         assert!(
             manifest.verify_signature().unwrap(),
-            "Signature should remain valid after adding blockchain anchor"
+            "Signature should be valid after re-signing with blockchain anchor"
         );
     }
 }

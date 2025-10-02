@@ -1,3 +1,4 @@
+use crate::app_log;
 use crate::evidence::{
     BlockchainAnchorer, BlockchainConfig, BlockchainEnvironment, ChainConfig, EthereumAnchorer,
     MockAnchorer, WalletManager,
@@ -118,6 +119,9 @@ pub async fn set_blockchain_config(
     config.chain = chain;
     config.auto_anchor = auto_anchor;
 
+    // Save to persistent storage
+    crate::storage::get_storage().save_blockchain_config(&config)?;
+
     *config_lock = Some(config);
     Ok(())
 }
@@ -175,6 +179,9 @@ pub async fn store_private_key(
         config.wallet = Some(crate::evidence::WalletConfig {
             address: address.clone(),
         });
+
+        // Save to persistent storage
+        crate::storage::get_storage().save_blockchain_config(config)?;
     }
 
     Ok(address)
@@ -208,6 +215,9 @@ pub async fn delete_private_key(state: State<'_, BlockchainState>) -> Result<(),
     let mut config_lock = state.config.lock().map_err(|e| e.to_string())?;
     if let Some(config) = config_lock.as_mut() {
         config.wallet = None;
+
+        // Save to persistent storage
+        crate::storage::get_storage().save_blockchain_config(config)?;
     }
 
     Ok(())
@@ -456,10 +466,12 @@ pub async fn anchor_recording(
     };
 
     // Anchor the hash
+    app_log!(crate::logger::LogLevel::Info, "Anchoring manifest hash: {}", &manifest_hash[..16.min(manifest_hash.len())]);
     let proof = anchorer
         .anchor(&manifest_hash)
         .await
         .map_err(|e| format!("Failed to anchor: {}", e))?;
+    app_log!(crate::logger::LogLevel::Info, "Anchoring successful");
 
     // Update manifest with anchor
     manifest.blockchain_anchor = Some(BlockchainAnchor {
@@ -468,6 +480,17 @@ pub async fn anchor_recording(
         manifest_hash: manifest_hash.clone(),
         proof: proof.clone(),
     });
+
+    // Re-sign the manifest to include the blockchain anchor in the signature
+    // This provides offline verification of anchor metadata
+    use crate::evidence::keychain;
+    use crate::evidence::KeyManager;
+
+    let key_bytes = keychain::retrieve_signing_key()
+        .map_err(|e| format!("Failed to retrieve signing key: {}", e))?;
+    let key_manager = KeyManager::from_bytes(&key_bytes)
+        .map_err(|e| format!("Failed to load signing key: {}", e))?;
+    manifest.sign(&key_manager);
 
     // Save updated manifest back to .notari ZIP file
     let updated_json = serde_json::to_string_pretty(&manifest)

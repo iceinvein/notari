@@ -115,6 +115,7 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 						>
 							<RecordingTab
 								onOpenWindowPicker={handleOpenWindowPicker}
+								onRecordingComplete={() => setSelectedTab("videos")}
 								encryptionPassword={encryptionPassword}
 								setEncryptionPassword={setEncryptionPassword}
 								recordingTitle={recordingTitle}

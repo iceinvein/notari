@@ -10,6 +10,7 @@ import { TagInput } from "../TagInput";
 
 type RecordingTabProps = {
 	onOpenWindowPicker: () => void;
+	onRecordingComplete?: () => void;
 	encryptionPassword: string;
 	setEncryptionPassword: (password: string) => void;
 	recordingTitle: string;
@@ -22,6 +23,7 @@ type RecordingTabProps = {
 
 export default function RecordingTab({
 	onOpenWindowPicker,
+	onRecordingComplete,
 	encryptionPassword,
 	setEncryptionPassword,
 	recordingTitle,
@@ -94,7 +96,7 @@ export default function RecordingTab({
 			{/* Recording Status */}
 			{hasActiveRecording && activeSession && (
 				<div className="flex-1 overflow-auto p-4">
-					<RecordingStatus />
+					<RecordingStatus onRecordingComplete={onRecordingComplete} />
 				</div>
 			)}
 
