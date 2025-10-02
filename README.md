@@ -20,7 +20,7 @@ Notari is a desktop application that combats false positives from AI detection t
 
 ### Prerequisites
 
-- Node.js 18+ and pnpm
+- Node.js 22+ (LTS) and pnpm 10+
 - Rust toolchain (stable)
 - **macOS 12.3+** (required for ScreenCaptureKit)
 - Xcode Command Line Tools

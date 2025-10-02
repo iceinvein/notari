@@ -311,7 +311,7 @@ JSON structure:
 
 ### Prerequisites
 
-- Node.js 18+ and pnpm
+- Node.js 22+ (LTS) and pnpm 10+
 - Rust toolchain (stable)
 - macOS 12.3+ for ScreenCaptureKit
 - Xcode Command Line Tools

@@ -6,13 +6,13 @@ This guide covers setting up the development environment and configuring code si
 
 ### Required Software
 
-1. **Node.js 18+**
+1. **Node.js 22+ (LTS)**
    ```bash
    # Check version
    node --version
-   
+
    # Install via Homebrew (recommended)
-   brew install node@18
+   brew install node@22
    ```
 
 2. **pnpm**
