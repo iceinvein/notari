@@ -12,6 +12,7 @@ import {
 	useSelectSaveDirectoryMutation,
 	useUpdateRecordingPreferencesMutation,
 } from "../hooks/useRecordingSystem";
+import { useToast } from "../hooks/useToast";
 import type {
 	RecordingPreferences as RecordingPreferencesType,
 	VideoQuality,
@@ -34,6 +35,7 @@ export default function RecordingPreferences({ className = "" }: RecordingPrefer
 	const { data: defaultSaveDirectory } = useGetDefaultSaveDirectoryQuery();
 	const updatePreferencesMutation = useUpdateRecordingPreferencesMutation();
 	const selectDirectoryMutation = useSelectSaveDirectoryMutation();
+	const toast = useToast();
 
 	const [localPreferences, setLocalPreferences] = useState<RecordingPreferencesType>(
 		DEFAULT_RECORDING_PREFERENCES
@@ -63,8 +65,13 @@ export default function RecordingPreferences({ className = "" }: RecordingPrefer
 		try {
 			await updatePreferencesMutation.mutateAsync(localPreferences);
 			setHasChanges(false);
+			toast.success("Preferences Saved", "Recording preferences updated successfully");
 		} catch (error) {
 			console.error("Failed to save preferences:", error);
+			toast.error(
+				"Save Failed",
+				`Failed to save preferences: ${error instanceof Error ? error.message : "Unknown error"}`
+			);
 		}
 	};
 
@@ -88,11 +95,16 @@ export default function RecordingPreferences({ className = "" }: RecordingPrefer
 			recordingLogger.info("selectDirectoryMutation completed with result", { selectedPath });
 			if (selectedPath) {
 				handlePreferenceChange("save_directory", selectedPath);
+				toast.success("Directory Selected", "Save directory updated");
 			}
 		} catch (error) {
 			recordingLogger.error(
 				"selectDirectoryMutation failed",
 				error instanceof Error ? error : new Error(String(error))
+			);
+			toast.error(
+				"Selection Failed",
+				`Failed to select directory: ${error instanceof Error ? error.message : "Unknown error"}`
 			);
 			// Reset the mutation state to clear any pending state
 			selectDirectoryMutation.reset();

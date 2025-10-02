@@ -21,7 +21,6 @@ import {
 	useHasSigningKeyQuery,
 	usePublicKeyQuery,
 } from "../hooks/useEvidence";
-import { useToast } from "../hooks/useToast";
 import { preferencesLogger } from "../utils/logger";
 import ApplicationSelector from "./ApplicationSelector";
 import BlockchainSettings from "./BlockchainSettings";
@@ -43,7 +42,6 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 	const { resetToDefaults } = useApplicationPreferencesQuery();
 	const { data: hasSigningKey } = useHasSigningKeyQuery();
 	const { data: publicKey } = usePublicKeyQuery();
-	const toast = useToast();
 
 	// Debug: Check if resetToDefaults is available
 	useEffect(() => {
@@ -65,16 +63,13 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 		try {
 			await resetToDefaults();
 			preferencesLogger.info("SettingsModal: Reset completed successfully");
-			toast.success("Applications Reset", "Applications have been reset to defaults successfully");
+			// Toast notification is now handled by the mutation
 		} catch (error) {
 			preferencesLogger.error(
 				"SettingsModal: Reset failed",
 				error instanceof Error ? error : new Error(String(error))
 			);
-			toast.error(
-				"Reset Failed",
-				`Failed to reset applications: ${error instanceof Error ? error.message : "Unknown error"}`
-			);
+			// Toast notification is now handled by the mutation
 		}
 	};
 

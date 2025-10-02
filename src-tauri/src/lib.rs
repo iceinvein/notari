@@ -109,7 +109,7 @@ pub fn run() {
                 if let Some(loaded_config) = config {
                     if let Ok(mut config_lock) = blockchain_state.config.lock() {
                         *config_lock = Some(loaded_config);
-                        log::info!("Loaded blockchain configuration from storage");
+                        app_log!(logger::LogLevel::Info, "Loaded blockchain configuration from storage");
                     }
                 }
             }
@@ -117,11 +117,21 @@ pub fn run() {
             // Load mock anchors from storage
             evidence::blockchain::MockAnchorer::load_from_storage();
 
+            // Load recording preferences from storage
+            let recording_state = app.state::<recording_commands::WindowManagerState>();
+            if let Ok(prefs) = storage::get_storage().load_recording_preferences() {
+                if let Some(loaded_prefs) = prefs {
+                    if let Ok(mut state_lock) = recording_state.recording_state.lock() {
+                        state_lock.preferences = loaded_prefs;
+                        app_log!(logger::LogLevel::Info, "Loaded recording preferences from storage");
+                    }
+                }
+            }
+
             // Initialize recording system
-            let state = app.state::<recording_commands::WindowManagerState>();
             tauri::async_runtime::block_on(async {
-                if let Err(e) = recording_commands::initialize_recording_system(state).await {
-                    log::error!("Failed to initialize recording system: {}", e);
+                if let Err(e) = recording_commands::initialize_recording_system(recording_state).await {
+                    app_log!(logger::LogLevel::Error, "Failed to initialize recording system: {}", e);
                 }
             });
 
@@ -134,7 +144,7 @@ pub fn run() {
 
                     let state = app_handle.state::<recording_commands::WindowManagerState>();
                     if let Err(e) = recording_commands::check_recording_health(state).await {
-                        log::warn!("Recording health check failed: {}", e);
+                        app_log!(logger::LogLevel::Warn, "Recording health check failed: {}", e);
                     }
                 }
             });

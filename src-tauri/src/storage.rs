@@ -1,3 +1,4 @@
+use crate::app_log;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -5,6 +6,7 @@ use std::sync::{Arc, Mutex};
 /// Storage keys
 const BLOCKCHAIN_CONFIG_KEY: &str = "blockchain_config";
 const MOCK_ANCHORS_KEY: &str = "mock_anchors";
+const RECORDING_PREFERENCES_KEY: &str = "recording_preferences";
 
 /// Persistent storage manager using tauri-plugin-store
 pub struct StorageManager {
@@ -29,7 +31,7 @@ impl StorageManager {
                     *store_lock = Some(store);
                 }
                 Err(e) => {
-                    log::error!("Failed to initialize storage: {}", e);
+                    app_log!(crate::logger::LogLevel::Error, "Failed to initialize storage: {}", e);
                 }
             }
         }
@@ -102,6 +104,32 @@ impl StorageManager {
         store.delete(MOCK_ANCHORS_KEY.to_string());
         store.save().map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    /// Save recording preferences
+    pub fn save_recording_preferences(
+        &self,
+        preferences: &crate::recording_manager::RecordingPreferences,
+    ) -> Result<(), String> {
+        let store = self.get_store()?;
+        let json = serde_json::to_value(preferences).map_err(|e| e.to_string())?;
+        store.set(RECORDING_PREFERENCES_KEY.to_string(), json);
+        store.save().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Load recording preferences
+    pub fn load_recording_preferences(
+        &self,
+    ) -> Result<Option<crate::recording_manager::RecordingPreferences>, String> {
+        let store = self.get_store()?;
+        if let Some(value) = store.get(RECORDING_PREFERENCES_KEY) {
+            let preferences: crate::recording_manager::RecordingPreferences =
+                serde_json::from_value(value.clone()).map_err(|e| e.to_string())?;
+            Ok(Some(preferences))
+        } else {
+            Ok(None)
+        }
     }
 }
 

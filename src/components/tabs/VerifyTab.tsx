@@ -333,7 +333,8 @@ export default function VerifyTab() {
 														variant="light"
 														onPress={() => {
 															if (
-																verificationResult.verification.checks.blockchain_anchor?.explorer_url
+																verificationResult.verification.checks.blockchain_anchor
+																	?.explorer_url
 															) {
 																window.open(
 																	verificationResult.verification.checks.blockchain_anchor

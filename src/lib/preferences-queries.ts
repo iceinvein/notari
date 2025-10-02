@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Store } from "@tauri-apps/plugin-store";
+import { useToast } from "../hooks/useToast";
 import {
 	type ApplicationPreference,
 	DEFAULT_APPLICATIONS,
@@ -113,6 +114,7 @@ export const useSavePreferencesMutation = () => {
 export const useAddApplicationMutation = () => {
 	const savePreferences = useSavePreferencesMutation();
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async (newApp: ApplicationPreference) => {
@@ -138,9 +140,19 @@ export const useAddApplicationMutation = () => {
 
 			return await savePreferences.mutateAsync(updatedPrefs);
 		},
-		onSuccess: () => {
+		onSuccess: (_data, newApp) => {
 			// Invalidate preferences cache to ensure all components get the update
 			queryClient.invalidateQueries({ queryKey: preferencesQueryKey });
+			toast.success(
+				"Application Added",
+				`${newApp.name} has been added to your allowed applications`
+			);
+		},
+		onError: (error) => {
+			toast.error(
+				"Failed to Add Application",
+				error instanceof Error ? error.message : "Unknown error"
+			);
 		},
 	});
 };
@@ -149,6 +161,7 @@ export const useAddApplicationMutation = () => {
 export const useRemoveApplicationMutation = () => {
 	const savePreferences = useSavePreferencesMutation();
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async (applicationName: string) => {
@@ -168,9 +181,19 @@ export const useRemoveApplicationMutation = () => {
 
 			return await savePreferences.mutateAsync(updatedPrefs);
 		},
-		onSuccess: () => {
+		onSuccess: (_data, applicationName) => {
 			// Invalidate preferences cache to ensure all components get the update
 			queryClient.invalidateQueries({ queryKey: preferencesQueryKey });
+			toast.success(
+				"Application Removed",
+				`${applicationName} has been removed from your allowed applications`
+			);
+		},
+		onError: (error) => {
+			toast.error(
+				"Failed to Remove Application",
+				error instanceof Error ? error.message : "Unknown error"
+			);
 		},
 	});
 };
@@ -179,6 +202,7 @@ export const useRemoveApplicationMutation = () => {
 export const useToggleApplicationMutation = () => {
 	const savePreferences = useSavePreferencesMutation();
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async (applicationName: string) => {
@@ -208,9 +232,21 @@ export const useToggleApplicationMutation = () => {
 
 			return await savePreferences.mutateAsync(updatedPrefs);
 		},
-		onSuccess: () => {
+		onSuccess: (_data, applicationName) => {
 			// Invalidate preferences cache to ensure all components get the update
 			queryClient.invalidateQueries({ queryKey: preferencesQueryKey });
+			const currentPrefs = queryClient.getQueryData<UserPreferences>(preferencesQueryKey);
+			const targetApp =
+				currentPrefs &&
+				findApplicationByNameOrAlias(currentPrefs.allowedApplications, applicationName);
+			const status = targetApp?.enabled ? "enabled" : "disabled";
+			toast.success("Application Updated", `${applicationName} has been ${status}`);
+		},
+		onError: (error) => {
+			toast.error(
+				"Failed to Toggle Application",
+				error instanceof Error ? error.message : "Unknown error"
+			);
 		},
 	});
 };
@@ -219,6 +255,7 @@ export const useToggleApplicationMutation = () => {
 export const useResetToDefaultsMutation = () => {
 	const savePreferences = useSavePreferencesMutation();
 	const queryClient = useQueryClient();
+	const toast = useToast();
 
 	return useMutation({
 		mutationFn: async () => {
@@ -237,6 +274,13 @@ export const useResetToDefaultsMutation = () => {
 		onSuccess: () => {
 			// Invalidate preferences cache to ensure all components get the update
 			queryClient.invalidateQueries({ queryKey: preferencesQueryKey });
+			toast.success("Applications Reset", "Applications have been reset to defaults successfully");
+		},
+		onError: (error) => {
+			toast.error(
+				"Reset Failed",
+				`Failed to reset applications: ${error instanceof Error ? error.message : "Unknown error"}`
+			);
 		},
 	});
 };

@@ -278,14 +278,23 @@ pub async fn update_recording_preferences(
     state: State<'_, WindowManagerState>,
 ) -> Result<(), String> {
     let mut state_guard = state.recording_state.lock().map_err(|e| e.to_string())?;
-    state_guard.preferences = preferences;
+    state_guard.preferences = preferences.clone();
 
-    // TODO: Persist preferences to Tauri store
-    LOGGER.log(
-        LogLevel::Info,
-        "Recording preferences updated",
-        "recording_commands",
-    );
+    // Persist preferences to storage
+    if let Err(e) = crate::storage::get_storage().save_recording_preferences(&preferences) {
+        LOGGER.log(
+            LogLevel::Warn,
+            &format!("Failed to persist recording preferences: {}", e),
+            "recording_commands",
+        );
+    } else {
+        LOGGER.log(
+            LogLevel::Info,
+            "Recording preferences updated and persisted",
+            "recording_commands",
+        );
+    }
+
     Ok(())
 }
 
