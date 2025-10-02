@@ -9,7 +9,7 @@ pub mod verification;
 
 pub use blockchain::{
     AnchorProof, BlockchainAnchor, BlockchainAnchorer, BlockchainConfig, BlockchainEnvironment,
-    ChainConfig, MockAnchorer, WalletConfig,
+    ChainConfig, EthereumAnchorer, MockAnchorer, WalletConfig, WalletManager,
 };
 pub use encryption::{validate_password, VideoEncryptor};
 pub use hash::HashInfo;

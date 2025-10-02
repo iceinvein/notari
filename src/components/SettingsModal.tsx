@@ -3,7 +3,17 @@ import { Card, CardBody, CardHeader } from "@heroui/card";
 import { Divider } from "@heroui/divider";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Tab, Tabs } from "@heroui/tabs";
-import { FileText, Info, Key, Palette, Settings, Shield, Smartphone, Video } from "lucide-react";
+import {
+	Blocks,
+	FileText,
+	Info,
+	Key,
+	Palette,
+	Settings,
+	Shield,
+	Smartphone,
+	Video,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useApplicationPreferencesQuery } from "../hooks/useApplicationPreferencesQuery";
 import {
@@ -13,6 +23,7 @@ import {
 } from "../hooks/useEvidence";
 import { preferencesLogger } from "../utils/logger";
 import ApplicationSelector from "./ApplicationSelector";
+import BlockchainSettings from "./BlockchainSettings";
 import KeyManagementModal from "./KeyManagementModal";
 import LogViewer from "./LogViewer";
 import RecordingPreferences from "./RecordingPreferences";
@@ -245,6 +256,20 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 											</div>
 										</CardBody>
 									</Card>
+								</div>
+							</Tab>
+
+							<Tab
+								key="blockchain"
+								title={
+									<div className="flex items-center space-x-2">
+										<Blocks className="w-4 h-4" />
+										<span>Blockchain</span>
+									</div>
+								}
+							>
+								<div className="pt-4">
+									<BlockchainSettings />
 								</div>
 							</Tab>
 

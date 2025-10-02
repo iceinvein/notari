@@ -250,4 +250,3 @@ mod integration_tests {
         assert_eq!(anchor_check.algorithm, "Mock (Development)");
     }
 }
-

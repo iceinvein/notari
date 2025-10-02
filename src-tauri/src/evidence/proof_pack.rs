@@ -95,9 +95,21 @@ pub fn create_proof_pack<P: AsRef<Path>>(
         notari_version: env!("CARGO_PKG_VERSION").to_string(),
         recording_filename: video_filename.to_string(),
         is_encrypted: manifest.recording.encrypted,
-        title: manifest.metadata.custom.as_ref().and_then(|c| c.title.clone()),
-        description: manifest.metadata.custom.as_ref().and_then(|c| c.description.clone()),
-        tags: manifest.metadata.custom.as_ref().and_then(|c| c.tags.clone()),
+        title: manifest
+            .metadata
+            .custom
+            .as_ref()
+            .and_then(|c| c.title.clone()),
+        description: manifest
+            .metadata
+            .custom
+            .as_ref()
+            .and_then(|c| c.description.clone()),
+        tags: manifest
+            .metadata
+            .custom
+            .as_ref()
+            .and_then(|c| c.tags.clone()),
     };
 
     zip.start_file("metadata.json", options)?;
@@ -340,14 +352,7 @@ mod tests {
         };
 
         let mut manifest = EvidenceManifest::new(
-            session_id,
-            file_path,
-            file_hash,
-            file_size,
-            duration,
-            metadata,
-            system,
-            timestamps,
+            session_id, file_path, file_hash, file_size, duration, metadata, system, timestamps,
         );
 
         // Sign the manifest
@@ -436,8 +441,8 @@ mod tests {
         // Test extraction with a manually created ZIP
         let file = std::fs::File::create(&output_path).unwrap();
         let mut zip = zip::ZipWriter::new(file);
-        let options: zip::write::FileOptions<()> = zip::write::FileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options: zip::write::FileOptions<()> =
+            zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // Add video
         zip.start_file("evidence/test.mov", options).unwrap();
@@ -491,7 +496,10 @@ mod tests {
 
         // Verify extracted manifest can be loaded
         let loaded_manifest = EvidenceManifest::load(&extracted_manifest).unwrap();
-        assert_eq!(loaded_manifest.recording.session_id, manifest.recording.session_id);
+        assert_eq!(
+            loaded_manifest.recording.session_id,
+            manifest.recording.session_id
+        );
     }
 
     #[test]
@@ -513,6 +521,9 @@ mod tests {
         let result = extract_proof_pack(&output_path, &extract_dir);
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("No video file found") || error_msg.contains("No manifest file found"));
+        assert!(
+            error_msg.contains("No video file found")
+                || error_msg.contains("No manifest file found")
+        );
     }
 }

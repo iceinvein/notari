@@ -58,6 +58,31 @@
 					}
 				}
 			}
+		},
+		{
+			"includes": ["**/__tests__/**/*.{ts,tsx}", "**/*.test.{ts,tsx}"],
+			"linter": {
+				"enabled": true,
+				"rules": {
+					"recommended": true,
+					"suspicious": {
+						"noConsole": {
+							"level": "warn",
+							"options": {
+								"allow": ["warn", "error"]
+							}
+						},
+						"noExplicitAny": "off"
+					},
+					"a11y": {
+						"useButtonType": "off"
+					},
+					"correctness": {
+						"noUnusedImports": "error",
+						"noUnusedVariables": "error"
+					}
+				}
+			}
 		}
 	]
 }

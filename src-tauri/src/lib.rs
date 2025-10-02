@@ -4,6 +4,7 @@ use tauri::{
     Manager, PhysicalPosition,
 };
 
+mod blockchain_commands;
 pub mod evidence;
 mod logger;
 mod recording_commands;
@@ -19,6 +20,7 @@ pub fn run() {
         .register_asynchronous_uri_scheme_protocol("stream", video_server::handle_stream_protocol)
         .manage(recording_commands::WindowManagerState::new())
         .manage(recording_commands::PopoverGuard::default())
+        .manage(blockchain_commands::BlockchainState::new())
         .invoke_handler(tauri::generate_handler![
             recording_commands::check_recording_permission,
             recording_commands::request_recording_permission,
@@ -73,6 +75,19 @@ pub fn run() {
             recording_commands::get_video_chunk,
             recording_commands::get_video_metadata,
             recording_commands::test_video_server,
+            blockchain_commands::get_blockchain_config,
+            blockchain_commands::set_blockchain_config,
+            blockchain_commands::get_available_chains,
+            blockchain_commands::validate_private_key,
+            blockchain_commands::derive_address,
+            blockchain_commands::store_private_key,
+            blockchain_commands::get_stored_address,
+            blockchain_commands::delete_private_key,
+            blockchain_commands::has_private_key,
+            blockchain_commands::get_balance,
+            blockchain_commands::estimate_anchor_cost,
+            blockchain_commands::test_connection,
+            blockchain_commands::anchor_recording,
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {

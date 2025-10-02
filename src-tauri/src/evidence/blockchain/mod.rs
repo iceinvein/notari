@@ -1,13 +1,17 @@
 pub mod config;
+pub mod ethereum;
 pub mod mock;
 pub mod types;
+pub mod wallet;
 
 #[cfg(test)]
 mod tests;
 
 pub use config::{BlockchainConfig, BlockchainEnvironment, ChainConfig, WalletConfig};
+pub use ethereum::EthereumAnchorer;
 pub use mock::MockAnchorer;
 pub use types::{AnchorProof, BlockchainAnchor};
+pub use wallet::WalletManager;
 
 use async_trait::async_trait;
 use std::error::Error;
@@ -27,4 +31,3 @@ pub trait BlockchainAnchorer: Send + Sync {
     /// Get wallet balance in native currency
     async fn get_balance(&self) -> Result<f64, Box<dyn Error>>;
 }
-

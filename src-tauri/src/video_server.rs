@@ -8,8 +8,8 @@ use axum::{
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tauri::http::{Request as TauriRequest, Response as TauriResponse};
+use tokio::sync::RwLock;
 
 use crate::evidence::{EncryptionInfo, VideoEncryptor};
 use crate::logger::{LogLevel, LOGGER};
@@ -39,32 +39,23 @@ impl VideoServerState {
 
 /// Start video server on random port
 pub async fn start_video_server() -> Result<(u16, VideoServerState), String> {
-    LOGGER.log(
-        LogLevel::Info,
-        "Starting video server...",
-        "video_server",
-    );
+    LOGGER.log(LogLevel::Info, "Starting video server...", "video_server");
 
     let state = VideoServerState::new();
 
     let app = Router::new()
         .route("/video/:stream_id", get(serve_video))
-        .route("/health", get(|| async {
-            LOGGER.log(
-                LogLevel::Info,
-                "Health check endpoint hit",
-                "video_server",
-            );
-            "OK"
-        }))
+        .route(
+            "/health",
+            get(|| async {
+                LOGGER.log(LogLevel::Info, "Health check endpoint hit", "video_server");
+                "OK"
+            }),
+        )
         .with_state(state.clone());
 
     // Bind to localhost only (security!)
-    LOGGER.log(
-        LogLevel::Info,
-        "Binding to 127.0.0.1:0...",
-        "video_server",
-    );
+    LOGGER.log(LogLevel::Info, "Binding to 127.0.0.1:0...", "video_server");
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
@@ -161,7 +152,8 @@ async fn serve_video(
 
     LOGGER.log(
         LogLevel::Info,
-        &format!("Stream found - file_size: {}, encrypted: {}",
+        &format!(
+            "Stream found - file_size: {}, encrypted: {}",
             stream.file_size,
             stream.encryption_info.is_some()
         ),
@@ -320,7 +312,7 @@ pub fn handle_stream_protocol<R: tauri::Runtime>(
                     TauriResponse::builder()
                         .status(500)
                         .body(Vec::new())
-                        .unwrap()
+                        .unwrap(),
                 );
             }
         }
@@ -328,7 +320,9 @@ pub fn handle_stream_protocol<R: tauri::Runtime>(
 }
 
 /// Internal async handler for stream requests
-async fn handle_stream_request_async(req: TauriRequest<Vec<u8>>) -> Result<TauriResponse<Vec<u8>>, Box<dyn std::error::Error>> {
+async fn handle_stream_request_async(
+    req: TauriRequest<Vec<u8>>,
+) -> Result<TauriResponse<Vec<u8>>, Box<dyn std::error::Error>> {
     LOGGER.log(
         LogLevel::Info,
         &format!("=== STREAM PROTOCOL REQUEST === URI: {}", req.uri()),
@@ -353,8 +347,7 @@ async fn handle_stream_request_async(req: TauriRequest<Vec<u8>>) -> Result<Tauri
     let stream = streams.get(stream_id).ok_or("Stream not found")?;
 
     // Parse Range header
-    let range_header = req.headers().get("range")
-        .and_then(|v| v.to_str().ok());
+    let range_header = req.headers().get("range").and_then(|v| v.to_str().ok());
 
     LOGGER.log(
         LogLevel::Info,
@@ -388,7 +381,10 @@ async fn handle_stream_request_async(req: TauriRequest<Vec<u8>>) -> Result<Tauri
     if req.headers().contains_key("range") {
         response = response
             .status(206) // Partial Content
-            .header("Content-Range", format!("bytes {}-{}/{}", start, end, file_size))
+            .header(
+                "Content-Range",
+                format!("bytes {}-{}/{}", start, end, file_size),
+            )
             .header("Content-Length", data.len().to_string());
     } else {
         response = response

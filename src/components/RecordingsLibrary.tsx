@@ -1,16 +1,21 @@
+import { Alert } from "@heroui/alert";
 import { Button } from "@heroui/button";
-import { Card, CardBody } from "@heroui/card";
+import { Card, CardBody, CardFooter, CardHeader } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { Input } from "@heroui/input";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Spinner } from "@heroui/spinner";
+import { useQuery } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import {
 	AlertCircle,
+	Anchor,
+	ExternalLink,
 	Eye,
 	EyeOff,
 	FileVideo,
 	FolderOpen,
+	Info,
 	Lock,
 	RefreshCw,
 	Shield,
@@ -23,7 +28,25 @@ import {
 	useRecordingsQuery,
 } from "../hooks/useRecordingSystem";
 import { logger } from "../utils/logger";
+import BlockchainAnchorButton from "./BlockchainAnchorButton";
+
+type BlockchainConfig = {
+	enabled: boolean;
+	environment: string;
+	chain_id: number;
+	chain_name: string;
+	auto_anchor: boolean;
+	has_wallet: boolean;
+	wallet_address?: string;
+};
 import { VideoPlayer } from "./VideoPlayer";
+
+type BlockchainAnchorCheck = {
+	present: boolean;
+	algorithm: string;
+	anchored_at: string;
+	explorer_url?: string;
+};
 
 type VerificationReport = {
 	verification: {
@@ -33,6 +56,7 @@ type VerificationReport = {
 			manifest_structure: "PASS" | "FAIL" | "SKIP";
 			signature_valid: "PASS" | "FAIL" | "SKIP";
 			hash_match: "PASS" | "FAIL" | "SKIP";
+			blockchain_anchor?: BlockchainAnchorCheck;
 		};
 		recording_info: {
 			session_id: string;
@@ -99,6 +123,18 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 	const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 	const [videoPlayerRecording, setVideoPlayerRecording] = useState<RecordingEntry | null>(null);
 	const [videoPlayerPassword, setVideoPlayerPassword] = useState("");
+
+	// Blockchain banner state
+	const [blockchainBannerDismissed, setBlockchainBannerDismissed] = useState(false);
+
+	// Load blockchain config to check if enabled
+	const { data: blockchainConfig, isLoading: configLoading } = useQuery({
+		queryKey: ["blockchainConfig"],
+		queryFn: async () => {
+			const config = await invoke<BlockchainConfig>("get_blockchain_config");
+			return config;
+		},
+	});
 
 	const handlePlayVideo = async (recording: RecordingEntry) => {
 		if (recording.is_encrypted) {
@@ -224,7 +260,9 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 	const confirmDelete = () => {
 		if (!recordingToDelete) return;
 
-		logger.info("RECORDINGS_LIBRARY", "confirmDelete: Starting delete", { filename: recordingToDelete.filename });
+		logger.info("RECORDINGS_LIBRARY", "confirmDelete: Starting delete", {
+			filename: recordingToDelete.filename,
+		});
 
 		// .notari files are self-contained (manifest is embedded), so just delete the file
 		deleteRecordingMutation.mutate(
@@ -240,7 +278,11 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 					logger.info("RECORDINGS_LIBRARY", "confirmDelete: Modal closed and state reset");
 				},
 				onError: (error) => {
-					logger.error("RECORDINGS_LIBRARY", "confirmDelete: onError callback called", error as Error);
+					logger.error(
+						"RECORDINGS_LIBRARY",
+						"confirmDelete: onError callback called",
+						error as Error
+					);
 					alert(
 						`Failed to delete recording: ${error instanceof Error ? error.message : "Unknown error"}`
 					);
@@ -341,108 +383,200 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 					</Button>
 				</div>
 
+				{/* Blockchain Not Enabled Banner */}
+				{!configLoading &&
+					!blockchainBannerDismissed &&
+					blockchainConfig &&
+					!blockchainConfig.enabled &&
+					recordings.some((r) => r.has_manifest && !r.blockchain_anchor) && (
+						<Alert
+							color="primary"
+							variant="flat"
+							title="Blockchain Anchoring Available"
+							description="Create immutable timestamps for your recordings on the blockchain. Enable blockchain anchoring in Settings to get started."
+							isClosable
+							onClose={() => setBlockchainBannerDismissed(true)}
+							startContent={<Info className="w-4 h-4" />}
+						/>
+					)}
+
 				<div className="grid gap-3">
 					{recordings.map((recording) => (
 						<Card
 							key={recording.video_path}
-							className="w-full hover:bg-default-100 transition-colors cursor-pointer"
-							isPressable
-							onPress={() => handlePlayVideo(recording)}
+							className="w-full hover:bg-default-100 transition-colors"
 						>
-							<CardBody className="p-4">
-								<div className="flex items-start gap-4">
-									{/* Content */}
-									<div className="flex-1 min-w-0 space-y-2">
-										{/* Title and badges */}
-										<div className="flex items-center gap-2">
-											<p className="font-medium text-sm truncate">
-												{recording.title || recording.filename}
-											</p>
-											{recording.is_encrypted && (
-												<Lock className="w-3.5 h-3.5 text-warning flex-shrink-0" />
-											)}
-											{recording.has_manifest && (
-												<Shield className="w-3.5 h-3.5 text-success flex-shrink-0" />
-											)}
-										</div>
+							{/* Header */}
+							<CardHeader
+								className="flex items-center justify-between gap-3 px-4 pt-4 pb-3 cursor-pointer"
+								onClick={() => handlePlayVideo(recording)}
+							>
+								<div className="flex items-center gap-2 min-w-0 flex-1">
+									<p className="font-semibold text-sm truncate">
+										{recording.title || recording.filename}
+									</p>
+									{recording.is_encrypted && (
+										<Lock className="w-3.5 h-3.5 text-warning flex-shrink-0" />
+									)}
+									{recording.has_manifest && (
+										<Shield className="w-3.5 h-3.5 text-success flex-shrink-0" />
+									)}
+								</div>
+								<div className="flex items-center gap-2 text-xs text-foreground-400 flex-shrink-0">
+									<FileVideo className="w-3.5 h-3.5" />
+									<span>{formatFileSize(recording.file_size_bytes)}</span>
+								</div>
+							</CardHeader>
 
-										{/* Show filename if custom title exists */}
-										{recording.title && (
-											<p className="text-xs text-foreground-400 truncate">{recording.filename}</p>
+							{/* Body */}
+							<CardBody
+								className="px-4 py-3 space-y-3 cursor-pointer"
+								onClick={() => handlePlayVideo(recording)}
+							>
+								{/* Show filename if custom title exists */}
+								{recording.title && (
+									<p className="text-xs text-foreground-400 truncate">{recording.filename}</p>
+								)}
+
+								{/* Description */}
+								{recording.description && (
+									<p className="text-sm text-foreground-600 dark:text-foreground-400 line-clamp-2 leading-relaxed">
+										{recording.description}
+									</p>
+								)}
+
+								{/* Tags */}
+								{recording.tags && recording.tags.length > 0 && (
+									<div className="flex flex-wrap items-center gap-1.5">
+										{recording.tags.slice(0, 3).map((tag) => (
+											<Chip
+												key={tag}
+												size="sm"
+												variant="flat"
+												color="primary"
+												classNames={{
+													base: "h-6",
+													content: "text-xs font-medium",
+												}}
+											>
+												{tag}
+											</Chip>
+										))}
+										{recording.tags.length > 3 && (
+											<Chip
+												size="sm"
+												variant="flat"
+												color="default"
+												classNames={{
+													base: "h-6",
+													content: "text-xs",
+												}}
+											>
+												+{recording.tags.length - 3}
+											</Chip>
 										)}
-
-										{/* Description */}
-										{recording.description && (
-											<p className="text-xs text-foreground-500 line-clamp-2">
-												{recording.description}
-											</p>
-										)}
-
-										{/* Tags */}
-										{recording.tags && recording.tags.length > 0 && (
-											<div className="flex flex-wrap gap-1">
-												{recording.tags.slice(0, 3).map((tag) => (
-													<Chip key={tag} size="sm" variant="flat" color="primary">
-														{tag}
-													</Chip>
-												))}
-												{recording.tags.length > 3 && (
-													<Chip size="sm" variant="flat" color="default">
-														+{recording.tags.length - 3}
-													</Chip>
-												)}
-											</div>
-										)}
-
-										{/* File metadata */}
-										<div className="flex items-center gap-2 text-xs text-foreground-400">
-											<FileVideo className="w-3.5 h-3.5" />
-											<span>{formatDate(recording.created_at)}</span>
-											<span>•</span>
-											<span>{formatFileSize(recording.file_size_bytes)}</span>
-										</div>
 									</div>
+								)}
 
-									{/* Actions */}
-									<div
-										className="flex items-center gap-1 flex-shrink-0"
-										onClick={(e) => e.stopPropagation()}
-										onKeyDown={(e) => e.stopPropagation()}
-									>
+								{/* Blockchain Anchoring Section */}
+								{recording.has_manifest &&
+									(recording.blockchain_anchor || blockchainConfig?.enabled) &&
+									(recording.blockchain_anchor ? (
+										// Anchored - Show detailed section
+										<div className="pt-2 mt-2 border-t border-divider">
+											<div className="flex items-start justify-between gap-3">
+												<div className="flex-1 min-w-0">
+													<div className="flex items-center gap-1.5 mb-1">
+														<Anchor className="w-3.5 h-3.5 text-foreground-500 flex-shrink-0" />
+														<span className="text-xs font-semibold text-foreground-600 dark:text-foreground-400">
+															Blockchain Timestamp
+														</span>
+													</div>
+													<p className="text-xs text-foreground-500 leading-relaxed">
+														Anchored to {recording.blockchain_anchor.chain_name} on{" "}
+														{new Date(recording.blockchain_anchor.anchored_at).toLocaleDateString()}{" "}
+														at{" "}
+														{new Date(recording.blockchain_anchor.anchored_at).toLocaleTimeString()}
+													</p>
+													{recording.blockchain_anchor.tx_hash && (
+														<p className="text-xs text-foreground-400 font-mono mt-1">
+															TX: {recording.blockchain_anchor.tx_hash.slice(0, 10)}...
+															{recording.blockchain_anchor.tx_hash.slice(-8)}
+														</p>
+													)}
+												</div>
+												{/* biome-ignore lint/a11y/noStaticElementInteractions: wrapper div to stop event propagation */}
+												<div
+													role="presentation"
+													onClick={(e) => e.stopPropagation()}
+													onKeyDown={(e) => e.stopPropagation()}
+													className="flex-shrink-0"
+												>
+													<BlockchainAnchorButton
+														manifestPath={recording.manifest_path}
+														anchor={recording.blockchain_anchor}
+														onAnchored={refetch}
+													/>
+												</div>
+											</div>
+										</div>
+									) : (
+										// Not anchored but blockchain enabled - Show simple chip
+										// biome-ignore lint/a11y/noStaticElementInteractions: wrapper div to stop event propagation
+										<div
+											role="presentation"
+											onClick={(e) => e.stopPropagation()}
+											onKeyDown={(e) => e.stopPropagation()}
+										>
+											<BlockchainAnchorButton
+												manifestPath={recording.manifest_path}
+												anchor={recording.blockchain_anchor}
+												onAnchored={refetch}
+											/>
+										</div>
+									))}
+
+								{/* Date */}
+								<div className="flex items-center gap-2 text-xs text-foreground-400">
+									<span>{formatDate(recording.created_at)}</span>
+								</div>
+							</CardBody>
+
+							{/* Footer with Actions */}
+							<CardFooter className="px-4 py-3 border-t border-divider bg-content2/50">
+								<div className="flex items-center justify-between w-full gap-2">
+									<div className="flex items-center gap-2">
 										{recording.has_manifest && (
 											<Button
-												isIconOnly
 												size="sm"
-												variant="light"
+												variant="flat"
 												onPress={() => handleVerifyRecording(recording)}
 												isLoading={isVerifying}
-												aria-label="Verify"
+												startContent={!isVerifying && <Shield className="w-3.5 h-3.5" />}
 											>
-												{!isVerifying && <Shield className="w-4 h-4" />}
+												Verify
 											</Button>
 										)}
 										<Button
-											isIconOnly
 											size="sm"
-											variant="light"
+											variant="flat"
 											onPress={() => handleOpenInFinder(recording)}
-											aria-label="Show in Finder"
+											startContent={<FolderOpen className="w-3.5 h-3.5" />}
 										>
-											<FolderOpen className="w-4 h-4" />
-										</Button>
-										<Button
-											isIconOnly
-											size="sm"
-											variant="light"
-											color="danger"
-											onPress={() => handleDeleteRecording(recording)}
-											aria-label="Delete"
-										>
-											<Trash2 className="w-4 h-4" />
+											Show in Finder
 										</Button>
 									</div>
+									<Button
+										size="sm"
+										variant="flat"
+										color="danger"
+										onPress={() => handleDeleteRecording(recording)}
+										startContent={<Trash2 className="w-3.5 h-3.5" />}
+									>
+										Delete
+									</Button>
 								</div>
-							</CardBody>
+							</CardFooter>
 						</Card>
 					))}
 				</div>
@@ -618,6 +752,48 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 												: "✗ Invalid"}
 										</Chip>
 									</div>
+
+									{/* Blockchain Anchor Check */}
+									{verifyResult.verification.checks.blockchain_anchor && (
+										<div className="flex items-center justify-between p-3 bg-content2 rounded-lg">
+											<div className="flex flex-col gap-1">
+												<span className="text-sm font-medium">Blockchain Anchor</span>
+												<span className="text-xs text-foreground-500">
+													{verifyResult.verification.checks.blockchain_anchor.algorithm}
+												</span>
+												<span className="text-xs text-foreground-500">
+													{new Date(
+														verifyResult.verification.checks.blockchain_anchor.anchored_at
+													).toLocaleString()}
+												</span>
+											</div>
+											<div className="flex items-center gap-2">
+												<Chip color="success" size="sm" variant="flat">
+													✓ Present
+												</Chip>
+												{verifyResult.verification.checks.blockchain_anchor.explorer_url && (
+													<Button
+														isIconOnly
+														size="sm"
+														variant="light"
+														onPress={() => {
+															if (
+																verifyResult.verification.checks.blockchain_anchor?.explorer_url
+															) {
+																window.open(
+																	verifyResult.verification.checks.blockchain_anchor.explorer_url,
+																	"_blank"
+																);
+															}
+														}}
+														aria-label="View on blockchain explorer"
+													>
+														<ExternalLink className="w-3 h-3" />
+													</Button>
+												)}
+											</div>
+										</div>
+									)}
 								</div>
 
 								{/* Custom Metadata */}
@@ -638,7 +814,9 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 										{verifyResult.verification.recording_info.description && (
 											<div className="space-y-1">
 												<p className="text-xs text-foreground-500">Description</p>
-												<p className="text-sm">{verifyResult.verification.recording_info.description}</p>
+												<p className="text-sm">
+													{verifyResult.verification.recording_info.description}
+												</p>
 											</div>
 										)}
 										{verifyResult.verification.recording_info.tags &&

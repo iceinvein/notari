@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 pub struct BlockchainAnchor {
     /// When the anchor was created
     pub anchored_at: DateTime<Utc>,
-    
+
     /// The hash that was anchored (may be hash-of-hash for privacy)
     pub anchored_hash: String,
-    
+
     /// The original manifest hash (for verification)
     pub manifest_hash: String,
-    
+
     /// The blockchain proof
     pub proof: AnchorProof,
 }
@@ -26,7 +26,7 @@ pub enum AnchorProof {
         hash: String,
         timestamp: DateTime<Utc>,
     },
-    
+
     /// Ethereum-compatible blockchain proof
     Ethereum {
         chain_id: u64,
@@ -36,7 +36,7 @@ pub enum AnchorProof {
         block_number: u64,
         explorer_url: String,
     },
-    
+
     /// OpenTimestamps proof (future)
     #[allow(dead_code)]
     OpenTimestamps {
@@ -54,7 +54,7 @@ impl AnchorProof {
             AnchorProof::OpenTimestamps { .. } => "OpenTimestamps (Bitcoin)".to_string(),
         }
     }
-    
+
     /// Get the blockchain explorer URL if available
     pub fn explorer_url(&self) -> Option<String> {
         match self {
@@ -74,16 +74,16 @@ mod tests {
             hash: "abc123".to_string(),
             timestamp: Utc::now(),
         };
-        
+
         let json = serde_json::to_string(&proof).unwrap();
         let deserialized: AnchorProof = serde_json::from_str(&json).unwrap();
-        
+
         match deserialized {
             AnchorProof::Mock { hash, .. } => assert_eq!(hash, "abc123"),
             _ => panic!("Wrong proof type"),
         }
     }
-    
+
     #[test]
     fn test_blockchain_anchor_serialization() {
         let anchor = BlockchainAnchor {
@@ -95,12 +95,11 @@ mod tests {
                 timestamp: Utc::now(),
             },
         };
-        
+
         let json = serde_json::to_string(&anchor).unwrap();
         let deserialized: BlockchainAnchor = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(deserialized.anchored_hash, "hash123");
         assert_eq!(deserialized.manifest_hash, "manifest456");
     }
 }
-

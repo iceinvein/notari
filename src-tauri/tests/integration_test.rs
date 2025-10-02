@@ -259,4 +259,3 @@ fn test_verification_fails_on_tampered_file() {
     assert_eq!(report.verification.status, VerificationStatus::Failed);
     assert_eq!(report.verification.checks.hash_match, CheckResult::Fail);
 }
-

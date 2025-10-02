@@ -54,6 +54,9 @@ aes-gcm = "0.10"
 pbkdf2 = { version = "0.12", features = ["simple"] }
 zip = "4.2.0"
 
+# Evidence system (Phase 2 - Blockchain)
+ethers = { version = "2.0", features = ["abigen", "ws"] }
+
 # Platform-specific dependencies
 [target.'cfg(target_os = "macos")'.dependencies]
 core-graphics = "0.23"

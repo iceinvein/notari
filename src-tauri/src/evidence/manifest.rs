@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use uuid::Uuid;
 
-use super::{HashInfo, SignatureInfo};
 use super::blockchain::BlockchainAnchor;
+use super::{HashInfo, SignatureInfo};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EvidenceManifest {
@@ -157,9 +157,10 @@ impl EvidenceManifest {
         }
     }
 
-    /// Get the data to be signed (everything except the signature itself)
+    /// Get the data to be signed (everything except the signature itself and blockchain anchor)
     pub fn signable_data(&self) -> Vec<u8> {
-        // Create a copy without signature
+        // Create a copy without signature and blockchain anchor
+        // The blockchain anchor is added after signing, so it should not be part of the signed data
         let mut manifest_copy = self.clone();
         manifest_copy.signature = SignatureInfo {
             algorithm: String::new(),
@@ -167,6 +168,7 @@ impl EvidenceManifest {
             signature: String::new(),
             signed_data_hash: String::new(),
         };
+        manifest_copy.blockchain_anchor = None;
 
         // Serialize to JSON (deterministic)
         serde_json::to_vec(&manifest_copy).unwrap()
@@ -304,5 +306,76 @@ mod tests {
         manifest.sign(&key_manager);
 
         assert!(manifest.verify_signature().unwrap());
+    }
+
+    #[test]
+    fn test_manifest_signature_with_blockchain_anchor() {
+        use crate::evidence::blockchain::{AnchorProof, BlockchainAnchor};
+
+        let session_id = Uuid::new_v4();
+        let file_path = PathBuf::from("/tmp/test.mov");
+        let file_hash = HashInfo {
+            algorithm: "SHA-256".to_string(),
+            value: "abc123".to_string(),
+        };
+
+        let metadata = Metadata {
+            window: WindowInfo {
+                title: "Test Window".to_string(),
+                id: 123,
+                app_name: "Test App".to_string(),
+                app_bundle_id: "com.test.app".to_string(),
+            },
+            video: VideoInfo {
+                resolution: "1920x1080".to_string(),
+                frame_rate: 30,
+                codec: "H.264".to_string(),
+            },
+            custom: None,
+        };
+
+        let system = SystemInfo {
+            os: "macOS".to_string(),
+            os_version: "14.0".to_string(),
+            device_id: "test-device".to_string(),
+            hostname: "test-host".to_string(),
+            app_version: "1.0.0".to_string(),
+            recorder: "notari".to_string(),
+        };
+
+        let now = Utc::now();
+        let timestamps = Timestamps {
+            started_at: now,
+            stopped_at: now,
+            manifest_created_at: now,
+        };
+
+        let mut manifest = EvidenceManifest::new(
+            session_id, file_path, file_hash, 1024, 60.0, metadata, system, timestamps,
+        );
+
+        // Sign the manifest first
+        let key_manager = KeyManager::generate();
+        manifest.sign(&key_manager);
+
+        // Verify signature before adding blockchain anchor
+        assert!(manifest.verify_signature().unwrap());
+
+        // Add blockchain anchor (simulating what happens during anchoring)
+        manifest.blockchain_anchor = Some(BlockchainAnchor {
+            anchored_at: Utc::now(),
+            anchored_hash: "test_hash".to_string(),
+            manifest_hash: "test_manifest_hash".to_string(),
+            proof: AnchorProof::Mock {
+                hash: "test_hash".to_string(),
+                timestamp: Utc::now(),
+            },
+        });
+
+        // Verify signature still works after adding blockchain anchor
+        assert!(
+            manifest.verify_signature().unwrap(),
+            "Signature should remain valid after adding blockchain anchor"
+        );
     }
 }

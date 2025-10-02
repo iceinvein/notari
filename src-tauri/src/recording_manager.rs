@@ -358,11 +358,7 @@ mod tests {
 
     #[test]
     fn test_video_quality_serialization() {
-        let qualities = vec![
-            VideoQuality::High,
-            VideoQuality::Medium,
-            VideoQuality::Low,
-        ];
+        let qualities = vec![VideoQuality::High, VideoQuality::Medium, VideoQuality::Low];
 
         for quality in qualities {
             let json = serde_json::to_string(&quality).unwrap();

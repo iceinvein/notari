@@ -143,14 +143,16 @@ impl Verifier {
         };
 
         // Check blockchain anchor if present
-        let blockchain_anchor_check = manifest.blockchain_anchor.as_ref().map(|anchor| {
-            BlockchainAnchorCheck {
-                present: true,
-                algorithm: anchor.proof.description(),
-                anchored_at: anchor.anchored_at.to_rfc3339(),
-                explorer_url: anchor.proof.explorer_url(),
-            }
-        });
+        let blockchain_anchor_check =
+            manifest
+                .blockchain_anchor
+                .as_ref()
+                .map(|anchor| BlockchainAnchorCheck {
+                    present: true,
+                    algorithm: anchor.proof.description(),
+                    anchored_at: anchor.anchored_at.to_rfc3339(),
+                    explorer_url: anchor.proof.explorer_url(),
+                });
 
         // Determine overall status
         let status = if signature_valid && hash_match {
@@ -174,9 +176,21 @@ impl Verifier {
                     created_at: manifest.timestamps.started_at,
                     duration_seconds: manifest.recording.duration_seconds,
                     window_title: manifest.metadata.window.title.clone(),
-                    title: manifest.metadata.custom.as_ref().and_then(|c| c.title.clone()),
-                    description: manifest.metadata.custom.as_ref().and_then(|c| c.description.clone()),
-                    tags: manifest.metadata.custom.as_ref().and_then(|c| c.tags.clone()),
+                    title: manifest
+                        .metadata
+                        .custom
+                        .as_ref()
+                        .and_then(|c| c.title.clone()),
+                    description: manifest
+                        .metadata
+                        .custom
+                        .as_ref()
+                        .and_then(|c| c.description.clone()),
+                    tags: manifest
+                        .metadata
+                        .custom
+                        .as_ref()
+                        .and_then(|c| c.tags.clone()),
                 },
                 signature_info: SignatureInfoSummary {
                     algorithm: manifest.signature.algorithm.clone(),

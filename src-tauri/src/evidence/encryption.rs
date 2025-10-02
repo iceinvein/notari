@@ -318,19 +318,28 @@ impl VideoEncryptor {
 
         LOGGER.log(
             LogLevel::Info,
-            &format!("Decrypting chunk {} of {} total chunks", chunk_index, chunked_info.total_chunks),
+            &format!(
+                "Decrypting chunk {} of {} total chunks",
+                chunk_index, chunked_info.total_chunks
+            ),
             "encryption",
         );
 
-        let chunk_info = chunked_info
-            .chunks
-            .get(chunk_index)
-            .ok_or(format!("Chunk index {} out of bounds (total chunks: {})", chunk_index, chunked_info.chunks.len()))?;
+        let chunk_info = chunked_info.chunks.get(chunk_index).ok_or(format!(
+            "Chunk index {} out of bounds (total chunks: {})",
+            chunk_index,
+            chunked_info.chunks.len()
+        ))?;
 
         LOGGER.log(
             LogLevel::Info,
-            &format!("Chunk {} info - offset: {}, size: {}, nonce length: {}",
-                chunk_index, chunk_info.offset, chunk_info.size, chunk_info.nonce.len()),
+            &format!(
+                "Chunk {} info - offset: {}, size: {}, nonce length: {}",
+                chunk_index,
+                chunk_info.offset,
+                chunk_info.size,
+                chunk_info.nonce.len()
+            ),
             "encryption",
         );
 
@@ -351,7 +360,8 @@ impl VideoEncryptor {
         let cipher = Aes256Gcm::new(key);
 
         // Decode nonce for this chunk
-        let nonce_bytes = general_purpose::STANDARD.decode(&chunk_info.nonce)
+        let nonce_bytes = general_purpose::STANDARD
+            .decode(&chunk_info.nonce)
             .map_err(|e| {
                 LOGGER.log(
                     LogLevel::Error,
@@ -362,8 +372,12 @@ impl VideoEncryptor {
             })?;
 
         if nonce_bytes.len() != NONCE_SIZE {
-            let err_msg = format!("Invalid nonce size for chunk {}: expected {}, got {}",
-                chunk_index, NONCE_SIZE, nonce_bytes.len());
+            let err_msg = format!(
+                "Invalid nonce size for chunk {}: expected {}, got {}",
+                chunk_index,
+                NONCE_SIZE,
+                nonce_bytes.len()
+            );
             LOGGER.log(LogLevel::Error, &err_msg, "encryption");
             return Err(err_msg.into());
         }
@@ -377,19 +391,28 @@ impl VideoEncryptor {
 
         // Read encrypted chunk
         let mut ciphertext = vec![0u8; chunk_info.size as usize];
-        input_file.read_exact(&mut ciphertext)
-            .map_err(|e| {
-                LOGGER.log(
-                    LogLevel::Error,
-                    &format!("Failed to read chunk {} at offset {}: {}", chunk_index, chunk_info.offset, e),
-                    "encryption",
-                );
-                format!("Failed to read chunk {} at offset {}: {}", chunk_index, chunk_info.offset, e)
-            })?;
+        input_file.read_exact(&mut ciphertext).map_err(|e| {
+            LOGGER.log(
+                LogLevel::Error,
+                &format!(
+                    "Failed to read chunk {} at offset {}: {}",
+                    chunk_index, chunk_info.offset, e
+                ),
+                "encryption",
+            );
+            format!(
+                "Failed to read chunk {} at offset {}: {}",
+                chunk_index, chunk_info.offset, e
+            )
+        })?;
 
         LOGGER.log(
             LogLevel::Info,
-            &format!("Read {} bytes of ciphertext for chunk {}", ciphertext.len(), chunk_index),
+            &format!(
+                "Read {} bytes of ciphertext for chunk {}",
+                ciphertext.len(),
+                chunk_index
+            ),
             "encryption",
         );
 
@@ -408,7 +431,11 @@ impl VideoEncryptor {
 
         LOGGER.log(
             LogLevel::Info,
-            &format!("Successfully decrypted chunk {} - plaintext size: {}", chunk_index, plaintext.len()),
+            &format!(
+                "Successfully decrypted chunk {} - plaintext size: {}",
+                chunk_index,
+                plaintext.len()
+            ),
             "encryption",
         );
 
@@ -425,7 +452,12 @@ impl VideoEncryptor {
     ) -> Result<Vec<u8>, Box<dyn Error>> {
         LOGGER.log(
             LogLevel::Info,
-            &format!("decrypt_byte_range: requested bytes {}-{} (total {} bytes)", start, end, end - start + 1),
+            &format!(
+                "decrypt_byte_range: requested bytes {}-{} (total {} bytes)",
+                start,
+                end,
+                end - start + 1
+            ),
             "encryption",
         );
 
@@ -441,7 +473,10 @@ impl VideoEncryptor {
 
         LOGGER.log(
             LogLevel::Info,
-            &format!("decrypt_byte_range: need chunks {}-{} (chunk_size={})", start_chunk, end_chunk, chunk_size),
+            &format!(
+                "decrypt_byte_range: need chunks {}-{} (chunk_size={})",
+                start_chunk, end_chunk, chunk_size
+            ),
             "encryption",
         );
 
@@ -484,7 +519,11 @@ impl VideoEncryptor {
 
         LOGGER.log(
             LogLevel::Info,
-            &format!("decrypt_byte_range: returning {} bytes (requested {})", result.len(), end - start + 1),
+            &format!(
+                "decrypt_byte_range: returning {} bytes (requested {})",
+                result.len(),
+                end - start + 1
+            ),
             "encryption",
         );
 

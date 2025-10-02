@@ -3,14 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@heroui/popover";
 import { Slider } from "@heroui/slider";
 import { Spinner } from "@heroui/spinner";
 import { invoke } from "@tauri-apps/api/core";
-import {
-	Maximize,
-	Minimize,
-	Pause,
-	Play,
-	Volume2,
-	VolumeX,
-} from "lucide-react";
+import { Maximize, Minimize, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { logger } from "../utils/logger";
@@ -23,12 +16,7 @@ type VideoPlayerProps = {
 	onSettings?: () => void;
 };
 
-export function VideoPlayer({
-	recordingPath,
-	password,
-	onClose,
-	onSettings,
-}: VideoPlayerProps) {
+export function VideoPlayer({ recordingPath, password, onClose, onSettings }: VideoPlayerProps) {
 	const videoRef = useRef<HTMLVideoElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -198,7 +186,7 @@ export function VideoPlayer({
 
 		if (isPlaying) {
 			videoRef.current.pause();
-			return
+			return;
 		}
 
 		videoRef.current.play();
@@ -360,13 +348,15 @@ export function VideoPlayer({
 							4: "MEDIA_ERR_SRC_NOT_SUPPORTED - Video format not supported",
 						};
 
-						const readableError = errorCode ? errorMessages[errorCode] || `Error code ${errorCode}` : "Unknown error";
+						const readableError = errorCode
+							? errorMessages[errorCode] || `Error code ${errorCode}`
+							: "Unknown error";
 
 						logger.error(
 							"VideoPlayer",
 							`Video element error: ${readableError} - ${errorMessage}`,
 							videoError ? new Error(`${errorCode}: ${errorMessage}`) : undefined,
-							{ url: videoUrl, errorCode, errorMessage },
+							{ url: videoUrl, errorCode, errorMessage }
 						);
 						setError(readableError);
 					}}

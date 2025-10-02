@@ -786,11 +786,9 @@ pub async fn update_recording_metadata(
 
     // Extract the .notari file to temp
     let temp_dir = std::env::temp_dir().join(format!("notari_update_{}", uuid::Uuid::new_v4()));
-    fs::create_dir_all(&temp_dir)
-        .map_err(|e| format!("Failed to create temp directory: {}", e))?;
+    fs::create_dir_all(&temp_dir).map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
-    let (video_path, manifest_path, _) =
-        resolve_recording_paths(&notari_path, &notari_path)?;
+    let (video_path, manifest_path, _) = resolve_recording_paths(&notari_path, &notari_path)?;
 
     // Load manifest
     let mut manifest = crate::evidence::EvidenceManifest::load(&manifest_path)
@@ -827,16 +825,16 @@ pub async fn update_recording_metadata(
         .unix_permissions(0o644);
 
     // Add video file
-    let video_data = fs::read(&video_path)
-        .map_err(|e| format!("Failed to read video file: {}", e))?;
+    let video_data =
+        fs::read(&video_path).map_err(|e| format!("Failed to read video file: {}", e))?;
     zip.start_file("recording.mov", options)
         .map_err(|e| format!("Failed to add video to zip: {}", e))?;
     zip.write_all(&video_data)
         .map_err(|e| format!("Failed to write video to zip: {}", e))?;
 
     // Add manifest file
-    let manifest_data = fs::read(&manifest_path)
-        .map_err(|e| format!("Failed to read manifest file: {}", e))?;
+    let manifest_data =
+        fs::read(&manifest_path).map_err(|e| format!("Failed to read manifest file: {}", e))?;
     zip.start_file("manifest.json", options)
         .map_err(|e| format!("Failed to add manifest to zip: {}", e))?;
     zip.write_all(&manifest_data)
@@ -852,8 +850,12 @@ pub async fn update_recording_metadata(
     });
     zip.start_file("metadata.json", options)
         .map_err(|e| format!("Failed to add metadata to zip: {}", e))?;
-    zip.write_all(serde_json::to_string_pretty(&metadata_json).unwrap().as_bytes())
-        .map_err(|e| format!("Failed to write metadata to zip: {}", e))?;
+    zip.write_all(
+        serde_json::to_string_pretty(&metadata_json)
+            .unwrap()
+            .as_bytes(),
+    )
+    .map_err(|e| format!("Failed to write metadata to zip: {}", e))?;
 
     zip.finish()
         .map_err(|e| format!("Failed to finalize zip: {}", e))?;
@@ -937,6 +939,16 @@ pub struct RecordingEntry {
     pub title: Option<String>,
     pub description: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub blockchain_anchor: Option<BlockchainAnchorInfo>,
+}
+
+/// Blockchain anchor information for recording entry
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BlockchainAnchorInfo {
+    pub anchored_at: String,
+    pub chain_name: String,
+    pub tx_hash: Option<String>,
+    pub explorer_url: Option<String>,
 }
 
 /// Helper: Extract video and manifest from .notari file
@@ -1008,10 +1020,17 @@ pub async fn list_recordings(
                     .unwrap_or("unknown")
                     .to_string();
 
-                // Extract metadata (including custom metadata) from metadata.json
-                let (is_encrypted, title, description, tags) = if let Ok(file) = fs::File::open(&path) {
+                // Extract metadata (including custom metadata and blockchain anchor) from proof pack
+                let (is_encrypted, title, description, tags, blockchain_anchor) = if let Ok(file) =
+                    fs::File::open(&path)
+                {
                     if let Ok(mut archive) = zip::ZipArchive::new(file) {
-                        if let Ok(mut metadata_file) = archive.by_name("metadata.json") {
+                        // Get metadata
+                        let (is_encrypted, title, description, tags) = if let Ok(
+                            mut metadata_file,
+                        ) =
+                            archive.by_name("metadata.json")
+                        {
                             let mut contents = String::new();
                             if metadata_file.read_to_string(&mut contents).is_ok() {
                                 if let Ok(metadata) =
@@ -1019,7 +1038,12 @@ pub async fn list_recordings(
                                 {
                                     println!("DEBUG: Found metadata - encrypted: {}, title: {:?}, desc: {:?}, tags: {:?}",
                                         metadata.is_encrypted, metadata.title, metadata.description, metadata.tags);
-                                    (metadata.is_encrypted, metadata.title, metadata.description, metadata.tags)
+                                    (
+                                        metadata.is_encrypted,
+                                        metadata.title,
+                                        metadata.description,
+                                        metadata.tags,
+                                    )
                                 } else {
                                     println!("DEBUG: Failed to parse metadata.json");
                                     (false, None, None, None)
@@ -1031,14 +1055,84 @@ pub async fn list_recordings(
                         } else {
                             println!("DEBUG: metadata.json not found in archive");
                             (false, None, None, None)
+                        };
+
+                        // Get blockchain anchor from manifest
+                        // Find the manifest file dynamically (it's in evidence/ directory with .json extension)
+                        let mut manifest_filename = None;
+                        for i in 0..archive.len() {
+                            if let Ok(file) = archive.by_index(i) {
+                                let name = file.name();
+                                if name.starts_with("evidence/") && name.ends_with(".json") {
+                                    manifest_filename = Some(name.to_string());
+                                    break;
+                                }
+                            }
                         }
+
+                        let blockchain_anchor = if let Some(manifest_name) = manifest_filename {
+                            if let Ok(mut manifest_file) = archive.by_name(&manifest_name) {
+                                let mut contents = String::new();
+                                if manifest_file.read_to_string(&mut contents).is_ok() {
+                                    if let Ok(manifest) =
+                                        serde_json::from_str::<crate::evidence::EvidenceManifest>(
+                                            &contents,
+                                        )
+                                    {
+                                        manifest.blockchain_anchor.map(|anchor| {
+                                            use crate::evidence::AnchorProof;
+                                            match anchor.proof {
+                                                AnchorProof::Ethereum {
+                                                    chain_name,
+                                                    tx_hash,
+                                                    explorer_url,
+                                                    ..
+                                                } => BlockchainAnchorInfo {
+                                                    anchored_at: anchor.anchored_at.to_rfc3339(),
+                                                    chain_name,
+                                                    tx_hash: Some(tx_hash),
+                                                    explorer_url: Some(explorer_url),
+                                                },
+                                                AnchorProof::Mock { .. } => BlockchainAnchorInfo {
+                                                    anchored_at: anchor.anchored_at.to_rfc3339(),
+                                                    chain_name: "Mock".to_string(),
+                                                    tx_hash: None,
+                                                    explorer_url: None,
+                                                },
+                                                AnchorProof::OpenTimestamps { .. } => {
+                                                    BlockchainAnchorInfo {
+                                                        anchored_at: anchor
+                                                            .anchored_at
+                                                            .to_rfc3339(),
+                                                        chain_name: "Bitcoin (OpenTimestamps)"
+                                                            .to_string(),
+                                                        tx_hash: None,
+                                                        explorer_url: None,
+                                                    }
+                                                }
+                                            }
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        };
+
+                        (is_encrypted, title, description, tags, blockchain_anchor)
                     } else {
                         println!("DEBUG: Failed to open zip archive");
-                        (false, None, None, None)
+                        (false, None, None, None, None)
                     }
                 } else {
                     println!("DEBUG: Failed to open .notari file");
-                    (false, None, None, None)
+                    (false, None, None, None, None)
                 };
 
                 // For .notari files, the video_path is the .notari file itself
@@ -1080,6 +1174,7 @@ pub async fn list_recordings(
                     title,
                     description,
                     tags,
+                    blockchain_anchor,
                 });
             }
         }
@@ -1192,7 +1287,11 @@ pub async fn start_video_playback(
 ) -> Result<String, String> {
     LOGGER.log(
         LogLevel::Info,
-        &format!("Starting video playback for: {} (password length: {})", recording_path, password.len()),
+        &format!(
+            "Starting video playback for: {} (password length: {})",
+            recording_path,
+            password.len()
+        ),
         "recording_commands",
     );
 
@@ -1271,8 +1370,10 @@ pub async fn start_video_playback(
 
     LOGGER.log(
         LogLevel::Info,
-        &format!("Video file size: {} bytes (encrypted: {}, plaintext: {})",
-            plaintext_size, encrypted_file_size, plaintext_size),
+        &format!(
+            "Video file size: {} bytes (encrypted: {}, plaintext: {})",
+            plaintext_size, encrypted_file_size, plaintext_size
+        ),
         "recording_commands",
     );
 
@@ -1280,13 +1381,9 @@ pub async fn start_video_playback(
     let stream_id = uuid::Uuid::new_v4().to_string();
     let stream = crate::video_server::VideoStream {
         video_path: video_path.into(),
-        password: if is_encrypted {
-            Some(password)
-        } else {
-            None
-        },
+        password: if is_encrypted { Some(password) } else { None },
         encryption_info,
-        file_size: plaintext_size,  // Use plaintext size for streaming
+        file_size: plaintext_size, // Use plaintext size for streaming
         temp_dir: temp_dir.into(),
     };
 
@@ -1329,11 +1426,7 @@ pub async fn test_video_server() -> Result<String, String> {
 
 /// Get video chunk for streaming
 #[tauri::command]
-pub async fn get_video_chunk(
-    stream_id: String,
-    start: u64,
-    end: u64,
-) -> Result<Vec<u8>, String> {
+pub async fn get_video_chunk(stream_id: String, start: u64, end: u64) -> Result<Vec<u8>, String> {
     LOGGER.log(
         LogLevel::Debug,
         &format!("Getting video chunk: {} bytes {}-{}", stream_id, start, end),

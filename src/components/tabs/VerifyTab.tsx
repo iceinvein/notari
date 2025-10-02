@@ -3,8 +3,24 @@ import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { AlertCircle, CheckCircle, FileSearch, FolderOpen, Shield, XCircle } from "lucide-react";
+import {
+	AlertCircle,
+	Anchor,
+	CheckCircle,
+	ExternalLink,
+	FileSearch,
+	FolderOpen,
+	Shield,
+	XCircle,
+} from "lucide-react";
 import { useState } from "react";
+
+type BlockchainAnchorCheck = {
+	present: boolean;
+	algorithm: string;
+	anchored_at: string;
+	explorer_url?: string;
+};
 
 type VerificationReport = {
 	verification: {
@@ -14,6 +30,7 @@ type VerificationReport = {
 			manifest_structure: "PASS" | "FAIL" | "SKIP";
 			signature_valid: "PASS" | "FAIL" | "SKIP";
 			hash_match: "PASS" | "FAIL" | "SKIP";
+			blockchain_anchor?: BlockchainAnchorCheck;
 		};
 		recording_info: {
 			session_id: string;
@@ -244,6 +261,52 @@ export default function VerifyTab() {
 											: "Invalid"}
 									</Chip>
 								</div>
+
+								{/* Blockchain Anchor Check */}
+								{verificationResult.verification.checks.blockchain_anchor && (
+									<div className="flex items-center justify-between text-sm pt-2 border-t border-divider">
+										<div className="flex flex-col gap-1">
+											<div className="flex items-center gap-2">
+												<Anchor className="w-3.5 h-3.5 text-foreground-500" />
+												<span className="text-foreground-500">Blockchain Anchor</span>
+											</div>
+											<span className="text-xs text-foreground-400 ml-5">
+												{verificationResult.verification.checks.blockchain_anchor.algorithm}
+											</span>
+											<span className="text-xs text-foreground-400 ml-5">
+												{new Date(
+													verificationResult.verification.checks.blockchain_anchor.anchored_at
+												).toLocaleString()}
+											</span>
+										</div>
+										<div className="flex items-center gap-2">
+											<Chip size="sm" color="success" variant="flat">
+												Present
+											</Chip>
+											{verificationResult.verification.checks.blockchain_anchor.explorer_url && (
+												<Button
+													isIconOnly
+													size="sm"
+													variant="light"
+													onPress={() => {
+														if (
+															verificationResult.verification.checks.blockchain_anchor?.explorer_url
+														) {
+															window.open(
+																verificationResult.verification.checks.blockchain_anchor
+																	.explorer_url,
+																"_blank"
+															);
+														}
+													}}
+													aria-label="View on blockchain explorer"
+												>
+													<ExternalLink className="w-3.5 h-3.5" />
+												</Button>
+											)}
+										</div>
+									</div>
+								)}
 							</div>
 						</CardBody>
 					</Card>
@@ -267,7 +330,9 @@ export default function VerifyTab() {
 								{verificationResult.verification.recording_info.description && (
 									<div className="space-y-1">
 										<p className="text-xs text-foreground-500">Description</p>
-										<p className="text-sm">{verificationResult.verification.recording_info.description}</p>
+										<p className="text-sm">
+											{verificationResult.verification.recording_info.description}
+										</p>
 									</div>
 								)}
 								{verificationResult.verification.recording_info.tags &&

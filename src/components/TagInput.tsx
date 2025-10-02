@@ -1,7 +1,7 @@
 import { Chip } from "@heroui/chip";
 import { Input } from "@heroui/input";
 import { X } from "lucide-react";
-import { useState, useRef, KeyboardEvent } from "react";
+import { useState, useRef, type KeyboardEvent } from "react";
 
 type TagInputProps = {
 	value: string[];
@@ -27,8 +27,7 @@ export function TagInput({
 	// Filter suggestions based on input
 	const filteredSuggestions = suggestions.filter(
 		(suggestion) =>
-			suggestion.toLowerCase().includes(inputValue.toLowerCase()) &&
-			!value.includes(suggestion)
+			suggestion.toLowerCase().includes(inputValue.toLowerCase()) && !value.includes(suggestion)
 	);
 
 	const addTag = (tag: string) => {
@@ -126,4 +125,3 @@ export function TagInput({
 		</div>
 	);
 }
-

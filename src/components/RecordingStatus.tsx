@@ -51,7 +51,6 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 	const resumeRecordingMutation = useResumeRecordingMutation();
 	const clearRecordingMutation = useClearActiveRecordingMutation();
 
-
 	// Decrypt and play state
 	const [showPasswordModal, setShowPasswordModal] = useState(false);
 	const [decryptPassword, setDecryptPassword] = useState("");
@@ -221,17 +220,22 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 					{/* Header with Status and Controls */}
 					<div className="flex items-center justify-between">
 						<div className="flex items-center gap-3">
-							<div className={`w-3 h-3 rounded-full ${
-								activeSession.status === "Recording" ? "bg-danger animate-pulse" :
-								activeSession.status === "Paused" ? "bg-warning" :
-								"bg-success"
-							}`} />
+							<div
+								className={`w-3 h-3 rounded-full ${
+									activeSession.status === "Recording"
+										? "bg-danger animate-pulse"
+										: activeSession.status === "Paused"
+											? "bg-warning"
+											: "bg-success"
+								}`}
+							/>
 							<div>
 								<p className="text-sm font-medium">
 									{typeof activeSession.status === "string" ? activeSession.status : "Error"}
 								</p>
 								<p className="text-xs text-foreground-500">
-									{formatRecordingDuration(duration)} • {fileSize ? formatFileSize(fileSize) : "0 B"}
+									{formatRecordingDuration(duration)} •{" "}
+									{fileSize ? formatFileSize(fileSize) : "0 B"}
 								</p>
 							</div>
 						</div>
@@ -354,7 +358,8 @@ export default function RecordingStatus({ className = "", compact = false }: Rec
 						<div className="flex items-center gap-2 text-xs text-foreground-500">
 							<Shield className="w-3.5 h-3.5" />
 							<span className="truncate">
-								{activeSession.window_metadata.title} ({activeSession.window_metadata.width}x{activeSession.window_metadata.height})
+								{activeSession.window_metadata.title} ({activeSession.window_metadata.width}x
+								{activeSession.window_metadata.height})
 							</span>
 						</div>
 					)}

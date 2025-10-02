@@ -5,17 +5,17 @@ use serde::{Deserialize, Serialize};
 pub struct BlockchainConfig {
     /// Whether blockchain anchoring is enabled
     pub enabled: bool,
-    
+
     /// Environment (mock, testnet, mainnet)
     pub environment: BlockchainEnvironment,
-    
+
     /// Chain configuration
     pub chain: ChainConfig,
-    
+
     /// Wallet configuration
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wallet: Option<WalletConfig>,
-    
+
     /// Automatically anchor recordings after completion
     pub auto_anchor: bool,
 }
@@ -25,10 +25,10 @@ pub struct BlockchainConfig {
 pub enum BlockchainEnvironment {
     /// Mock implementation for development (no real blockchain)
     Mock,
-    
+
     /// Testnet for testing with free tokens
     Testnet,
-    
+
     /// Mainnet for production (real costs)
     Mainnet,
 }
@@ -49,7 +49,6 @@ pub struct ChainConfig {
 pub struct WalletConfig {
     /// Public wallet address
     pub address: String,
-    
     // Private key is stored encrypted in system keychain, not here
 }
 
@@ -77,7 +76,7 @@ impl ChainConfig {
             currency_symbol: "MATIC".to_string(),
         }
     }
-    
+
     /// Polygon mainnet (low cost)
     pub fn polygon_mainnet() -> Self {
         Self {
@@ -89,7 +88,7 @@ impl ChainConfig {
             currency_symbol: "MATIC".to_string(),
         }
     }
-    
+
     /// Ethereum mainnet (high cost, maximum security)
     pub fn ethereum_mainnet() -> Self {
         Self {
@@ -101,7 +100,7 @@ impl ChainConfig {
             currency_symbol: "ETH".to_string(),
         }
     }
-    
+
     /// Arbitrum One (medium cost, fast)
     pub fn arbitrum_one() -> Self {
         Self {
@@ -113,7 +112,7 @@ impl ChainConfig {
             currency_symbol: "ETH".to_string(),
         }
     }
-    
+
     /// Base mainnet (low cost, Coinbase L2)
     pub fn base_mainnet() -> Self {
         Self {
@@ -125,7 +124,7 @@ impl ChainConfig {
             currency_symbol: "ETH".to_string(),
         }
     }
-    
+
     /// Get all available chains
     pub fn all_chains() -> Vec<Self> {
         vec![
@@ -136,10 +135,12 @@ impl ChainConfig {
             Self::ethereum_mainnet(),
         ]
     }
-    
+
     /// Get chain by ID
     pub fn from_chain_id(chain_id: u64) -> Option<Self> {
-        Self::all_chains().into_iter().find(|c| c.chain_id == chain_id)
+        Self::all_chains()
+            .into_iter()
+            .find(|c| c.chain_id == chain_id)
     }
 }
 
@@ -154,35 +155,34 @@ mod tests {
         assert_eq!(config.environment, BlockchainEnvironment::Mock);
         assert!(!config.auto_anchor);
     }
-    
+
     #[test]
     fn test_chain_configs() {
         let polygon = ChainConfig::polygon_mainnet();
         assert_eq!(polygon.chain_id, 137);
         assert_eq!(polygon.currency_symbol, "MATIC");
-        
+
         let ethereum = ChainConfig::ethereum_mainnet();
         assert_eq!(ethereum.chain_id, 1);
         assert_eq!(ethereum.currency_symbol, "ETH");
     }
-    
+
     #[test]
     fn test_from_chain_id() {
         let polygon = ChainConfig::from_chain_id(137).unwrap();
         assert_eq!(polygon.name, "Polygon");
-        
+
         let invalid = ChainConfig::from_chain_id(99999);
         assert!(invalid.is_none());
     }
-    
+
     #[test]
     fn test_config_serialization() {
         let config = BlockchainConfig::default();
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: BlockchainConfig = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(config.enabled, deserialized.enabled);
         assert_eq!(config.environment, deserialized.environment);
     }
 }
-

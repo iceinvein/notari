@@ -250,6 +250,13 @@ export function useValidateRecordingWindowMutation() {
 }
 
 // Recordings library hooks
+export type BlockchainAnchorInfo = {
+	anchored_at: string;
+	chain_name: string;
+	tx_hash?: string;
+	explorer_url?: string;
+};
+
 export type RecordingEntry = {
 	video_path: string;
 	manifest_path: string;
@@ -261,6 +268,7 @@ export type RecordingEntry = {
 	title?: string;
 	description?: string;
 	tags?: string[];
+	blockchain_anchor?: BlockchainAnchorInfo;
 };
 
 export function useRecordingsQuery() {
