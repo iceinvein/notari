@@ -1,10 +1,11 @@
 use crate::app_log;
+use crate::events::EventEmitter;
 use crate::evidence::{
     BlockchainAnchorerFactory, BlockchainConfig, BlockchainEnvironment, ChainConfig, WalletManager,
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{AppHandle, State};
 
 /// Blockchain configuration state
 pub struct BlockchainState {
@@ -330,6 +331,7 @@ pub async fn test_connection(state: State<'_, BlockchainState>) -> Result<String
 pub async fn anchor_recording(
     state: State<'_, BlockchainState>,
     manifest_path: String,
+    app: AppHandle,
 ) -> Result<AnchorResult, String> {
     use crate::evidence::{BlockchainAnchor, EvidenceManifest};
     use chrono::Utc;
@@ -398,11 +400,18 @@ pub async fn anchor_recording(
         return Err("Recording is already anchored to blockchain".to_string());
     }
 
+    // Get session ID for events
+    let session_id = uuid::Uuid::parse_str(&manifest.recording.session_id)
+        .map_err(|e| format!("Invalid session ID: {}", e))?;
+
     // Compute the manifest hash (SHA256 of the manifest JSON)
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(manifest_json.as_bytes());
     let manifest_hash = format!("{:x}", hasher.finalize());
+
+    // Emit anchor started event
+    let _ = EventEmitter::blockchain_anchor_started(&app, session_id, &manifest_hash);
 
     // Create anchorer using factory
     let anchorer = BlockchainAnchorerFactory::create_from_components(
@@ -412,12 +421,19 @@ pub async fn anchor_recording(
     )
     .map_err(|e| e.to_string())?;
 
+    // Emit progress: submitting
+    let _ = EventEmitter::blockchain_anchor_progress(&app, session_id, "Submitting", None);
+
     // Anchor the hash
     app_log!(crate::logger::LogLevel::Info, "Anchoring manifest hash: {}", &manifest_hash[..16.min(manifest_hash.len())]);
     let proof = anchorer
         .anchor(&manifest_hash)
         .await
-        .map_err(|e| format!("Failed to anchor: {}", e))?;
+        .map_err(|e| {
+            // Emit anchor failed event
+            let _ = EventEmitter::blockchain_anchor_failed(&app, session_id, &e.to_string());
+            format!("Failed to anchor: {}", e)
+        })?;
     app_log!(crate::logger::LogLevel::Info, "Anchoring successful");
 
     // Update manifest with anchor
@@ -500,6 +516,44 @@ pub async fn anchor_recording(
     // Replace the original file with the new one
     fs::rename(&temp_path, &manifest_path)
         .map_err(|e| format!("Failed to replace original file: {}", e))?;
+
+    // Emit anchor completed event
+    match &proof {
+        crate::evidence::AnchorProof::Ethereum {
+            tx_hash,
+            block_number,
+            explorer_url,
+            ..
+        } => {
+            let _ = EventEmitter::blockchain_anchor_completed(
+                &app,
+                session_id,
+                tx_hash,
+                *block_number,
+                explorer_url,
+            );
+        }
+        crate::evidence::AnchorProof::Mock { .. } => {
+            // For mock, just emit with placeholder values
+            let _ = EventEmitter::blockchain_anchor_completed(
+                &app,
+                session_id,
+                "mock_tx_hash",
+                0,
+                "mock_explorer_url",
+            );
+        }
+        _ => {
+            // For other proof types, emit with generic values
+            let _ = EventEmitter::blockchain_anchor_completed(
+                &app,
+                session_id,
+                "unknown_tx_hash",
+                0,
+                "unknown_explorer_url",
+            );
+        }
+    }
 
     // Return result
     Ok(AnchorResult {

@@ -191,6 +191,10 @@ pub enum NotariError {
 
     #[error("{0}")]
     GenericError(String),
+
+    /// Builder pattern validation error
+    #[error("Builder error: {0}")]
+    BuilderError(String),
 }
 
 // Implement conversion from PoisonError for Mutex locks

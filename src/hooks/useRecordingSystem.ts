@@ -51,7 +51,7 @@ export function useActiveRecordingSessionQuery() {
 		queryFn: async (): Promise<ActiveRecording | null> => {
 			return await invoke("get_active_recording_session");
 		},
-		refetchInterval: 2000, // Poll every 2 seconds when there's an active recording
+		// No polling - use event listeners instead (useRecordingStateChanged)
 	});
 }
 
@@ -61,7 +61,7 @@ export function useHasActiveRecordingQuery() {
 		queryFn: async (): Promise<boolean> => {
 			return await invoke("has_active_recording");
 		},
-		refetchInterval: 1000, // Poll every second
+		// No polling - use event listeners instead (useRecordingStateChanged)
 	});
 }
 
@@ -73,7 +73,7 @@ export function useRecordingInfoQuery(sessionId: string | null) {
 			return await invoke("get_recording_info", { sessionId });
 		},
 		enabled: !!sessionId,
-		refetchInterval: 1000, // Update every second during recording
+		// No polling - use event listeners instead (useRecordingProgress)
 	});
 }
 
@@ -83,7 +83,8 @@ export function useRecordingSystemStatusQuery() {
 		queryFn: async (): Promise<RecordingSystemStatus> => {
 			return await invoke("get_recording_system_status");
 		},
-		refetchInterval: 5000, // Poll every 5 seconds
+		staleTime: 1000 * 30, // Cache for 30 seconds
+		// Reduced polling - most updates come from events now
 	});
 }
 

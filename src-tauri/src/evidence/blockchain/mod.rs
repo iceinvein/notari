@@ -1,4 +1,5 @@
 pub mod config;
+pub mod config_builder;
 pub mod ethereum;
 pub mod factory;
 pub mod mock;
@@ -9,6 +10,7 @@ pub mod wallet;
 mod tests;
 
 pub use config::{BlockchainConfig, BlockchainEnvironment, ChainConfig, WalletConfig};
+pub use config_builder::BlockchainConfigBuilder;
 pub use ethereum::EthereumAnchorer;
 pub use factory::BlockchainAnchorerFactory;
 pub use mock::MockAnchorer;

@@ -122,6 +122,28 @@ pub struct Timestamps {
 
 impl EvidenceManifest {
     /// Create a new evidence manifest
+    ///
+    /// # Deprecated
+    /// Use `EvidenceManifestBuilder` instead for a more flexible and type-safe API.
+    ///
+    /// # Example
+    /// ```
+    /// use notari::evidence::EvidenceManifestBuilder;
+    ///
+    /// let manifest = EvidenceManifestBuilder::new()
+    ///     .session_id(session_id)
+    ///     .file_path(file_path)
+    ///     .file_hash(file_hash)
+    ///     .file_size(file_size)
+    ///     .duration(duration)
+    ///     // ... window, video, system fields ...
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use EvidenceManifestBuilder for a more flexible API"
+    )]
     pub fn new(
         session_id: Uuid,
         file_path: PathBuf,

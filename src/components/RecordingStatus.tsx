@@ -4,6 +4,7 @@ import { Chip } from "@heroui/chip";
 import { Input } from "@heroui/input";
 import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { Progress } from "@heroui/progress";
+import { useQueryClient } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
 import {
 	AlertCircle,
@@ -18,7 +19,8 @@ import {
 	Shield,
 	Square,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useRecordingProgress, useRecordingStateChanged } from "../hooks/useEventListener";
 import {
 	useActiveRecordingSessionQuery,
 	useClearActiveRecordingMutation,
@@ -47,6 +49,7 @@ export default function RecordingStatus({
 	compact = false,
 	onRecordingComplete,
 }: RecordingStatusProps) {
+	const queryClient = useQueryClient();
 	const { data: activeSession } = useActiveRecordingSessionQuery();
 	const { data: recordingInfo } = useRecordingInfoQuery(activeSession?.session_id || null);
 	const [localDuration, setLocalDuration] = useState(0);
@@ -63,21 +66,19 @@ export default function RecordingStatus({
 	const [decryptError, setDecryptError] = useState<string | null>(null);
 	const [isDecrypting, setIsDecrypting] = useState(false);
 
-	// Update local duration counter
-	useEffect(() => {
-		if (!activeSession || !isRecordingActive(activeSession.status)) {
-			return;
+	// Listen to recording state changes
+	useRecordingStateChanged((_event) => {
+		// Invalidate queries when recording state changes
+		queryClient.invalidateQueries({ queryKey: ["recording", "activeSession"] });
+		queryClient.invalidateQueries({ queryKey: ["recording", "hasActive"] });
+	});
+
+	// Listen to recording progress updates (replaces setInterval)
+	useRecordingProgress((event) => {
+		if (activeSession && event.sessionId === activeSession.session_id) {
+			setLocalDuration(event.durationSeconds);
 		}
-
-		const startTime = new Date(activeSession.start_time).getTime();
-		const interval = setInterval(() => {
-			const now = Date.now();
-			const duration = Math.floor((now - startTime) / 1000);
-			setLocalDuration(duration);
-		}, 1000);
-
-		return () => clearInterval(interval);
-	}, [activeSession]);
+	});
 
 	if (!activeSession) {
 		return null;

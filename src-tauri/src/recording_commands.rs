@@ -1,3 +1,4 @@
+use crate::events::EventEmitter;
 use crate::evidence::proof_pack::ProofPackMetadata;
 use crate::logger::{LogEntry, LogLevel, LOGGER};
 use crate::recording_manager::{
@@ -9,7 +10,7 @@ use crate::window_manager::{create_window_manager, PermissionStatus, WindowInfo}
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::State;
+use tauri::{AppHandle, State};
 
 // Global state for the window manager and recording
 pub struct WindowManagerState {
@@ -145,6 +146,7 @@ pub async fn start_window_recording(
     recording_description: Option<String>,
     recording_tags: Option<Vec<String>>,
     state: State<'_, WindowManagerState>,
+    app: AppHandle,
 ) -> Result<ActiveRecording, String> {
     LOGGER.log(
         LogLevel::Info,
@@ -203,6 +205,11 @@ pub async fn start_window_recording(
         "recording_commands",
     );
 
+    // Emit recording state changed event
+    if let Ok(session_uuid) = uuid::Uuid::parse_str(&session.session_id) {
+        let _ = EventEmitter::recording_state_changed(&app, session_uuid, "Recording");
+    }
+
     Ok(session)
 }
 
@@ -211,12 +218,16 @@ pub async fn start_window_recording(
 pub async fn stop_recording(
     session_id: String,
     state: State<'_, WindowManagerState>,
+    app: AppHandle,
 ) -> Result<(), String> {
     LOGGER.log(
         LogLevel::Info,
         &format!("Stopping recording session: {}", session_id),
         "recording_commands",
     );
+
+    // Parse session_id to UUID for event emission
+    let session_uuid = uuid::Uuid::parse_str(&session_id).map_err(|e| e.to_string())?;
 
     state
         .recording_manager
@@ -227,6 +238,9 @@ pub async fn stop_recording(
         &format!("Recording stopped successfully: {}", session_id),
         "recording_commands",
     );
+
+    // Emit recording state changed event
+    let _ = EventEmitter::recording_state_changed(&app, session_uuid, "Stopped");
 
     Ok(())
 }
@@ -425,6 +439,7 @@ pub async fn cleanup_orphaned_recordings(
 pub async fn pause_recording(
     session_id: String,
     state: State<'_, WindowManagerState>,
+    app: AppHandle,
 ) -> Result<(), String> {
     LOGGER.log(
         LogLevel::Info,
@@ -432,10 +447,18 @@ pub async fn pause_recording(
         "recording_commands",
     );
 
+    // Parse session_id to UUID for event emission
+    let session_uuid = uuid::Uuid::parse_str(&session_id).map_err(|e| e.to_string())?;
+
     state
         .recording_manager
         .pause_recording(&session_id, state.recording_state.clone())
-        .map_err(Into::into)
+        .map_err(|e: crate::error::NotariError| e.to_string())?;
+
+    // Emit recording state changed event
+    let _ = EventEmitter::recording_state_changed(&app, session_uuid, "Paused");
+
+    Ok(())
 }
 
 /// Resume recording session
@@ -443,6 +466,7 @@ pub async fn pause_recording(
 pub async fn resume_recording(
     session_id: String,
     state: State<'_, WindowManagerState>,
+    app: AppHandle,
 ) -> Result<(), String> {
     LOGGER.log(
         LogLevel::Info,
@@ -450,10 +474,60 @@ pub async fn resume_recording(
         "recording_commands",
     );
 
+    // Parse session_id to UUID for event emission
+    let session_uuid = uuid::Uuid::parse_str(&session_id).map_err(|e| e.to_string())?;
+
     state
         .recording_manager
         .resume_recording(&session_id, state.recording_state.clone())
-        .map_err(Into::into)
+        .map_err(|e: crate::error::NotariError| e.to_string())?;
+
+    // Emit recording state changed event
+    let _ = EventEmitter::recording_state_changed(&app, session_uuid, "Recording");
+
+    Ok(())
+}
+
+/// Emit recording progress event for active recording (called periodically)
+pub async fn emit_recording_progress_event(
+    state: State<'_, WindowManagerState>,
+    app: &AppHandle,
+) -> Result<(), String> {
+    // Get active recording info
+    let recording_state = state.recording_state.lock().map_err(|e| e.to_string())?;
+
+    if let Some(ref active) = recording_state.active_recording {
+        // Only emit if recording is actually active (not paused)
+        if active.session.status == crate::recording_manager::RecordingStatus::Recording {
+            let session_uuid = uuid::Uuid::parse_str(&active.session.session_id)
+                .map_err(|e| e.to_string())?;
+
+            // Calculate duration
+            let start_time = active.session.start_time;
+            let duration_seconds = (chrono::Utc::now() - start_time).num_seconds() as u64;
+
+            // Get file size
+            let file_size_bytes = if active.session.output_path.exists() {
+                std::fs::metadata(&active.session.output_path)
+                    .map(|m| m.len())
+                    .unwrap_or(0)
+            } else {
+                0
+            };
+
+            // Emit progress event
+            let _ = EventEmitter::recording_progress(
+                app,
+                session_uuid,
+                duration_seconds,
+                file_size_bytes,
+            );
+        }
+    } else {
+        return Err("No active recording".to_string());
+    }
+
+    Ok(())
 }
 
 /// Get current active recording session (if any)

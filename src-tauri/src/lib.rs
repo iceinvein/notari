@@ -6,6 +6,7 @@ use tauri::{
 
 mod blockchain_commands;
 pub mod error;
+pub mod events;
 pub mod evidence;
 mod logger;
 mod recording_commands;
@@ -146,6 +147,23 @@ pub fn run() {
                     let state = app_handle.state::<recording_commands::WindowManagerState>();
                     if let Err(e) = recording_commands::check_recording_health(state).await {
                         app_log!(logger::LogLevel::Warn, "Recording health check failed: {}", e);
+                    }
+                }
+            });
+
+            // Start periodic progress event emitter for active recordings
+            let app_handle_progress = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(1));
+                loop {
+                    interval.tick().await;
+
+                    let state = app_handle_progress.state::<recording_commands::WindowManagerState>();
+                    if let Err(e) = recording_commands::emit_recording_progress_event(state, &app_handle_progress).await {
+                        // Only log if it's not a "no active recording" error
+                        if !e.contains("No active recording") {
+                            app_log!(logger::LogLevel::Debug, "Progress event emission failed: {}", e);
+                        }
                     }
                 }
             });

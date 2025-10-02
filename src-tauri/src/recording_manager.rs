@@ -7,6 +7,10 @@ use uuid::Uuid;
 
 use crate::error::NotariResult;
 
+// Builder module for fluent API construction
+pub mod builder;
+pub use builder::ActiveRecordingBuilder;
+
 /// Recording preferences that can be configured by the user
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RecordingPreferences {
@@ -67,7 +71,7 @@ pub struct ActiveRecording {
 }
 
 /// Enhanced recording status with more detailed information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RecordingStatus {
     Preparing,
     Recording,
@@ -200,24 +204,35 @@ impl RecordingPreferences {
 }
 
 /// Helper function to create a new recording session
+///
+/// # Deprecated
+/// Use `ActiveRecordingBuilder` instead for a more flexible and type-safe API.
+///
+/// # Example
+/// ```
+/// use notari::recording_manager::ActiveRecordingBuilder;
+///
+/// let session = ActiveRecordingBuilder::new(window_id)
+///     .output_path(output_path)
+///     .preferences(preferences)
+///     .build()
+///     .unwrap();
+/// ```
+#[deprecated(
+    since = "0.2.0",
+    note = "Use ActiveRecordingBuilder for a more flexible API"
+)]
 pub fn create_recording_session(
     window_id: &str,
     preferences: &RecordingPreferences,
     output_path: PathBuf,
 ) -> ActiveRecording {
-    ActiveRecording {
-        session_id: Uuid::new_v4().to_string(),
-        window_id: window_id.to_string(),
-        start_time: Utc::now(),
-        output_path,
-        status: RecordingStatus::Preparing,
-        preferences: preferences.clone(),
-        window_metadata: None,     // Will be set after window lookup
-        encryption_password: None, // Will be set if encryption is enabled
-        recording_title: None,
-        recording_description: None,
-        recording_tags: None,
-    }
+    // Use builder internally for consistency
+    ActiveRecordingBuilder::new(window_id)
+        .output_path(output_path)
+        .preferences(preferences.clone())
+        .build()
+        .expect("Builder should not fail with valid inputs from legacy function")
 }
 
 // Platform-specific implementations
