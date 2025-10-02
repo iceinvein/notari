@@ -1,7 +1,7 @@
 import { Chip } from "@heroui/chip";
 import { Input } from "@heroui/input";
 import { X } from "lucide-react";
-import { useState, useRef, type KeyboardEvent } from "react";
+import { type KeyboardEvent, useRef, useState } from "react";
 
 type TagInputProps = {
 	value: string[];

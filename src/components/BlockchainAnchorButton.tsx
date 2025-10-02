@@ -108,10 +108,7 @@ export default function BlockchainAnchorButton({
 				onAnchored?.();
 
 				// Show success toast
-				toast.success(
-					"Recording Anchored",
-					`Successfully anchored to ${anchorInfo.chain_name}`
-				);
+				toast.success("Recording Anchored", `Successfully anchored to ${anchorInfo.chain_name}`);
 			}
 		} catch (err) {
 			console.error("Failed to anchor recording:", err);

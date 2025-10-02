@@ -39,6 +39,7 @@ type BlockchainConfig = {
 	has_wallet: boolean;
 	wallet_address?: string;
 };
+
 import { VideoPlayer } from "./VideoPlayer";
 
 type BlockchainAnchorCheck = {

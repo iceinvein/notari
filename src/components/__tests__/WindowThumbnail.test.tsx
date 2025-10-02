@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import WindowThumbnail from "../WindowThumbnail";
+import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { WindowInfo } from "../../types/window";
+import WindowThumbnail from "../WindowThumbnail";
 
 const mockWindow: WindowInfo = {
 	id: "window-123",

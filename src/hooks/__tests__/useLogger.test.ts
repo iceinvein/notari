@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { LogLevel, logger } from "../../utils/logger";
 import { useLogger } from "../useLogger";
-import { logger, LogLevel } from "../../utils/logger";
 
 describe("useLogger", () => {
 	beforeEach(() => {

@@ -1,19 +1,19 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { invoke } from "@tauri-apps/api/core";
+import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ActiveRecording, RecordingPreferences } from "../../types/recording";
 import {
-	useRecordingPreferencesQuery,
 	useActiveRecordingSessionQuery,
 	useHasActiveRecordingQuery,
+	usePauseRecordingMutation,
+	useRecordingPreferencesQuery,
+	useRecordingsQuery,
+	useResumeRecordingMutation,
 	useStartRecordingMutation,
 	useStopRecordingMutation,
-	usePauseRecordingMutation,
-	useResumeRecordingMutation,
-	useRecordingsQuery,
 } from "../useRecordingSystem";
-import type { RecordingPreferences, ActiveRecording } from "../../types/recording";
 
 // Mock Tauri invoke
 vi.mock("@tauri-apps/api/core", () => ({

@@ -1,10 +1,10 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
-import WindowPicker from "../WindowPicker";
-import * as tauriQueries from "../../lib/tauri-queries";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as useApplicationPreferencesQuery from "../../hooks/useApplicationPreferencesQuery";
+import * as tauriQueries from "../../lib/tauri-queries";
+import WindowPicker from "../WindowPicker";
 
 // Mock the hooks
 vi.mock("../../lib/tauri-queries");

@@ -1,7 +1,7 @@
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
-import { Switch } from "@heroui/switch";
 import { Textarea } from "@heroui/react";
+import { Switch } from "@heroui/switch";
 import { Circle, Eye, EyeOff, Lock } from "lucide-react";
 import { useState } from "react";
 import { useRecordingSystemStatusQuery } from "../../hooks/useRecordingSystem";

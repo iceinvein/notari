@@ -11,7 +11,7 @@ export function useToast() {
 				color: "success",
 				variant: "flat",
 				timeout: 4000,
-				hideCloseButton: true
+				hideCloseButton: true,
 			});
 		},
 		error: (title: string, description?: string) => {
@@ -21,7 +21,7 @@ export function useToast() {
 				color: "danger",
 				variant: "flat",
 				timeout: 6000,
-				hideCloseButton: true
+				hideCloseButton: true,
 			});
 		},
 		warning: (title: string, description?: string) => {
@@ -31,7 +31,7 @@ export function useToast() {
 				color: "warning",
 				variant: "flat",
 				timeout: 5000,
-				hideCloseButton: true
+				hideCloseButton: true,
 			});
 		},
 		info: (title: string, description?: string) => {
@@ -41,11 +41,10 @@ export function useToast() {
 				color: "primary",
 				variant: "flat",
 				timeout: 4000,
-				hideCloseButton: true
+				hideCloseButton: true,
 			});
 		},
 		// For custom toasts with full control
 		custom: addToast,
 	};
 }
-

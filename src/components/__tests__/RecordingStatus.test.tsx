@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import RecordingStatus from "../RecordingStatus";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as useRecordingSystem from "../../hooks/useRecordingSystem";
+import RecordingStatus from "../RecordingStatus";
 
 // Mock the hooks
 vi.mock("../../hooks/useRecordingSystem");

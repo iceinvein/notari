@@ -13,9 +13,9 @@ function App() {
 				<ThemeProvider>
 					<HeroUIProvider>
 						<ToastProvider placement="bottom-center" maxVisibleToasts={3} />
-							<div className="w-full h-screen">
-								<Popover />
-							</div>
+						<div className="w-full h-screen">
+							<Popover />
+						</div>
 					</HeroUIProvider>
 				</ThemeProvider>
 			</QueryClientProvider>

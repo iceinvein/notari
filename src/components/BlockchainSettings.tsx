@@ -158,10 +158,7 @@ export default function BlockchainSettings() {
 				autoAnchor,
 			});
 			setConfig({ ...config, auto_anchor: autoAnchor });
-			toast.success(
-				"Auto-Anchor Updated",
-				`Auto-anchor ${autoAnchor ? "enabled" : "disabled"}`
-			);
+			toast.success("Auto-Anchor Updated", `Auto-anchor ${autoAnchor ? "enabled" : "disabled"}`);
 		} catch (error) {
 			console.error("Failed to update auto-anchor:", error);
 			toast.error("Update Failed", `Failed to update: ${error}`);
