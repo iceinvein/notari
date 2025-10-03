@@ -14,7 +14,6 @@ import {
 	Eye,
 	EyeOff,
 	Lock,
-	Pause,
 	Play,
 	Shield,
 	Square,
@@ -24,9 +23,7 @@ import { useRecordingProgress, useRecordingStateChanged } from "../hooks/useEven
 import {
 	useActiveRecordingSessionQuery,
 	useClearActiveRecordingMutation,
-	usePauseRecordingMutation,
 	useRecordingInfoQuery,
-	useResumeRecordingMutation,
 	useStopRecordingMutation,
 } from "../hooks/useRecordingSystem";
 import type { RecordingStatus as RecordingStatusType } from "../types/recording";
@@ -41,22 +38,15 @@ import {
 type RecordingStatusProps = {
 	className?: string;
 	compact?: boolean;
-	onRecordingComplete?: () => void;
 };
 
-export default function RecordingStatus({
-	className = "",
-	compact = false,
-	onRecordingComplete,
-}: RecordingStatusProps) {
+export default function RecordingStatus({ className = "", compact = false }: RecordingStatusProps) {
 	const queryClient = useQueryClient();
 	const { data: activeSession } = useActiveRecordingSessionQuery();
 	const { data: recordingInfo } = useRecordingInfoQuery(activeSession?.session_id || null);
 	const [localDuration, setLocalDuration] = useState(0);
 
 	const stopRecordingMutation = useStopRecordingMutation();
-	const pauseRecordingMutation = usePauseRecordingMutation();
-	const resumeRecordingMutation = useResumeRecordingMutation();
 	const clearRecordingMutation = useClearActiveRecordingMutation();
 
 	// Decrypt and play state
@@ -67,10 +57,11 @@ export default function RecordingStatus({
 	const [isDecrypting, setIsDecrypting] = useState(false);
 
 	// Listen to recording state changes
-	useRecordingStateChanged((_event) => {
+	useRecordingStateChanged(() => {
 		// Invalidate queries when recording state changes
 		queryClient.invalidateQueries({ queryKey: ["recording", "activeSession"] });
 		queryClient.invalidateQueries({ queryKey: ["recording", "hasActive"] });
+		// Note: Navigation to videos tab is handled in RecordMode component
 	});
 
 	// Listen to recording progress updates (replaces setInterval)
@@ -86,29 +77,9 @@ export default function RecordingStatus({
 
 	const handleStop = () => {
 		if (activeSession) {
-			stopRecordingMutation.mutate(activeSession.session_id, {
-				onSuccess: () => {
-					// Navigate to recorded videos tab after stopping
-					if (onRecordingComplete) {
-						// Small delay to ensure the recording is fully processed
-						setTimeout(() => {
-							onRecordingComplete();
-						}, 500);
-					}
-				},
-			});
-		}
-	};
-
-	const handlePause = () => {
-		if (activeSession) {
-			pauseRecordingMutation.mutate(activeSession.session_id);
-		}
-	};
-
-	const handleResume = () => {
-		if (activeSession) {
-			resumeRecordingMutation.mutate(activeSession.session_id);
+			stopRecordingMutation.mutate(activeSession.session_id);
+			// Note: Navigation to recorded videos tab happens automatically
+			// when the recording reaches "Completed" state (see useRecordingStateChanged above)
 		}
 	};
 
@@ -174,16 +145,20 @@ export default function RecordingStatus({
 	const getStatusColor = (status: RecordingStatusType) => {
 		if (isRecordingError(status)) return "danger";
 		switch (status) {
+			case "Idle":
+				return "default";
+			case "Preparing":
+				return "primary";
 			case "Recording":
 				return "success";
-			case "Preparing":
-				return "warning";
-			case "Paused":
-				return "secondary";
 			case "Stopping":
 				return "warning";
-			case "Stopped":
-				return "default";
+			case "Processing":
+				return "secondary";
+			case "Completed":
+				return "success";
+			case "Failed":
+				return "danger";
 			default:
 				return "default";
 		}
@@ -192,16 +167,20 @@ export default function RecordingStatus({
 	const getStatusIcon = (status: RecordingStatusType) => {
 		if (isRecordingError(status)) return <AlertCircle className="w-4 h-4" />;
 		switch (status) {
-			case "Recording":
-				return <Circle className="w-4 h-4 fill-current" />;
+			case "Idle":
+				return <Circle className="w-4 h-4" />;
 			case "Preparing":
 				return <Clock className="w-4 h-4" />;
-			case "Paused":
-				return <Pause className="w-4 h-4" />;
+			case "Recording":
+				return <Circle className="w-4 h-4 fill-current" />;
 			case "Stopping":
 				return <Square className="w-4 h-4" />;
-			case "Stopped":
+			case "Processing":
+				return <Clock className="w-4 h-4 animate-spin" />;
+			case "Completed":
 				return <CheckCircle className="w-4 h-4" />;
+			case "Failed":
+				return <AlertCircle className="w-4 h-4" />;
 			default:
 				return <Circle className="w-4 h-4" />;
 		}
@@ -240,9 +219,13 @@ export default function RecordingStatus({
 								className={`w-3 h-3 rounded-full ${
 									activeSession.status === "Recording"
 										? "bg-danger animate-pulse"
-										: activeSession.status === "Paused"
-											? "bg-warning"
-											: "bg-success"
+										: activeSession.status === "Processing"
+											? "bg-secondary animate-pulse"
+											: activeSession.status === "Completed"
+												? "bg-success"
+												: activeSession.status === "Failed"
+													? "bg-danger"
+													: "bg-primary"
 								}`}
 							/>
 							<div>
@@ -250,42 +233,14 @@ export default function RecordingStatus({
 									{typeof activeSession.status === "string" ? activeSession.status : "Error"}
 								</p>
 								<p className="text-xs text-foreground-500">
-									{formatRecordingDuration(duration)} •{" "}
-									{fileSize ? formatFileSize(fileSize) : "0 B"}
+									{formatRecordingDuration(duration)}
+									{fileSize && fileSize > 0 && <> • {formatFileSize(fileSize)}</>}
 								</p>
 							</div>
 						</div>
 
 						<div className="flex items-center gap-2">
 							{activeSession.status === "Recording" && (
-								<Button
-									isIconOnly
-									size="sm"
-									variant="flat"
-									color="secondary"
-									onPress={handlePause}
-									isLoading={pauseRecordingMutation.isPending}
-									aria-label="Pause"
-								>
-									<Pause className="w-4 h-4" />
-								</Button>
-							)}
-
-							{activeSession.status === "Paused" && (
-								<Button
-									isIconOnly
-									size="sm"
-									variant="flat"
-									color="primary"
-									onPress={handleResume}
-									isLoading={resumeRecordingMutation.isPending}
-									aria-label="Resume"
-								>
-									<Play className="w-4 h-4" />
-								</Button>
-							)}
-
-							{isRecordingActive(activeSession.status) && (
 								<Button
 									isIconOnly
 									size="sm"
@@ -299,7 +254,7 @@ export default function RecordingStatus({
 								</Button>
 							)}
 
-							{(activeSession.status === "Stopped" || isRecordingError(activeSession.status)) && (
+							{(activeSession.status === "Completed" || isRecordingError(activeSession.status)) && (
 								<>
 									<Button
 										isIconOnly

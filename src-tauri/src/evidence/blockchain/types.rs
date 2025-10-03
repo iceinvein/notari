@@ -76,7 +76,9 @@ impl AnchorProof {
     pub fn contract_address(&self) -> String {
         match self {
             AnchorProof::Mock { .. } => "N/A".to_string(),
-            AnchorProof::Ethereum { contract_address, .. } => contract_address.clone(),
+            AnchorProof::Ethereum {
+                contract_address, ..
+            } => contract_address.clone(),
             AnchorProof::OpenTimestamps { .. } => "N/A".to_string(),
         }
     }

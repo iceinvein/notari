@@ -10,10 +10,10 @@ use std::io::{Read, Write};
 use std::path::Path;
 
 // Re-export types from manifest module
+use crate::error::{NotariError, NotariResult};
 use crate::evidence::manifest::{
     ChunkInfo, ChunkedEncryptionInfo, EncryptionInfo, KeyDerivationInfo,
 };
-use crate::error::{NotariError, NotariResult};
 use crate::logger::{LogLevel, LOGGER};
 
 // Constants
@@ -147,7 +147,12 @@ impl VideoEncryptor {
             // Encrypt chunk
             let ciphertext = cipher
                 .encrypt(nonce, plaintext_chunk.as_ref())
-                .map_err(|e| NotariError::EncryptionFailed(format!("Encryption failed for chunk {}: {}", chunk_index, e)))?;
+                .map_err(|e| {
+                    NotariError::EncryptionFailed(format!(
+                        "Encryption failed for chunk {}: {}",
+                        chunk_index, e
+                    ))
+                })?;
 
             // Write encrypted chunk
             output_file.write_all(&ciphertext)?;
@@ -205,10 +210,9 @@ impl VideoEncryptor {
         use base64::{engine::general_purpose, Engine as _};
         let salt = general_purpose::STANDARD.decode(&encryption_info.key_derivation.salt)?;
         let nonce_bytes = general_purpose::STANDARD.decode(
-            encryption_info
-                .nonce
-                .as_ref()
-                .ok_or_else(|| NotariError::DecryptionFailed("Missing nonce for file-level encryption".to_string()))?,
+            encryption_info.nonce.as_ref().ok_or_else(|| {
+                NotariError::DecryptionFailed("Missing nonce for file-level encryption".to_string())
+            })?,
         )?;
 
         // Derive key from password using same parameters
@@ -231,9 +235,11 @@ impl VideoEncryptor {
         input_file.read_to_end(&mut ciphertext)?;
 
         // Decrypt
-        let plaintext = cipher
-            .decrypt(nonce, ciphertext.as_ref())
-            .map_err(|_| NotariError::DecryptionFailed("Decryption failed: incorrect password or corrupted file".to_string()))?;
+        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|_| {
+            NotariError::DecryptionFailed(
+                "Decryption failed: incorrect password or corrupted file".to_string(),
+            )
+        })?;
 
         // Write decrypted file
         let mut output_file = File::create(&output_path)?;
@@ -535,7 +541,9 @@ impl VideoEncryptor {
 /// Validate password strength
 pub fn validate_password(password: &str) -> NotariResult<()> {
     if password.len() < 8 {
-        return Err(NotariError::InvalidPassword("Password must be at least 8 characters long".to_string()));
+        return Err(NotariError::InvalidPassword(
+            "Password must be at least 8 characters long".to_string(),
+        ));
     }
 
     let has_uppercase = password.chars().any(|c| c.is_uppercase());

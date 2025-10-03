@@ -17,8 +17,8 @@ pub use mock::MockAnchorer;
 pub use types::{AnchorProof, BlockchainAnchor};
 pub use wallet::WalletManager;
 
-use async_trait::async_trait;
 use crate::error::NotariResult;
+use async_trait::async_trait;
 
 /// Trait for blockchain anchoring implementations
 #[async_trait]

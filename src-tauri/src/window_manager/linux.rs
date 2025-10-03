@@ -22,8 +22,9 @@ impl LinuxWindowManager {
         use x11rb::connection::Connection;
         use x11rb::protocol::xproto::*;
 
-        let (conn, screen_num) =
-            x11rb::connect(None).map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to connect to X11: {}", e)))?;
+        let (conn, screen_num) = x11rb::connect(None).map_err(|e| {
+            NotariError::WindowEnumerationFailed(format!("Failed to connect to X11: {}", e))
+        })?;
 
         let screen = &conn.setup().roots[screen_num];
         let root = screen.root;
@@ -31,9 +32,13 @@ impl LinuxWindowManager {
         // Query for all windows
         let tree_reply = conn
             .query_tree(root)
-            .map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to query window tree: {}", e)))?
+            .map_err(|e| {
+                NotariError::WindowEnumerationFailed(format!("Failed to query window tree: {}", e))
+            })?
             .reply()
-            .map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to get tree reply: {}", e)))?;
+            .map_err(|e| {
+                NotariError::WindowEnumerationFailed(format!("Failed to get tree reply: {}", e))
+            })?;
 
         let mut windows = Vec::new();
 
@@ -93,14 +98,18 @@ impl LinuxWindowManager {
 
     #[cfg(not(feature = "x11"))]
     fn get_x11_windows(&self) -> NotariResult<Vec<WindowInfo>> {
-        Err(NotariError::DisplayServerNotSupported("X11 support not compiled in".to_string()))
+        Err(NotariError::DisplayServerNotSupported(
+            "X11 support not compiled in".to_string(),
+        ))
     }
 
     fn get_wayland_windows(&self) -> NotariResult<Vec<WindowInfo>> {
         // Wayland doesn't allow direct window enumeration for security reasons
         // We would need to use portals, which is more complex
         // For now, return an error suggesting the user use the portal-based approach
-        Err(NotariError::DisplayServerNotSupported("Wayland window enumeration requires portal support (not yet implemented)".to_string()))
+        Err(NotariError::DisplayServerNotSupported(
+            "Wayland window enumeration requires portal support (not yet implemented)".to_string(),
+        ))
     }
 }
 
@@ -141,7 +150,9 @@ impl WindowManager for LinuxWindowManager {
         } else if self.is_x11() {
             self.get_x11_windows()
         } else {
-            Err(NotariError::DisplayServerNotSupported("No supported display server detected".to_string()))
+            Err(NotariError::DisplayServerNotSupported(
+                "No supported display server detected".to_string(),
+            ))
         }
     }
 

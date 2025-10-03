@@ -10,11 +10,13 @@ export type RecordingPreferences = {
 };
 
 export type RecordingStatus =
+	| "Idle"
 	| "Preparing"
 	| "Recording"
-	| "Paused"
 	| "Stopping"
-	| "Stopped"
+	| "Processing"
+	| "Completed"
+	| "Failed"
 	| { Error: string };
 
 export type WindowMetadata = {
@@ -61,18 +63,57 @@ export const DEFAULT_RECORDING_PREFERENCES: RecordingPreferences = {
 
 // Helper functions
 export function isRecordingActive(status: RecordingStatus): boolean {
-	return status === "Recording" || status === "Preparing";
+	return (
+		status === "Preparing" ||
+		status === "Recording" ||
+		status === "Stopping" ||
+		status === "Processing"
+	);
 }
 
 export function isRecordingError(status: RecordingStatus): boolean {
-	return typeof status === "object" && "Error" in status;
+	return status === "Failed" || (typeof status === "object" && "Error" in status);
 }
 
 export function getRecordingErrorMessage(status: RecordingStatus): string | null {
-	if (isRecordingError(status)) {
+	if (status === "Failed") {
+		return "Recording failed";
+	}
+	if (typeof status === "object" && "Error" in status) {
 		return (status as { Error: string }).Error;
 	}
 	return null;
+}
+
+export function getRecordingStatusLabel(status: RecordingStatus): string {
+	if (typeof status === "object" && "Error" in status) {
+		return "Error";
+	}
+	return status;
+}
+
+export function getRecordingStatusColor(status: RecordingStatus): string {
+	switch (status) {
+		case "Idle":
+			return "gray";
+		case "Preparing":
+			return "blue";
+		case "Recording":
+			return "red";
+		case "Stopping":
+			return "orange";
+		case "Processing":
+			return "purple";
+		case "Completed":
+			return "green";
+		case "Failed":
+			return "red";
+		default:
+			if (typeof status === "object" && "Error" in status) {
+				return "red";
+			}
+			return "gray";
+	}
 }
 
 export function formatRecordingDuration(seconds: number): string {

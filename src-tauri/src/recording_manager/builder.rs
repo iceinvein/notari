@@ -1,4 +1,4 @@
-use super::{ActiveRecording, RecordingPreferences, RecordingStatus, WindowMetadata};
+use super::{ActiveRecording, RecordingPreferences, WindowMetadata};
 use crate::error::{NotariError, NotariResult};
 use chrono::Utc;
 use std::path::PathBuf;
@@ -58,36 +58,42 @@ impl ActiveRecordingBuilder {
     }
 
     /// Set the window metadata
+    #[allow(dead_code)]
     pub fn window_metadata(mut self, metadata: WindowMetadata) -> Self {
         self.window_metadata = Some(metadata);
         self
     }
 
     /// Set the encryption password (enables encryption)
+    #[allow(dead_code)]
     pub fn encryption_password(mut self, password: impl Into<String>) -> Self {
         self.encryption_password = Some(password.into());
         self
     }
 
     /// Set the recording title
+    #[allow(dead_code)]
     pub fn title(mut self, title: impl Into<String>) -> Self {
         self.recording_title = Some(title.into());
         self
     }
 
     /// Set the recording description
+    #[allow(dead_code)]
     pub fn description(mut self, description: impl Into<String>) -> Self {
         self.recording_description = Some(description.into());
         self
     }
 
     /// Set the recording tags
+    #[allow(dead_code)]
     pub fn tags(mut self, tags: Vec<String>) -> Self {
         self.recording_tags = Some(tags);
         self
     }
 
     /// Add a single tag to the recording
+    #[allow(dead_code)]
     pub fn add_tag(mut self, tag: impl Into<String>) -> Self {
         let tag = tag.into();
         match &mut self.recording_tags {
@@ -141,7 +147,6 @@ impl ActiveRecordingBuilder {
             window_id: self.window_id,
             start_time: Utc::now(),
             output_path,
-            status: RecordingStatus::Preparing,
             preferences,
             window_metadata: self.window_metadata,
             encryption_password: self.encryption_password,
@@ -169,7 +174,6 @@ mod tests {
 
         assert_eq!(recording.window_id, "window-123");
         assert_eq!(recording.output_path, output_path);
-        assert_eq!(recording.status, RecordingStatus::Preparing);
         assert!(recording.recording_title.is_none());
         assert!(recording.recording_description.is_none());
         assert!(recording.recording_tags.is_none());
@@ -299,4 +303,3 @@ mod tests {
         );
     }
 }
-

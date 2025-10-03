@@ -13,6 +13,10 @@ impl LinuxRecordingManager {
 }
 
 impl RecordingManager for LinuxRecordingManager {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn start_recording(
         &self,
         _window_id: &str,
@@ -23,19 +27,11 @@ impl RecordingManager for LinuxRecordingManager {
         Err(NotariError::PlatformNotSupported)
     }
 
-    fn stop_recording(
-        &self,
-        _session_id: &str,
-        _state: SharedRecordingState,
-    ) -> NotariResult<()> {
+    fn stop_recording(&self, _session_id: &str, _state: SharedRecordingState) -> NotariResult<()> {
         Err(NotariError::PlatformNotSupported)
     }
 
-    fn pause_recording(
-        &self,
-        _session_id: &str,
-        _state: SharedRecordingState,
-    ) -> NotariResult<()> {
+    fn pause_recording(&self, _session_id: &str, _state: SharedRecordingState) -> NotariResult<()> {
         Err(NotariError::PlatformNotSupported)
     }
 
@@ -65,8 +61,9 @@ impl RecordingManager for LinuxRecordingManager {
 
     fn get_default_save_directory(&self) -> NotariResult<PathBuf> {
         // Use ~/Videos/Notari as default on Linux
-        let home_dir = dirs::home_dir()
-            .ok_or_else(|| NotariError::ConfigError("Could not determine home directory".to_string()))?;
+        let home_dir = dirs::home_dir().ok_or_else(|| {
+            NotariError::ConfigError("Could not determine home directory".to_string())
+        })?;
 
         Ok(home_dir.join("Videos").join("Notari"))
     }
@@ -85,7 +82,10 @@ impl RecordingManager for LinuxRecordingManager {
                 let _ = std::fs::remove_file(&test_file);
                 Ok(true)
             }
-            Err(e) => Err(NotariError::DirectoryCreationFailed(format!("Directory not writable: {}", e))),
+            Err(e) => Err(NotariError::DirectoryCreationFailed(format!(
+                "Directory not writable: {}",
+                e
+            ))),
         }
     }
 }

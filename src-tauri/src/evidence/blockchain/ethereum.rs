@@ -1,6 +1,6 @@
 use super::{AnchorProof, BlockchainAnchorer};
-use async_trait::async_trait;
 use crate::error::{NotariError, NotariResult};
+use async_trait::async_trait;
 use ethers::prelude::*;
 use std::sync::Arc;
 
@@ -42,13 +42,15 @@ impl EthereumAnchorer {
         let provider = Arc::new(provider);
 
         // Create wallet from private key
-        let wallet: LocalWallet = private_key.parse()
-            .map_err(|e| NotariError::BlockchainNotConfigured(format!("Invalid private key: {}", e)))?;
+        let wallet: LocalWallet = private_key.parse().map_err(|e| {
+            NotariError::BlockchainNotConfigured(format!("Invalid private key: {}", e))
+        })?;
         let wallet = wallet.with_chain_id(chain_id);
 
         // Parse contract address
-        let contract_address: Address = contract_address.parse()
-            .map_err(|e| NotariError::BlockchainNotConfigured(format!("Invalid contract address: {}", e)))?;
+        let contract_address: Address = contract_address.parse().map_err(|e| {
+            NotariError::BlockchainNotConfigured(format!("Invalid contract address: {}", e))
+        })?;
 
         Ok(Self {
             provider,
@@ -76,7 +78,9 @@ impl EthereumAnchorer {
         let bytes = hex::decode(hex)
             .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Invalid hex: {}", e)))?;
         if bytes.len() != 32 {
-            return Err(NotariError::BlockchainAnchorFailed("Hash must be 32 bytes".to_string()));
+            return Err(NotariError::BlockchainAnchorFailed(
+                "Hash must be 32 bytes".to_string(),
+            ));
         }
         let mut array = [0u8; 32];
         array.copy_from_slice(&bytes);
@@ -101,14 +105,17 @@ impl BlockchainAnchorer for EthereumAnchorer {
 
         // Call anchor function and wait for receipt
         let call = contract.anchor(hash_bytes);
-        let pending_tx = call.send().await
-            .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Failed to send transaction: {}", e)))?;
-        let receipt = pending_tx.await
+        let pending_tx = call.send().await.map_err(|e| {
+            NotariError::BlockchainAnchorFailed(format!("Failed to send transaction: {}", e))
+        })?;
+        let receipt = pending_tx
+            .await
             .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Transaction failed: {}", e)))?
             .ok_or_else(|| NotariError::BlockchainAnchorFailed("Transaction failed".to_string()))?;
 
         // Get block number
-        let block_number = receipt.block_number
+        let block_number = receipt
+            .block_number
             .ok_or_else(|| NotariError::BlockchainAnchorFailed("No block number".to_string()))?
             .as_u64();
 
@@ -134,7 +141,11 @@ impl BlockchainAnchorer for EthereumAnchorer {
                 tx_hash,
                 ..
             } => (chain_id, contract_address, tx_hash),
-            _ => return Err(NotariError::BlockchainAnchorFailed("Invalid proof type for Ethereum verifier".to_string())),
+            _ => {
+                return Err(NotariError::BlockchainAnchorFailed(
+                    "Invalid proof type for Ethereum verifier".to_string(),
+                ))
+            }
         };
 
         // Verify chain ID matches
@@ -153,8 +164,9 @@ impl BlockchainAnchorer for EthereumAnchorer {
 
         // Query contract to check if hash is anchored
         let contract = self.contract();
-        let timestamp = contract.is_anchored(hash_bytes).call().await
-            .map_err(|e| NotariError::BlockchainAnchorFailed(format!("Failed to verify anchor: {}", e)))?;
+        let timestamp = contract.is_anchored(hash_bytes).call().await.map_err(|e| {
+            NotariError::BlockchainAnchorFailed(format!("Failed to verify anchor: {}", e))
+        })?;
 
         // If timestamp is non-zero, hash is anchored
         Ok(timestamp.as_u64() > 0)
@@ -162,8 +174,10 @@ impl BlockchainAnchorer for EthereumAnchorer {
 
     async fn estimate_cost(&self) -> NotariResult<f64> {
         // Get current gas price
-        let gas_price = self.provider.get_gas_price().await
-            .map_err(|e| NotariError::NetworkError(format!("Failed to get gas price: {}", e)))?;
+        let gas_price =
+            self.provider.get_gas_price().await.map_err(|e| {
+                NotariError::NetworkError(format!("Failed to get gas price: {}", e))
+            })?;
 
         // Estimate gas for anchor transaction (typical: ~50,000 gas)
         let estimated_gas = U256::from(50_000);
@@ -182,7 +196,10 @@ impl BlockchainAnchorer for EthereumAnchorer {
         let address = self.wallet.address();
 
         // Get balance
-        let balance = self.provider.get_balance(address, None).await
+        let balance = self
+            .provider
+            .get_balance(address, None)
+            .await
             .map_err(|e| NotariError::NetworkError(format!("Failed to get balance: {}", e)))?;
 
         // Convert to ETH (or native token)

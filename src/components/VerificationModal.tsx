@@ -38,17 +38,39 @@ export default function VerificationModal({ isOpen, onClose }: VerificationModal
 					multiple: false,
 					filters: [
 						{
+							name: "Notari Proof Pack",
+							extensions: ["notari"],
+						},
+						{
 							name: "Video",
-							extensions: ["mov", "mp4", "avi", "mkv"],
+							extensions: ["mov", "mp4", "avi", "mkv", "enc"],
 						},
 					],
 				});
 
 				if (selected && typeof selected === "string") {
-					setVideoPath(selected);
-					// Auto-detect manifest path (same name with .json extension)
-					const manifestPath = selected.replace(/\.[^/.]+$/, ".json");
-					setManifestPath(manifestPath);
+					// Check if it's a .notari file (proof pack)
+					if (selected.endsWith(".notari")) {
+						// Extract proof pack to temp directory
+						const tempDir = await invoke<string>("get_temp_dir");
+						const extractDir = `${tempDir}/notari_verify_${Date.now()}`;
+
+						const [extractedVideo, extractedManifest] = await invoke<[string, string]>(
+							"extract_proof_pack",
+							{
+								proofPackPath: selected,
+								extractDir,
+							}
+						);
+
+						setVideoPath(extractedVideo);
+						setManifestPath(extractedManifest);
+					} else {
+						// Regular video file - auto-detect manifest path
+						setVideoPath(selected);
+						const manifestPath = selected.replace(/\.[^/.]+$/, ".json");
+						setManifestPath(manifestPath);
+					}
 				}
 			} finally {
 				// Always pop the guard, even if dialog fails

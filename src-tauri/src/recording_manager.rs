@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::{Arc, Mutex};
-use uuid::Uuid;
 
 use crate::error::NotariResult;
+use crate::state_machine::{RecordingPreferencesSnapshot, RecordingSessionState};
 
 // Builder module for fluent API construction
 pub mod builder;
@@ -35,6 +35,18 @@ impl Default for RecordingPreferences {
     }
 }
 
+impl RecordingPreferences {
+    /// Convert to state machine preferences snapshot
+    pub fn to_snapshot(&self) -> RecordingPreferencesSnapshot {
+        RecordingPreferencesSnapshot {
+            fps: 30, // Default FPS
+            quality: format!("{:?}", self.video_quality),
+            audio_enabled: self.include_audio,
+            encryption_enabled: false, // Will be set based on password presence
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum VideoQuality {
     High,
@@ -52,14 +64,14 @@ pub struct WindowMetadata {
     pub height: u32,
 }
 
-/// Information about an active recording session
+/// Information about an active recording session (internal, no status field)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveRecording {
     pub session_id: String,
     pub window_id: String,
     pub start_time: DateTime<Utc>,
     pub output_path: PathBuf,
-    pub status: RecordingStatus,
+    // Note: status is derived from state machine, not stored here
     pub preferences: RecordingPreferences,
     pub window_metadata: Option<WindowMetadata>,
     #[serde(skip_serializing)]
@@ -70,14 +82,50 @@ pub struct ActiveRecording {
     pub recording_tags: Option<Vec<String>>,
 }
 
+impl ActiveRecording {
+    /// Convert to a serializable version with status from state machine
+    pub fn with_status(self, status: RecordingStatus) -> ActiveRecordingWithStatus {
+        ActiveRecordingWithStatus {
+            session_id: self.session_id,
+            window_id: self.window_id,
+            start_time: self.start_time,
+            output_path: self.output_path,
+            status,
+            preferences: self.preferences,
+            window_metadata: self.window_metadata,
+            recording_title: self.recording_title,
+            recording_description: self.recording_description,
+            recording_tags: self.recording_tags,
+        }
+    }
+}
+
+/// Active recording with status (for serialization to frontend)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ActiveRecordingWithStatus {
+    pub session_id: String,
+    pub window_id: String,
+    pub start_time: DateTime<Utc>,
+    pub output_path: PathBuf,
+    pub status: RecordingStatus,
+    pub preferences: RecordingPreferences,
+    pub window_metadata: Option<WindowMetadata>,
+    // Custom metadata fields
+    pub recording_title: Option<String>,
+    pub recording_description: Option<String>,
+    pub recording_tags: Option<Vec<String>>,
+}
+
 /// Enhanced recording status with more detailed information
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum RecordingStatus {
+    Idle,
     Preparing,
     Recording,
-    Paused,
     Stopping,
-    Stopped,
+    Processing,
+    Completed,
+    Failed,
     Error(String),
 }
 
@@ -90,11 +138,29 @@ pub struct RecordingInfo {
     pub estimated_final_size_bytes: Option<u64>,
 }
 
-/// Internal recording state that includes process handle
+/// Internal recording state that includes process handle and state machine
 pub struct InternalRecordingState {
     pub session: ActiveRecording,
     pub process: Option<Child>,
     pub last_health_check: DateTime<Utc>,
+    /// Type-safe state machine for recording lifecycle
+    pub state_machine: RecordingSessionState,
+}
+
+impl InternalRecordingState {
+    /// Get the current recording status from the state machine
+    pub fn get_status(&self) -> RecordingStatus {
+        match self.state_machine.state_name() {
+            "Idle" => RecordingStatus::Idle,
+            "Preparing" => RecordingStatus::Preparing,
+            "Recording" => RecordingStatus::Recording,
+            "Stopping" => RecordingStatus::Stopping,
+            "Processing" => RecordingStatus::Processing,
+            "Completed" => RecordingStatus::Completed,
+            "Failed" => RecordingStatus::Failed,
+            _ => RecordingStatus::Idle,
+        }
+    }
 }
 
 /// Global recording state manager
@@ -114,11 +180,8 @@ impl RecordingState {
     /// Check if there's an active recording session
     pub fn has_active_recording(&self) -> bool {
         if let Some(ref recording) = self.active_recording {
-            // Only consider it active if the status is actually recording or preparing
-            matches!(
-                recording.session.status,
-                RecordingStatus::Recording | RecordingStatus::Preparing | RecordingStatus::Paused
-            )
+            // Use state machine to check if active
+            recording.state_machine.is_active()
         } else {
             false
         }
@@ -129,13 +192,6 @@ impl RecordingState {
         self.active_recording
             .as_ref()
             .map(|state| state.session.clone())
-    }
-
-    /// Update recording status
-    pub fn update_status(&mut self, status: RecordingStatus) {
-        if let Some(ref mut recording) = self.active_recording {
-            recording.session.status = status;
-        }
     }
 
     /// Clear active recording
@@ -149,6 +205,9 @@ pub type SharedRecordingState = Arc<Mutex<RecordingState>>;
 
 /// Trait for platform-specific recording implementations
 pub trait RecordingManager: Send + Sync {
+    /// Get a reference to self as Any for downcasting
+    fn as_any(&self) -> &dyn std::any::Any;
+
     /// Start recording a specific window
     fn start_recording(
         &self,
@@ -222,6 +281,7 @@ impl RecordingPreferences {
     since = "0.2.0",
     note = "Use ActiveRecordingBuilder for a more flexible API"
 )]
+#[allow(dead_code)]
 pub fn create_recording_session(
     window_id: &str,
     preferences: &RecordingPreferences,
@@ -237,7 +297,7 @@ pub fn create_recording_session(
 
 // Platform-specific implementations
 #[cfg(target_os = "macos")]
-mod macos;
+pub mod macos;
 #[cfg(target_os = "macos")]
 pub use macos::MacOSRecordingManager as PlatformRecordingManager;
 
@@ -322,11 +382,13 @@ mod tests {
     #[test]
     fn test_recording_status_serialization() {
         let statuses = vec![
+            RecordingStatus::Idle,
             RecordingStatus::Preparing,
             RecordingStatus::Recording,
-            RecordingStatus::Paused,
             RecordingStatus::Stopping,
-            RecordingStatus::Stopped,
+            RecordingStatus::Processing,
+            RecordingStatus::Completed,
+            RecordingStatus::Failed,
             RecordingStatus::Error("test error".to_string()),
         ];
 
@@ -348,7 +410,6 @@ mod tests {
 
         assert_eq!(session.window_id, window_id);
         assert_eq!(session.output_path, output_path);
-        assert!(matches!(session.status, RecordingStatus::Preparing));
         assert!(session.encryption_password.is_none());
         assert!(session.recording_title.is_none());
     }
@@ -400,7 +461,6 @@ mod tests {
             window_id: "window-456".to_string(),
             start_time: Utc::now(),
             output_path: PathBuf::from("/tmp/test.mov"),
-            status: RecordingStatus::Recording,
             preferences: RecordingPreferences::default(),
             window_metadata: Some(WindowMetadata {
                 title: "Test".to_string(),

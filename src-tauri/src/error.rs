@@ -36,6 +36,9 @@ pub enum NotariError {
     #[error("Recording not implemented for this platform")]
     PlatformNotSupported,
 
+    #[error("State transition failed: {0}")]
+    StateTransitionFailed(String),
+
     // ============================================================================
     // Window Manager Errors
     // ============================================================================
@@ -195,6 +198,10 @@ pub enum NotariError {
     /// Builder pattern validation error
     #[error("Builder error: {0}")]
     BuilderError(String),
+
+    /// Pipeline execution error
+    #[error("Pipeline error: {0}")]
+    PipelineError(String),
 }
 
 // Implement conversion from PoisonError for Mutex locks
@@ -276,4 +283,3 @@ mod tests {
         assert!(err.to_string().contains("50"));
     }
 }
-

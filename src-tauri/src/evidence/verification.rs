@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use crate::error::NotariResult;
 use super::{EvidenceManifest, HashInfo};
+use crate::error::NotariResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VerificationReport {

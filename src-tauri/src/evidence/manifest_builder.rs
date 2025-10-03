@@ -282,9 +282,9 @@ impl EvidenceManifestBuilder {
         let app_name = self
             .app_name
             .ok_or_else(|| NotariError::BuilderError("app_name is required".to_string()))?;
-        let app_bundle_id = self.app_bundle_id.ok_or_else(|| {
-            NotariError::BuilderError("app_bundle_id is required".to_string())
-        })?;
+        let app_bundle_id = self
+            .app_bundle_id
+            .ok_or_else(|| NotariError::BuilderError("app_bundle_id is required".to_string()))?;
 
         // Validate video metadata fields
         let resolution = self
@@ -545,7 +545,14 @@ mod tests {
             .resolution("1920x1080")
             .frame_rate(30)
             .codec("h264")
-            .system("macOS", "14.0", "device-123", "hostname", "0.1.0", "ScreenCaptureKit")
+            .system(
+                "macOS",
+                "14.0",
+                "device-123",
+                "hostname",
+                "0.1.0",
+                "ScreenCaptureKit",
+            )
             .timestamps(create_test_timestamps())
             .build()
             .unwrap();
@@ -585,4 +592,3 @@ mod tests {
         assert_eq!(manifest.timestamps.stopped_at, stopped);
     }
 }
-

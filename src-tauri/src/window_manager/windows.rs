@@ -19,8 +19,9 @@ impl WindowsWindowManager {
         unsafe {
             let windows_ptr = &mut windows as *mut Vec<WindowInfo>;
 
-            EnumWindows(Some(enum_windows_proc), LPARAM(windows_ptr as isize))
-                .map_err(|e| NotariError::WindowEnumerationFailed(format!("Failed to enumerate windows: {}", e)))?;
+            EnumWindows(Some(enum_windows_proc), LPARAM(windows_ptr as isize)).map_err(|e| {
+                NotariError::WindowEnumerationFailed(format!("Failed to enumerate windows: {}", e))
+            })?;
         }
 
         Ok(windows)

@@ -46,8 +46,9 @@ impl MacOSWindowManager {
             "backend",
         );
         // 1) Find matching SCWindow by CoreGraphics window_id
-        let shareable = SCShareableContent::get()
-            .map_err(|e| NotariError::WindowEnumerationFailed(format!("SCShareableContent::get failed: {e}")))?;
+        let shareable = SCShareableContent::get().map_err(|e| {
+            NotariError::WindowEnumerationFailed(format!("SCShareableContent::get failed: {e}"))
+        })?;
         let sc_window_opt = shareable
             .windows()
             .into_iter()
@@ -77,14 +78,17 @@ impl MacOSWindowManager {
             .map_err(|e| NotariError::ThumbnailCreationFailed(format!("set_pixel_format: {e}")))?;
 
         // 4) Capture a single frame
-        let sample = screenshot_manager::capture(&filter, &config)
-            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("SCScreenshotManager::capture failed: {e}")))?;
+        let sample = screenshot_manager::capture(&filter, &config).map_err(|e| {
+            NotariError::ThumbnailCreationFailed(format!(
+                "SCScreenshotManager::capture failed: {e}"
+            ))
+        })?;
 
         // 5) Extract pixel buffer and convert BGRA -> RGBA PNG in-memory
         // Get CVPixelBuffer directly and lock to access bytes
-        let pixel_buffer = sample
-            .get_pixel_buffer()
-            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("No pixel buffer in sample: {e}")))?;
+        let pixel_buffer = sample.get_pixel_buffer().map_err(|e| {
+            NotariError::ThumbnailCreationFailed(format!("No pixel buffer in sample: {e}"))
+        })?;
         let width = pixel_buffer.get_width() as usize;
         let height = pixel_buffer.get_height() as usize;
         let bytes_per_row = pixel_buffer.get_bytes_per_row() as usize;
@@ -99,9 +103,9 @@ impl MacOSWindowManager {
 
         // Lock for read-only access
         use screencapturekit::output::LockTrait;
-        let guard = pixel_buffer
-            .lock()
-            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("CVPixelBuffer lock failed: {e}")))?;
+        let guard = pixel_buffer.lock().map_err(|e| {
+            NotariError::ThumbnailCreationFailed(format!("CVPixelBuffer lock failed: {e}"))
+        })?;
         let bytes = guard.as_slice();
         if bytes.len() < bytes_per_row * height {
             LOGGER.log(
@@ -140,7 +144,9 @@ impl MacOSWindowManager {
         let mut png_data = Vec::new();
         dyn_img
             .write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
-            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to encode PNG: {e}")))?;
+            .map_err(|e| {
+                NotariError::ThumbnailCreationFailed(format!("Failed to encode PNG: {e}"))
+            })?;
 
         // Reuse existing thumbnail scaler/encoder
         let result = self.create_thumbnail_from_data(&png_data);
@@ -175,9 +181,13 @@ impl MacOSWindowManager {
         // Load image from data
         let img = ImageReader::new(Cursor::new(image_data))
             .with_guessed_format()
-            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to guess image format: {}", e)))?
+            .map_err(|e| {
+                NotariError::ThumbnailCreationFailed(format!("Failed to guess image format: {}", e))
+            })?
             .decode()
-            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to decode image: {}", e)))?;
+            .map_err(|e| {
+                NotariError::ThumbnailCreationFailed(format!("Failed to decode image: {}", e))
+            })?;
 
         // Resize to thumbnail size
         let max_dimension = 300;
@@ -209,7 +219,9 @@ impl MacOSWindowManager {
         let mut png_data = Vec::new();
         thumbnail
             .write_to(&mut Cursor::new(&mut png_data), image::ImageFormat::Png)
-            .map_err(|e| NotariError::ThumbnailCreationFailed(format!("Failed to encode PNG: {}", e)))?;
+            .map_err(|e| {
+                NotariError::ThumbnailCreationFailed(format!("Failed to encode PNG: {}", e))
+            })?;
 
         use base64::{engine::general_purpose, Engine as _};
         let base64_string = general_purpose::STANDARD.encode(&png_data);
@@ -269,7 +281,9 @@ impl MacOSWindowManager {
             let window_list_info = CGWindowListCopyWindowInfo(options, kCGNullWindowID);
 
             if window_list_info.is_null() {
-                return Err(NotariError::WindowEnumerationFailed("CoreGraphics API returned null - likely permission issue".to_string()));
+                return Err(NotariError::WindowEnumerationFailed(
+                    "CoreGraphics API returned null - likely permission issue".to_string(),
+                ));
             }
 
             let arr: CFArray<CFType> = CFArray::wrap_under_create_rule(window_list_info);
@@ -568,7 +582,12 @@ impl WindowManager for MacOSWindowManager {
         std::process::Command::new("open")
             .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
             .spawn()
-            .map_err(|e| NotariError::SystemSettingsOpenFailed(format!("Failed to open System Preferences: {}", e)))?;
+            .map_err(|e| {
+                NotariError::SystemSettingsOpenFailed(format!(
+                    "Failed to open System Preferences: {}",
+                    e
+                ))
+            })?;
         Ok(())
     }
 }

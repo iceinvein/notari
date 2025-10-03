@@ -57,9 +57,8 @@ impl BlockchainConfigBuilder {
 
     /// Set the chain configuration by chain ID
     pub fn chain_id(mut self, chain_id: u64) -> NotariResult<Self> {
-        let chain = ChainConfig::from_chain_id(chain_id).ok_or_else(|| {
-            NotariError::BuilderError(format!("Unknown chain ID: {}", chain_id))
-        })?;
+        let chain = ChainConfig::from_chain_id(chain_id)
+            .ok_or_else(|| NotariError::BuilderError(format!("Unknown chain ID: {}", chain_id)))?;
         self.chain = Some(chain);
         Ok(self)
     }
@@ -98,7 +97,9 @@ impl BlockchainConfigBuilder {
             })?;
 
             let chain = self.chain.ok_or_else(|| {
-                NotariError::BuilderError("chain is required when blockchain is enabled".to_string())
+                NotariError::BuilderError(
+                    "chain is required when blockchain is enabled".to_string(),
+                )
             })?;
 
             // Validate environment and chain compatibility
@@ -281,4 +282,3 @@ mod tests {
         assert!(matches!(result.unwrap_err(), NotariError::BuilderError(_)));
     }
 }
-

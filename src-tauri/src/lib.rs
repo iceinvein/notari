@@ -9,8 +9,10 @@ pub mod error;
 pub mod events;
 pub mod evidence;
 mod logger;
+pub mod pipeline;
 mod recording_commands;
 mod recording_manager;
+pub mod state_machine;
 mod storage;
 mod video_server;
 mod window_manager;
@@ -61,6 +63,7 @@ pub fn run() {
             recording_commands::export_public_key,
             recording_commands::has_signing_key,
             recording_commands::generate_signing_key,
+            recording_commands::get_signing_key_info,
             recording_commands::encrypt_video,
             recording_commands::decrypt_video,
             recording_commands::validate_encryption_password,
@@ -72,6 +75,7 @@ pub fn run() {
             recording_commands::decrypt_and_play_video,
             recording_commands::create_proof_pack,
             recording_commands::extract_proof_pack,
+            recording_commands::get_temp_dir,
             recording_commands::popover_guard_push,
             recording_commands::popover_guard_pop,
             recording_commands::start_video_playback,
@@ -111,7 +115,10 @@ pub fn run() {
                 if let Some(loaded_config) = config {
                     if let Ok(mut config_lock) = blockchain_state.config.lock() {
                         *config_lock = Some(loaded_config);
-                        app_log!(logger::LogLevel::Info, "Loaded blockchain configuration from storage");
+                        app_log!(
+                            logger::LogLevel::Info,
+                            "Loaded blockchain configuration from storage"
+                        );
                     }
                 }
             }
@@ -119,21 +126,58 @@ pub fn run() {
             // Load mock anchors from storage
             evidence::blockchain::MockAnchorer::load_from_storage();
 
+            // Ensure signing key exists (generate if needed)
+            use evidence::keychain;
+            use evidence::KeyManager;
+            if !keychain::has_signing_key() {
+                app_log!(
+                    logger::LogLevel::Info,
+                    "No signing key found on startup, generating new key"
+                );
+                let key_manager = KeyManager::generate();
+                if let Err(e) = keychain::store_signing_key(&key_manager.to_bytes()) {
+                    app_log!(
+                        logger::LogLevel::Error,
+                        "Failed to store signing key on startup: {}",
+                        e
+                    );
+                } else {
+                    app_log!(
+                        logger::LogLevel::Info,
+                        "Signing key generated and stored successfully"
+                    );
+                }
+            } else {
+                app_log!(
+                    logger::LogLevel::Info,
+                    "Signing key already exists in keychain"
+                );
+            }
+
             // Load recording preferences from storage
             let recording_state = app.state::<recording_commands::WindowManagerState>();
             if let Ok(prefs) = storage::get_storage().load_recording_preferences() {
                 if let Some(loaded_prefs) = prefs {
                     if let Ok(mut state_lock) = recording_state.recording_state.lock() {
                         state_lock.preferences = loaded_prefs;
-                        app_log!(logger::LogLevel::Info, "Loaded recording preferences from storage");
+                        app_log!(
+                            logger::LogLevel::Info,
+                            "Loaded recording preferences from storage"
+                        );
                     }
                 }
             }
 
             // Initialize recording system
             tauri::async_runtime::block_on(async {
-                if let Err(e) = recording_commands::initialize_recording_system(recording_state).await {
-                    app_log!(logger::LogLevel::Error, "Failed to initialize recording system: {}", e);
+                if let Err(e) =
+                    recording_commands::initialize_recording_system(recording_state).await
+                {
+                    app_log!(
+                        logger::LogLevel::Error,
+                        "Failed to initialize recording system: {}",
+                        e
+                    );
                 }
             });
 
@@ -146,7 +190,11 @@ pub fn run() {
 
                     let state = app_handle.state::<recording_commands::WindowManagerState>();
                     if let Err(e) = recording_commands::check_recording_health(state).await {
-                        app_log!(logger::LogLevel::Warn, "Recording health check failed: {}", e);
+                        app_log!(
+                            logger::LogLevel::Warn,
+                            "Recording health check failed: {}",
+                            e
+                        );
                     }
                 }
             });
@@ -158,11 +206,21 @@ pub fn run() {
                 loop {
                     interval.tick().await;
 
-                    let state = app_handle_progress.state::<recording_commands::WindowManagerState>();
-                    if let Err(e) = recording_commands::emit_recording_progress_event(state, &app_handle_progress).await {
+                    let state =
+                        app_handle_progress.state::<recording_commands::WindowManagerState>();
+                    if let Err(e) = recording_commands::emit_recording_progress_event(
+                        state,
+                        &app_handle_progress,
+                    )
+                    .await
+                    {
                         // Only log if it's not a "no active recording" error
                         if !e.contains("No active recording") {
-                            app_log!(logger::LogLevel::Debug, "Progress event emission failed: {}", e);
+                            app_log!(
+                                logger::LogLevel::Debug,
+                                "Progress event emission failed: {}",
+                                e
+                            );
                         }
                     }
                 }

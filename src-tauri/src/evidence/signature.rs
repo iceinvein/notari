@@ -1,7 +1,7 @@
+use crate::error::{NotariError, NotariResult};
 use base64::{engine::general_purpose, Engine as _};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
-use crate::error::{NotariError, NotariResult};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SignatureInfo {
@@ -25,7 +25,9 @@ impl KeyManager {
     /// Load keypair from bytes
     pub fn from_bytes(bytes: &[u8]) -> NotariResult<Self> {
         if bytes.len() != 32 {
-            return Err(NotariError::SigningFailed("Invalid key length: expected 32 bytes".to_string()));
+            return Err(NotariError::SigningFailed(
+                "Invalid key length: expected 32 bytes".to_string(),
+            ));
         }
         let mut key_bytes = [0u8; 32];
         key_bytes.copy_from_slice(bytes);
@@ -63,19 +65,19 @@ impl KeyManager {
     }
 
     /// Verify a signature
-    pub fn verify(
-        public_key_b64: &str,
-        signature_b64: &str,
-        data: &[u8],
-    ) -> NotariResult<bool> {
+    pub fn verify(public_key_b64: &str, signature_b64: &str, data: &[u8]) -> NotariResult<bool> {
         let public_key_bytes = general_purpose::STANDARD.decode(public_key_b64)?;
         let signature_bytes = general_purpose::STANDARD.decode(signature_b64)?;
 
         if public_key_bytes.len() != 32 {
-            return Err(NotariError::VerificationFailed("Invalid public key length".to_string()));
+            return Err(NotariError::VerificationFailed(
+                "Invalid public key length".to_string(),
+            ));
         }
         if signature_bytes.len() != 64 {
-            return Err(NotariError::VerificationFailed("Invalid signature length".to_string()));
+            return Err(NotariError::VerificationFailed(
+                "Invalid signature length".to_string(),
+            ));
         }
 
         let mut pk_array = [0u8; 32];

@@ -5,6 +5,7 @@ import { Tab, Tabs } from "@heroui/tabs";
 import { Circle, Play, Shield } from "lucide-react";
 import { useState } from "react";
 
+import { useRecordingStateChanged } from "../../hooks/useEventListener";
 import { useStartRecordingMutation } from "../../hooks/useRecordingSystem";
 import AppHeader from "../AppHeader";
 import SettingsModal from "../SettingsModal";
@@ -40,6 +41,14 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 	const [recordingDescription, setRecordingDescription] = useState("");
 	const [recordingTags, setRecordingTags] = useState<string[]>([]);
 	const startRecordingMutation = useStartRecordingMutation();
+
+	// Listen for recording completion at the top level (doesn't unmount)
+	useRecordingStateChanged((event) => {
+		if (event.status === "Completed") {
+			// Navigate to recorded videos tab when recording is completed
+			setSelectedTab("videos");
+		}
+	});
 
 	const handleWindowSelect = async (window: WindowInfo) => {
 		try {
@@ -115,7 +124,6 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 						>
 							<RecordingTab
 								onOpenWindowPicker={handleOpenWindowPicker}
-								onRecordingComplete={() => setSelectedTab("videos")}
 								encryptionPassword={encryptionPassword}
 								setEncryptionPassword={setEncryptionPassword}
 								recordingTitle={recordingTitle}

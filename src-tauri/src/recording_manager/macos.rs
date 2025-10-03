@@ -1,6 +1,6 @@
 use super::{
-    create_recording_session, ActiveRecording, InternalRecordingState, RecordingInfo,
-    RecordingManager, RecordingPreferences, RecordingStatus, SharedRecordingState,
+    ActiveRecording, InternalRecordingState, RecordingInfo,
+    RecordingManager, RecordingPreferences, SharedRecordingState,
 };
 use crate::error::{NotariError, NotariResult};
 use crate::evidence::keychain;
@@ -9,9 +9,12 @@ use crate::evidence::{
     WindowInfo as EvidenceWindowInfo,
 };
 use crate::logger::{LogLevel, LOGGER};
+use crate::pipeline::stages::*;
+use crate::pipeline::{Pipeline, PipelineContext};
 use std::io::BufRead;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use tauri::AppHandle;
 
 use chrono::Utc;
 use uuid::Uuid;
@@ -79,11 +82,7 @@ impl MacOSRecordingManager {
     }
 
     /// Check available disk space at the output path
-    fn check_disk_space(
-        &self,
-        output_path: &PathBuf,
-        estimated_size_mb: u64,
-    ) -> NotariResult<()> {
+    fn check_disk_space(&self, output_path: &PathBuf, estimated_size_mb: u64) -> NotariResult<()> {
         // Get the parent directory of the output file
         let dir = output_path
             .parent()
@@ -174,6 +173,10 @@ impl MacOSRecordingManager {
 }
 
 impl RecordingManager for MacOSRecordingManager {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+
     fn start_recording(
         &self,
         window_id: &str,
@@ -215,12 +218,15 @@ impl RecordingManager for MacOSRecordingManager {
         // Check disk space (estimate 100MB for a typical recording)
         self.check_disk_space(&output_path, 100)?;
 
-        // Create recording session
-        let mut session = create_recording_session(window_id, preferences, output_path.clone());
+        // Create recording session using builder
+        use crate::recording_manager::ActiveRecordingBuilder;
+        let mut builder = ActiveRecordingBuilder::new(window_id)
+            .output_path(output_path.clone())
+            .preferences(preferences.clone());
 
         // Populate window metadata if available
         if let Some(win_info) = window_info {
-            session.window_metadata = Some(crate::recording_manager::WindowMetadata {
+            builder = builder.window_metadata(crate::recording_manager::WindowMetadata {
                 title: win_info.title,
                 app_name: win_info.application,
                 app_bundle_id: "unknown".to_string(), // TODO: Get actual bundle ID
@@ -228,6 +234,8 @@ impl RecordingManager for MacOSRecordingManager {
                 height: win_info.bounds.height,
             });
         }
+
+        let session = builder.build()?;
 
         // Try Swift sidecar (ScreenCaptureKit) first
         let sidecar_path = self.resolve_sidecar_path();
@@ -278,10 +286,22 @@ impl RecordingManager for MacOSRecordingManager {
 
                 // Started SCK sidecar successfully
                 let mut state_guard = state.lock()?;
+
+                // Create state machine in Idle state
+                let state_machine = crate::state_machine::RecordingSessionState::new(
+                    window_id.to_string(),
+                    state_guard.preferences.to_snapshot(),
+                );
+
+                // Note: State machine transitions (Idle → Preparing → Recording) will be
+                // handled by the command layer which has access to AppHandle for event emission.
+                // For now, we store the state machine in Idle state.
+
                 state_guard.active_recording = Some(InternalRecordingState {
                     session: session.clone(),
                     process: Some(child),
                     last_health_check: Utc::now(),
+                    state_machine,
                 });
                 LOGGER.log(
                     LogLevel::Info,
@@ -296,13 +316,7 @@ impl RecordingManager for MacOSRecordingManager {
             }
         }
 
-        // Update status to recording
-        {
-            let mut state_guard = state.lock()?;
-            state_guard.update_status(RecordingStatus::Recording);
-            // Update the session status in our local copy too
-            session.status = RecordingStatus::Recording;
-        }
+        // Status is managed by state machine transitions
 
         LOGGER.log(
             LogLevel::Info,
@@ -327,9 +341,6 @@ impl RecordingManager for MacOSRecordingManager {
                 return Err(NotariError::SessionNotFound(session_id.to_string()));
             }
 
-            // Update status to stopping
-            recording.session.status = RecordingStatus::Stopping;
-
             // Stop backend
             if let Some(mut child) = recording.process.take() {
                 // If it is the SCK sidecar, close stdin to signal graceful stop, then kill if needed
@@ -342,9 +353,6 @@ impl RecordingManager for MacOSRecordingManager {
                 self.terminate_process(&mut child)?;
                 // child dropped here; process cleared to avoid repeated health logs
             }
-
-            // Update status to stopped
-            recording.session.status = RecordingStatus::Stopped;
 
             // Log final file information
             if let Some(file_size) = self.get_file_size(&recording.session.output_path) {
@@ -359,105 +367,8 @@ impl RecordingManager for MacOSRecordingManager {
                 );
             }
 
-            // Compute plaintext hash before encryption
-            let plaintext_hash = match HashInfo::from_file(&recording.session.output_path) {
-                Ok(hash) => Some(hash),
-                Err(e) => {
-                    LOGGER.log(
-                        LogLevel::Error,
-                        &format!("Failed to compute plaintext hash: {}", e),
-                        "recording_manager",
-                    );
-                    None
-                }
-            };
-
-            // Encrypt video if password was provided
-            let (final_video_path, encryption_info) = if let Some(ref password) =
-                recording.session.encryption_password
-            {
-                LOGGER.log(
-                    LogLevel::Info,
-                    "Encrypting recorded video...",
-                    "recording_manager",
-                );
-
-                match self.encrypt_recording(&recording.session, password) {
-                    Ok((encrypted_path, enc_info)) => {
-                        LOGGER.log(
-                            LogLevel::Info,
-                            &format!("Video encrypted successfully: {}", encrypted_path.display()),
-                            "recording_manager",
-                        );
-                        (encrypted_path, Some(enc_info))
-                    }
-                    Err(e) => {
-                        LOGGER.log(
-                            LogLevel::Error,
-                            &format!("Failed to encrypt video: {}", e),
-                            "recording_manager",
-                        );
-                        // Continue with unencrypted video
-                        (recording.session.output_path.clone(), None)
-                    }
-                }
-            } else {
-                (recording.session.output_path.clone(), None)
-            };
-
-            // Update session with final path
-            let mut final_session = recording.session.clone();
-            final_session.output_path = final_video_path.clone();
-
-            // Generate evidence manifest (non-blocking, log errors but don't fail)
-            let manifest_path = final_video_path.with_extension("json");
-            if let Err(e) =
-                self.generate_evidence_manifest(&final_session, encryption_info, plaintext_hash)
-            {
-                LOGGER.log(
-                    LogLevel::Error,
-                    &format!("Failed to generate evidence manifest: {}", e),
-                    "recording_manager",
-                );
-            }
-
-            // Package into .notari proof pack
-            if manifest_path.exists() {
-                let notari_path = final_video_path.with_extension("notari");
-                LOGGER.log(
-                    LogLevel::Info,
-                    &format!(
-                        "Packaging recording into proof pack: {}",
-                        notari_path.display()
-                    ),
-                    "recording_manager",
-                );
-
-                match crate::evidence::proof_pack::create_proof_pack(
-                    &final_video_path,
-                    &manifest_path,
-                    &notari_path,
-                ) {
-                    Ok(_) => {
-                        LOGGER.log(
-                            LogLevel::Info,
-                            "Proof pack created successfully, cleaning up source files",
-                            "recording_manager",
-                        );
-
-                        // Delete the original video and manifest files
-                        let _ = std::fs::remove_file(&final_video_path);
-                        let _ = std::fs::remove_file(&manifest_path);
-                    }
-                    Err(e) => {
-                        LOGGER.log(
-                            LogLevel::Error,
-                            &format!("Failed to create proof pack: {}, keeping original files", e),
-                            "recording_manager",
-                        );
-                    }
-                }
-            }
+            // Note: Post-processing (hashing, encryption, manifest, packaging) is now handled
+            // by the process_recording() method which uses the pipeline pattern
 
             LOGGER.log(
                 LogLevel::Info,
@@ -475,11 +386,7 @@ impl RecordingManager for MacOSRecordingManager {
         Ok(())
     }
 
-    fn pause_recording(
-        &self,
-        _session_id: &str,
-        _state: SharedRecordingState,
-    ) -> NotariResult<()> {
+    fn pause_recording(&self, _session_id: &str, _state: SharedRecordingState) -> NotariResult<()> {
         Err(NotariError::PlatformNotSupported)
     }
 
@@ -538,7 +445,6 @@ impl RecordingManager for MacOSRecordingManager {
                     }
                     Ok(false) => {
                         // Process finished normally; clear process to avoid repeated logs
-                        recording.session.status = RecordingStatus::Stopped;
                         recording.process = None;
                         LOGGER.log(
                             LogLevel::Info,
@@ -551,8 +457,7 @@ impl RecordingManager for MacOSRecordingManager {
                         Ok(())
                     }
                     Err(e) => {
-                        // Process error
-                        recording.session.status = RecordingStatus::Error(e.to_string());
+                        // Process error - state machine will handle Failed state
                         // Clear process on error as well to avoid repeated polling
                         recording.process = None;
                         LOGGER.log(
@@ -582,8 +487,9 @@ impl RecordingManager for MacOSRecordingManager {
 
     fn get_default_save_directory(&self) -> NotariResult<PathBuf> {
         // Use ~/Movies/Notari as default
-        let home_dir = dirs::home_dir()
-            .ok_or_else(|| NotariError::ConfigError("Could not determine home directory".to_string()))?;
+        let home_dir = dirs::home_dir().ok_or_else(|| {
+            NotariError::ConfigError("Could not determine home directory".to_string())
+        })?;
 
         Ok(home_dir.join("Movies").join("Notari"))
     }
@@ -602,14 +508,342 @@ impl RecordingManager for MacOSRecordingManager {
                 let _ = std::fs::remove_file(&test_file);
                 Ok(true)
             }
-            Err(e) => Err(NotariError::DirectoryCreationFailed(format!("Directory not writable: {}", e))),
+            Err(e) => Err(NotariError::DirectoryCreationFailed(format!(
+                "Directory not writable: {}",
+                e
+            ))),
+        }
+    }
+}
+
+// Public methods for post-processing
+impl MacOSRecordingManager {
+    /// Process a completed recording using the pipeline pattern
+    ///
+    /// This method should be called after stop_recording() to perform:
+    /// 1. Hash calculation
+    /// 2. Encryption (if password provided)
+    /// 3. Manifest generation
+    /// 4. Signing
+    /// 5. Packaging into .notari proof pack
+    /// 6. Cleanup of temporary files
+    ///
+    /// Events are emitted to the frontend for progress tracking.
+    pub fn process_recording(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+        app: &AppHandle,
+    ) -> NotariResult<()> {
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Starting post-processing for recording: {}", session_id),
+            "recording_manager",
+        );
+
+        // Get recording info first (before transitioning to Processing)
+        let (
+            video_path,
+            password,
+            start_time,
+            file_size,
+            duration,
+            window_metadata,
+            custom_title,
+            custom_description,
+            custom_tags,
+        ) = {
+            let state_guard = state.lock()?;
+            if let Some(ref recording) = state_guard.active_recording {
+                if recording.session.session_id != session_id {
+                    return Err(NotariError::SessionNotFound(session_id.to_string()));
+                }
+
+                let file_size = self
+                    .get_file_size(&recording.session.output_path)
+                    .unwrap_or(0);
+                let duration = self.calculate_duration(recording.session.start_time) as f64;
+
+                (
+                    recording.session.output_path.clone(),
+                    recording.session.encryption_password.clone(),
+                    recording.session.start_time,
+                    file_size,
+                    duration,
+                    recording.session.window_metadata.clone(),
+                    recording.session.recording_title.clone(),
+                    recording.session.recording_description.clone(),
+                    recording.session.recording_tags.clone(),
+                )
+            } else {
+                return Err(NotariError::NoActiveRecording);
+            }
+        };
+
+        // Verify video file exists
+        if !video_path.exists() {
+            let error_msg = format!("Video file not found: {:?}", video_path);
+            LOGGER.log(LogLevel::Error, &error_msg, "recording_manager");
+            self.transition_to_failed(session_id, state.clone(), error_msg.clone(), app)?;
+            return Err(NotariError::FileNotFound(
+                video_path.to_string_lossy().to_string(),
+            ));
+        }
+
+        LOGGER.log(
+            LogLevel::Debug,
+            &format!(
+                "Video file exists: {:?} (size: {} bytes)",
+                video_path, file_size
+            ),
+            "recording_manager",
+        );
+
+        // Build pipeline
+        let pipeline = Pipeline::builder("post-recording")
+            .add_stage(HashStage::new())
+            .add_stage(EncryptStage::new())
+            .add_stage(ManifestStage::new_auto())
+            .add_stage(SignStage::new())
+            .add_stage(PackageStage::new())
+            .add_stage(CleanupStage::new())
+            .build();
+
+        // Create context
+        let mut context = PipelineContext::new(session_id);
+        context.set_path("video_path", video_path.clone());
+        context.set_number("file_size", file_size as f64);
+        context.set_number("duration", duration);
+        context.set_string("start_time", start_time.to_rfc3339());
+
+        // Add password if provided
+        if let Some(ref pwd) = password {
+            context.set_string("password", pwd);
+        }
+
+        // Add window metadata if available
+        if let Some(ref metadata) = window_metadata {
+            let metadata_json = serde_json::to_value(metadata).map_err(|e| {
+                NotariError::PipelineError(format!("Failed to serialize window metadata: {}", e))
+            })?;
+            context.set("window_metadata", metadata_json);
+        }
+
+        // Add custom metadata if provided
+        if let Some(title) = custom_title {
+            context.set_string("custom_title", title);
+        }
+        if let Some(description) = custom_description {
+            context.set_string("custom_description", description);
+        }
+        if let Some(tags) = custom_tags {
+            let tags_json = serde_json::to_value(&tags).map_err(|e| {
+                NotariError::PipelineError(format!("Failed to serialize tags: {}", e))
+            })?;
+            context.set("custom_tags", tags_json);
+        }
+
+        // Transition state machine: Stopping → Processing (with actual file size and duration)
+        self.transition_to_processing(session_id, state.clone(), file_size, duration, app)?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Transitioned to Processing state and executing pipeline for session: {} (file_size: {}, duration: {})", session_id, file_size, duration),
+            "recording_manager",
+        );
+
+        // Execute pipeline with events
+        let result = pipeline.execute_with_events(&mut context, app)?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Pipeline execution completed for session: {} (success: {})",
+                session_id, result.success
+            ),
+            "recording_manager",
+        );
+
+        if result.success {
+            LOGGER.log(
+                LogLevel::Info,
+                &format!(
+                    "Post-processing completed successfully for recording: {} (duration: {:.2}s)",
+                    session_id,
+                    result.total_duration.as_secs_f64()
+                ),
+                "recording_manager",
+            );
+
+            // Get proof pack path and hash from context
+            let proof_pack_path = context
+                .get_path("proof_pack_path")
+                .unwrap_or_else(|_| video_path.with_extension("notari"));
+            let plaintext_hash = context
+                .get_string("plaintext_hash")
+                .unwrap_or_else(|_| "unknown".to_string());
+            let encrypted = password.is_some();
+
+            // Transition state machine: Processing → Completed
+            self.transition_to_completed(
+                session_id,
+                state.clone(),
+                proof_pack_path,
+                plaintext_hash,
+                encrypted,
+                app,
+            )?;
+
+            Ok(())
+        } else {
+            let error_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());
+            LOGGER.log(
+                LogLevel::Error,
+                &format!(
+                    "Post-processing failed for recording {}: {}",
+                    session_id, error_msg
+                ),
+                "recording_manager",
+            );
+
+            // Transition state machine: Processing → Failed
+            self.transition_to_failed(session_id, state.clone(), error_msg.clone(), app)?;
+
+            Err(NotariError::PipelineError(error_msg))
         }
     }
 }
 
 // Helper methods for evidence generation and encryption
 impl MacOSRecordingManager {
+    /// Transition state machine through recording lifecycle with events
+    pub fn transition_to_preparing(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+        app: &tauri::AppHandle,
+    ) -> NotariResult<()> {
+        let mut state_guard = state.lock()?;
+        if let Some(ref mut recording) = state_guard.active_recording {
+            if recording.session.session_id == session_id {
+                recording.state_machine = recording
+                    .state_machine
+                    .clone()
+                    .prepare(app)
+                    .map_err(|e| NotariError::StateTransitionFailed(e))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Transition to Recording state
+    pub fn transition_to_recording(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+        app: &tauri::AppHandle,
+    ) -> NotariResult<()> {
+        let mut state_guard = state.lock()?;
+        if let Some(ref mut recording) = state_guard.active_recording {
+            if recording.session.session_id == session_id {
+                let output_path = recording.session.output_path.clone();
+                let process_id = recording.process.as_ref().map(|p| p.id()).unwrap_or(0);
+                let encryption_password = recording.session.encryption_password.clone();
+
+                recording.state_machine = recording
+                    .state_machine
+                    .clone()
+                    .start(output_path, process_id, encryption_password, app)
+                    .map_err(|e| NotariError::StateTransitionFailed(e))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Transition to Stopping state
+    pub fn transition_to_stopping(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+        app: &tauri::AppHandle,
+    ) -> NotariResult<()> {
+        let mut state_guard = state.lock()?;
+        if let Some(ref mut recording) = state_guard.active_recording {
+            if recording.session.session_id == session_id {
+                recording.state_machine = recording
+                    .state_machine
+                    .clone()
+                    .stop(app)
+                    .map_err(|e| NotariError::StateTransitionFailed(e))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Transition to Processing state
+    pub fn transition_to_processing(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+        file_size: u64,
+        duration: f64,
+        app: &tauri::AppHandle,
+    ) -> NotariResult<()> {
+        let mut state_guard = state.lock()?;
+        if let Some(ref mut recording) = state_guard.active_recording {
+            if recording.session.session_id == session_id {
+                recording.state_machine = recording
+                    .state_machine
+                    .clone()
+                    .process(file_size, duration, app)
+                    .map_err(|e| NotariError::StateTransitionFailed(e))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Transition to Completed state
+    pub fn transition_to_completed(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+        proof_pack_path: PathBuf,
+        plaintext_hash: String,
+        encrypted: bool,
+        app: &tauri::AppHandle,
+    ) -> NotariResult<()> {
+        let mut state_guard = state.lock()?;
+        if let Some(ref mut recording) = state_guard.active_recording {
+            if recording.session.session_id == session_id {
+                recording.state_machine = recording
+                    .state_machine
+                    .clone()
+                    .complete(proof_pack_path, plaintext_hash, encrypted, app)
+                    .map_err(|e| NotariError::StateTransitionFailed(e))?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Transition to Failed state
+    pub fn transition_to_failed(
+        &self,
+        session_id: &str,
+        state: SharedRecordingState,
+        error: String,
+        app: &tauri::AppHandle,
+    ) -> NotariResult<()> {
+        let mut state_guard = state.lock()?;
+        if let Some(ref mut recording) = state_guard.active_recording {
+            if recording.session.session_id == session_id {
+                recording.state_machine = recording.state_machine.clone().fail(error.clone(), app);
+            }
+        }
+        Ok(())
+    }
+
     /// Encrypt a recorded video file
+    #[allow(dead_code)]
     fn encrypt_recording(
         &self,
         session: &ActiveRecording,
@@ -654,6 +888,8 @@ impl MacOSRecordingManager {
     }
 
     /// Generate evidence manifest for a completed recording
+    #[allow(dead_code)]
+    #[allow(deprecated)]
     fn generate_evidence_manifest(
         &self,
         session: &ActiveRecording,
@@ -819,6 +1055,7 @@ impl MacOSRecordingManager {
     }
 
     /// Get macOS version
+    #[allow(dead_code)]
     fn get_macos_version(&self) -> String {
         std::process::Command::new("sw_vers")
             .arg("-productVersion")
@@ -830,6 +1067,7 @@ impl MacOSRecordingManager {
     }
 
     /// Get device ID (hardware UUID)
+    #[allow(dead_code)]
     fn get_device_id(&self) -> String {
         std::process::Command::new("ioreg")
             .args(&["-d2", "-c", "IOPlatformExpertDevice"])
@@ -846,6 +1084,7 @@ impl MacOSRecordingManager {
     }
 
     /// Get hostname
+    #[allow(dead_code)]
     fn get_hostname(&self) -> String {
         std::process::Command::new("hostname")
             .output()

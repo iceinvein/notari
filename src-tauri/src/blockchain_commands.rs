@@ -425,15 +425,16 @@ pub async fn anchor_recording(
     let _ = EventEmitter::blockchain_anchor_progress(&app, session_id, "Submitting", None);
 
     // Anchor the hash
-    app_log!(crate::logger::LogLevel::Info, "Anchoring manifest hash: {}", &manifest_hash[..16.min(manifest_hash.len())]);
-    let proof = anchorer
-        .anchor(&manifest_hash)
-        .await
-        .map_err(|e| {
-            // Emit anchor failed event
-            let _ = EventEmitter::blockchain_anchor_failed(&app, session_id, &e.to_string());
-            format!("Failed to anchor: {}", e)
-        })?;
+    app_log!(
+        crate::logger::LogLevel::Info,
+        "Anchoring manifest hash: {}",
+        &manifest_hash[..16.min(manifest_hash.len())]
+    );
+    let proof = anchorer.anchor(&manifest_hash).await.map_err(|e| {
+        // Emit anchor failed event
+        let _ = EventEmitter::blockchain_anchor_failed(&app, session_id, &e.to_string());
+        format!("Failed to anchor: {}", e)
+    })?;
     app_log!(crate::logger::LogLevel::Info, "Anchoring successful");
 
     // Update manifest with anchor
@@ -449,10 +450,27 @@ pub async fn anchor_recording(
     use crate::evidence::keychain;
     use crate::evidence::KeyManager;
 
+    // Check if signing key exists
+    if !keychain::has_signing_key() {
+        return Err("No signing key found in keychain. The signing key may have been deleted or the app may have been reinstalled. Cannot anchor recording without the original signing key.".to_string());
+    }
+
     let key_bytes = keychain::retrieve_signing_key()
         .map_err(|e| format!("Failed to retrieve signing key: {}", e))?;
     let key_manager = KeyManager::from_bytes(&key_bytes)
         .map_err(|e| format!("Failed to load signing key: {}", e))?;
+
+    // Verify that this key matches the manifest's public key
+    let manifest_public_key = &manifest.signature.public_key;
+    let current_public_key = {
+        use base64::{engine::general_purpose, Engine as _};
+        general_purpose::STANDARD.encode(key_manager.public_key().as_bytes())
+    };
+
+    if manifest_public_key != &current_public_key {
+        return Err("Signing key mismatch. The key in the keychain does not match the key used to sign this recording. Cannot anchor recording with a different key.".to_string());
+    }
+
     manifest.sign(&key_manager);
 
     // Save updated manifest back to .notari ZIP file

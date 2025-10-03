@@ -32,7 +32,11 @@ impl StorageManager {
                     *store_lock = Some(store);
                 }
                 Err(e) => {
-                    app_log!(crate::logger::LogLevel::Error, "Failed to initialize storage: {}", e);
+                    app_log!(
+                        crate::logger::LogLevel::Error,
+                        "Failed to initialize storage: {}",
+                        e
+                    );
                 }
             }
         }
@@ -54,7 +58,9 @@ impl StorageManager {
         let store = self.get_store()?;
         let json = serde_json::to_value(config)?;
         store.set(BLOCKCHAIN_CONFIG_KEY.to_string(), json);
-        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
+        store
+            .save()
+            .map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
@@ -64,8 +70,7 @@ impl StorageManager {
     ) -> NotariResult<Option<crate::evidence::BlockchainConfig>> {
         let store = self.get_store()?;
         if let Some(value) = store.get(BLOCKCHAIN_CONFIG_KEY) {
-            let config: crate::evidence::BlockchainConfig =
-                serde_json::from_value(value.clone())?;
+            let config: crate::evidence::BlockchainConfig = serde_json::from_value(value.clone())?;
             Ok(Some(config))
         } else {
             Ok(None)
@@ -80,7 +85,9 @@ impl StorageManager {
         let store = self.get_store()?;
         let json = serde_json::to_value(anchors)?;
         store.set(MOCK_ANCHORS_KEY.to_string(), json);
-        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
+        store
+            .save()
+            .map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
@@ -102,7 +109,9 @@ impl StorageManager {
     pub fn clear_mock_anchors(&self) -> NotariResult<()> {
         let store = self.get_store()?;
         store.delete(MOCK_ANCHORS_KEY.to_string());
-        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
+        store
+            .save()
+            .map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
@@ -114,7 +123,9 @@ impl StorageManager {
         let store = self.get_store()?;
         let json = serde_json::to_value(preferences)?;
         store.set(RECORDING_PREFERENCES_KEY.to_string(), json);
-        store.save().map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
+        store
+            .save()
+            .map_err(|e| NotariError::StorageSaveFailed(e.to_string()))?;
         Ok(())
     }
 
@@ -163,4 +174,3 @@ mod tests {
         assert_eq!(manager.store_path, PathBuf::from("notari-store.json"));
     }
 }
-

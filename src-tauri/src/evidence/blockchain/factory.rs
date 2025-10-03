@@ -37,10 +37,8 @@ impl BlockchainAnchorerFactory {
                     .as_ref()
                     .ok_or("No wallet configured for non-Mock environment")?;
 
-                let private_key = WalletManager::get_private_key(
-                    config.chain.chain_id,
-                    &wallet.address,
-                )?;
+                let private_key =
+                    WalletManager::get_private_key(config.chain.chain_id, &wallet.address)?;
 
                 let anchorer = EthereumAnchorer::new(
                     &config.chain.rpc_url,
@@ -80,10 +78,8 @@ impl BlockchainAnchorerFactory {
                     .as_ref()
                     .ok_or("No wallet configured for non-Mock environment")?;
 
-                let private_key = WalletManager::get_private_key(
-                    chain_config.chain_id,
-                    &wallet.address,
-                )?;
+                let private_key =
+                    WalletManager::get_private_key(chain_config.chain_id, &wallet.address)?;
 
                 let anchorer = EthereumAnchorer::new(
                     &chain_config.rpc_url,
@@ -195,4 +191,3 @@ mod tests {
         }
     }
 }
-

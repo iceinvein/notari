@@ -2,8 +2,8 @@ use crate::events::EventEmitter;
 use crate::evidence::proof_pack::ProofPackMetadata;
 use crate::logger::{LogEntry, LogLevel, LOGGER};
 use crate::recording_manager::{
-    create_recording_manager, ActiveRecording, RecordingInfo, RecordingManager,
-    RecordingPreferences, RecordingState, SharedRecordingState,
+    create_recording_manager, ActiveRecordingWithStatus, RecordingInfo,
+    RecordingManager, RecordingPreferences, RecordingState, SharedRecordingState,
 };
 use crate::window_manager::{create_window_manager, PermissionStatus, WindowInfo};
 
@@ -45,6 +45,15 @@ pub fn popover_guard_push(guard: State<'_, PopoverGuard>) {
 #[tauri::command]
 pub fn popover_guard_pop(guard: State<'_, PopoverGuard>) {
     let _ = guard.0.fetch_sub(1, Ordering::SeqCst);
+}
+
+/// Get system temp directory
+#[tauri::command]
+pub fn get_temp_dir() -> Result<String, String> {
+    std::env::temp_dir()
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Failed to get temp directory".to_string())
 }
 
 /// Check screen recording permission status
@@ -147,7 +156,7 @@ pub async fn start_window_recording(
     recording_tags: Option<Vec<String>>,
     state: State<'_, WindowManagerState>,
     app: AppHandle,
-) -> Result<ActiveRecording, String> {
+) -> Result<ActiveRecordingWithStatus, String> {
     LOGGER.log(
         LogLevel::Info,
         &format!(
@@ -205,12 +214,54 @@ pub async fn start_window_recording(
         "recording_commands",
     );
 
-    // Emit recording state changed event
-    if let Ok(session_uuid) = uuid::Uuid::parse_str(&session.session_id) {
-        let _ = EventEmitter::recording_state_changed(&app, session_uuid, "Recording");
+    // Transition state machine: Idle → Preparing → Recording
+    #[cfg(target_os = "macos")]
+    {
+        use crate::recording_manager::macos::MacOSRecordingManager;
+        if let Some(manager) = state
+            .recording_manager
+            .as_any()
+            .downcast_ref::<MacOSRecordingManager>()
+        {
+            // Transition to Preparing
+            if let Err(e) = manager.transition_to_preparing(
+                &session.session_id,
+                state.recording_state.clone(),
+                &app,
+            ) {
+                LOGGER.log(
+                    LogLevel::Warn,
+                    &format!("Failed to transition to Preparing: {}", e),
+                    "recording_commands",
+                );
+            }
+
+            // Transition to Recording
+            if let Err(e) = manager.transition_to_recording(
+                &session.session_id,
+                state.recording_state.clone(),
+                &app,
+            ) {
+                LOGGER.log(
+                    LogLevel::Warn,
+                    &format!("Failed to transition to Recording: {}", e),
+                    "recording_commands",
+                );
+            }
+        }
     }
 
-    Ok(session)
+    // Get status from state machine
+    let status = {
+        let state_guard = state.recording_state.lock().map_err(|e| e.to_string())?;
+        if let Some(ref recording) = state_guard.active_recording {
+            recording.get_status()
+        } else {
+            crate::recording_manager::RecordingStatus::Idle
+        }
+    };
+
+    Ok(session.with_status(status))
 }
 
 /// Stop recording session
@@ -227,8 +278,30 @@ pub async fn stop_recording(
     );
 
     // Parse session_id to UUID for event emission
-    let session_uuid = uuid::Uuid::parse_str(&session_id).map_err(|e| e.to_string())?;
+    let _session_uuid = uuid::Uuid::parse_str(&session_id).map_err(|e| e.to_string())?;
 
+    // Transition state machine: Recording → Stopping
+    #[cfg(target_os = "macos")]
+    {
+        use crate::recording_manager::macos::MacOSRecordingManager;
+        if let Some(manager) = state
+            .recording_manager
+            .as_any()
+            .downcast_ref::<MacOSRecordingManager>()
+        {
+            if let Err(e) =
+                manager.transition_to_stopping(&session_id, state.recording_state.clone(), &app)
+            {
+                LOGGER.log(
+                    LogLevel::Warn,
+                    &format!("Failed to transition to Stopping: {}", e),
+                    "recording_commands",
+                );
+            }
+        }
+    }
+
+    // Stop the recording (stops the process)
     state
         .recording_manager
         .stop_recording(&session_id, state.recording_state.clone())?;
@@ -239,8 +312,42 @@ pub async fn stop_recording(
         "recording_commands",
     );
 
-    // Emit recording state changed event
-    let _ = EventEmitter::recording_state_changed(&app, session_uuid, "Stopped");
+    // Process the recording using the pipeline (hashing, encryption, manifest, packaging)
+    // This is done in a separate step so the frontend can show progress
+    #[cfg(target_os = "macos")]
+    {
+        use crate::recording_manager::macos::MacOSRecordingManager;
+        if let Some(manager) = state
+            .recording_manager
+            .as_any()
+            .downcast_ref::<MacOSRecordingManager>()
+        {
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Starting post-processing for recording: {}", session_id),
+                "recording_commands",
+            );
+
+            match manager.process_recording(&session_id, state.recording_state.clone(), &app) {
+                Ok(_) => {
+                    LOGGER.log(
+                        LogLevel::Info,
+                        &format!("Post-processing completed successfully: {}", session_id),
+                        "recording_commands",
+                    );
+                }
+                Err(e) => {
+                    LOGGER.log(
+                        LogLevel::Error,
+                        &format!("Post-processing failed: {}", e),
+                        "recording_commands",
+                    );
+                    // Error is already logged and state machine transitioned to Failed
+                    // in process_recording(), so we just log here for command context
+                }
+            }
+        }
+    }
 
     Ok(())
 }
@@ -270,10 +377,13 @@ pub async fn get_recording_status(
     session_id: String,
     state: State<'_, WindowManagerState>,
 ) -> Result<crate::recording_manager::RecordingStatus, String> {
-    let info = state
-        .recording_manager
-        .get_recording_info(&session_id, state.recording_state.clone())?;
-    Ok(info.session.status)
+    let state_guard = state.recording_state.lock().map_err(|e| e.to_string())?;
+    if let Some(ref recording) = state_guard.active_recording {
+        if recording.session.session_id == session_id {
+            return Ok(recording.get_status());
+        }
+    }
+    Err("Recording not found".to_string())
 }
 
 /// Get current recording preferences
@@ -328,7 +438,10 @@ pub async fn validate_save_directory(
     state: State<'_, WindowManagerState>,
 ) -> Result<bool, String> {
     let path_buf = std::path::PathBuf::from(path);
-    state.recording_manager.validate_save_directory(&path_buf).map_err(Into::into)
+    state
+        .recording_manager
+        .validate_save_directory(&path_buf)
+        .map_err(Into::into)
 }
 
 /// Open file dialog to select save directory
@@ -431,7 +544,10 @@ pub async fn cleanup_orphaned_recordings(
         "Cleaning up orphaned recordings",
         "recording_commands",
     );
-    state.recording_manager.cleanup_orphaned_recordings().map_err(Into::into)
+    state
+        .recording_manager
+        .cleanup_orphaned_recordings()
+        .map_err(Into::into)
 }
 
 /// Pause recording session
@@ -497,10 +613,10 @@ pub async fn emit_recording_progress_event(
     let recording_state = state.recording_state.lock().map_err(|e| e.to_string())?;
 
     if let Some(ref active) = recording_state.active_recording {
-        // Only emit if recording is actually active (not paused)
-        if active.session.status == crate::recording_manager::RecordingStatus::Recording {
-            let session_uuid = uuid::Uuid::parse_str(&active.session.session_id)
-                .map_err(|e| e.to_string())?;
+        // Only emit if recording is actually active
+        if active.get_status() == crate::recording_manager::RecordingStatus::Recording {
+            let session_uuid =
+                uuid::Uuid::parse_str(&active.session.session_id).map_err(|e| e.to_string())?;
 
             // Calculate duration
             let start_time = active.session.start_time;
@@ -534,9 +650,18 @@ pub async fn emit_recording_progress_event(
 #[tauri::command]
 pub async fn get_active_recording_session(
     state: State<'_, WindowManagerState>,
-) -> Result<Option<ActiveRecording>, String> {
+) -> Result<Option<ActiveRecordingWithStatus>, String> {
     let state_guard = state.recording_state.lock().map_err(|e| e.to_string())?;
-    Ok(state_guard.get_active_session())
+    if let Some(session) = state_guard.get_active_session() {
+        let status = state_guard
+            .active_recording
+            .as_ref()
+            .map(|r| r.get_status())
+            .unwrap_or(crate::recording_manager::RecordingStatus::Idle);
+        Ok(Some(session.with_status(status)))
+    } else {
+        Ok(None)
+    }
 }
 
 /// Check if there's an active recording
@@ -760,8 +885,9 @@ pub async fn verify_recording_deep(
         BlockchainEnvironment::Mock => Box::new(MockAnchorer::new()),
         _ => {
             let wallet = wallet_config.ok_or("No wallet configured for deep verification")?;
-            let private_key = WalletManager::get_private_key(chain_config.chain_id, &wallet.address)
-                .map_err(|e| e.to_string())?;
+            let private_key =
+                WalletManager::get_private_key(chain_config.chain_id, &wallet.address)
+                    .map_err(|e| e.to_string())?;
 
             Box::new(
                 EthereumAnchorer::new(
@@ -850,6 +976,47 @@ pub async fn generate_signing_key() -> Result<String, String> {
     let public_key = key_manager.public_key();
     use base64::{engine::general_purpose, Engine as _};
     Ok(general_purpose::STANDARD.encode(public_key.as_bytes()))
+}
+
+/// Get diagnostic info about signing key
+#[tauri::command]
+pub async fn get_signing_key_info() -> Result<serde_json::Value, String> {
+    use crate::evidence::keychain;
+    use crate::evidence::signature::KeyManager;
+    use base64::{engine::general_purpose, Engine as _};
+
+    let has_key = keychain::has_signing_key();
+
+    if !has_key {
+        return Ok(serde_json::json!({
+            "has_key": false,
+            "public_key": null,
+            "error": null
+        }));
+    }
+
+    match keychain::retrieve_signing_key() {
+        Ok(key_bytes) => match KeyManager::from_bytes(&key_bytes) {
+            Ok(key_manager) => {
+                let public_key = key_manager.public_key();
+                Ok(serde_json::json!({
+                    "has_key": true,
+                    "public_key": general_purpose::STANDARD.encode(public_key.as_bytes()),
+                    "error": null
+                }))
+            }
+            Err(e) => Ok(serde_json::json!({
+                "has_key": true,
+                "public_key": null,
+                "error": format!("Failed to load key: {}", e)
+            })),
+        },
+        Err(e) => Ok(serde_json::json!({
+            "has_key": true,
+            "public_key": null,
+            "error": format!("Failed to retrieve key: {}", e)
+        })),
+    }
 }
 
 /// Encrypt a video file
