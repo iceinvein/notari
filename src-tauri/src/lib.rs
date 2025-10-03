@@ -12,6 +12,7 @@ mod logger;
 pub mod pipeline;
 mod recording_commands;
 mod recording_manager;
+pub mod repository;
 pub mod state_machine;
 mod storage;
 mod video_server;
@@ -106,12 +107,20 @@ pub fn run() {
                 )?;
             }
 
-            // Initialize storage
-            storage::init_storage(app.handle().clone());
+            // Initialize repositories
+            if let Err(e) = repository::init_repositories(app.handle().clone()) {
+                app_log!(
+                    logger::LogLevel::Error,
+                    "Failed to initialize repositories: {}",
+                    e
+                );
+            }
 
-            // Load blockchain config from storage
+            // Load blockchain config from repository
+            use repository::ConfigRepository;
             let blockchain_state = app.state::<blockchain_commands::BlockchainState>();
-            if let Ok(config) = storage::get_storage().load_blockchain_config() {
+            let repo_manager = repository::get_repository_manager();
+            if let Ok(config) = repo_manager.config().load_config() {
                 if let Some(loaded_config) = config {
                     if let Ok(mut config_lock) = blockchain_state.config.lock() {
                         *config_lock = Some(loaded_config);
@@ -154,9 +163,10 @@ pub fn run() {
                 );
             }
 
-            // Load recording preferences from storage
+            // Load recording preferences from repository
+            use repository::PreferencesRepository;
             let recording_state = app.state::<recording_commands::WindowManagerState>();
-            if let Ok(prefs) = storage::get_storage().load_recording_preferences() {
+            if let Ok(prefs) = repo_manager.preferences().load_preferences() {
                 if let Some(loaded_prefs) = prefs {
                     if let Ok(mut state_lock) = recording_state.recording_state.lock() {
                         state_lock.preferences = loaded_prefs;

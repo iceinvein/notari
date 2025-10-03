@@ -1,64 +1,35 @@
-use crate::error::{NotariError, NotariResult};
+//! Keychain operations for signing keys
+//!
+//! This module provides a compatibility layer for keychain operations
+//! using the repository pattern. It wraps the KeychainRepository to
+//! maintain the existing API for gradual migration.
 
-#[cfg(target_os = "macos")]
-use security_framework::passwords::{
-    delete_generic_password, get_generic_password, set_generic_password,
-};
+use crate::error::NotariResult;
+use crate::repository::keychain::{key_ids, KeychainRepository};
+use crate::repository::traits::KeyRepository;
+use once_cell::sync::Lazy;
 
-const SERVICE_NAME: &str = "com.notari.evidence";
-const ACCOUNT_NAME: &str = "signing_key";
+/// Global keychain repository instance
+static KEYCHAIN_REPO: Lazy<KeychainRepository> = Lazy::new(KeychainRepository::new);
 
-/// Store signing key in macOS Keychain
-#[cfg(target_os = "macos")]
+/// Store signing key in Keychain
 pub fn store_signing_key(key_bytes: &[u8]) -> NotariResult<()> {
-    set_generic_password(SERVICE_NAME, ACCOUNT_NAME, key_bytes).map_err(|e| {
-        NotariError::KeychainStoreFailed(format!("Failed to store signing key: {}", e))
-    })?;
-    Ok(())
+    KEYCHAIN_REPO.store_key(key_ids::SIGNING_KEY, key_bytes)
 }
 
-/// Retrieve signing key from macOS Keychain
-#[cfg(target_os = "macos")]
+/// Retrieve signing key from Keychain
 pub fn retrieve_signing_key() -> NotariResult<Vec<u8>> {
-    let key_bytes = get_generic_password(SERVICE_NAME, ACCOUNT_NAME)
-        .map_err(|e| NotariError::NoSigningKey(format!("Failed to retrieve signing key: {}", e)))?;
-    Ok(key_bytes)
+    KEYCHAIN_REPO.retrieve_key(key_ids::SIGNING_KEY)
 }
 
-/// Delete signing key from macOS Keychain
-#[cfg(target_os = "macos")]
+/// Delete signing key from Keychain
 pub fn delete_signing_key() -> NotariResult<()> {
-    delete_generic_password(SERVICE_NAME, ACCOUNT_NAME).map_err(|e| {
-        NotariError::KeychainDeleteFailed(format!("Failed to delete signing key: {}", e))
-    })?;
-    Ok(())
+    KEYCHAIN_REPO.delete_key(key_ids::SIGNING_KEY)
 }
 
 /// Check if signing key exists in Keychain
-#[cfg(target_os = "macos")]
 pub fn has_signing_key() -> bool {
-    get_generic_password(SERVICE_NAME, ACCOUNT_NAME).is_ok()
-}
-
-// Stub implementations for non-macOS platforms
-#[cfg(not(target_os = "macos"))]
-pub fn store_signing_key(_key_bytes: &[u8]) -> NotariResult<()> {
-    Err(NotariError::PlatformNotSupported)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn retrieve_signing_key() -> NotariResult<Vec<u8>> {
-    Err(NotariError::PlatformNotSupported)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn delete_signing_key() -> NotariResult<()> {
-    Err(NotariError::PlatformNotSupported)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn has_signing_key() -> bool {
-    false
+    KEYCHAIN_REPO.has_key(key_ids::SIGNING_KEY).unwrap_or(false)
 }
 
 // Note: No unit tests for keychain operations because:

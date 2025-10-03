@@ -1,7 +1,5 @@
 use crate::error::NotariResult;
-use crate::evidence::{
-    EvidenceManifestBuilder, HashInfo, SystemInfo, Timestamps,
-};
+use crate::evidence::{EvidenceManifestBuilder, HashInfo, SystemInfo, Timestamps};
 
 #[cfg(test)]
 use crate::evidence::EvidenceManifest;

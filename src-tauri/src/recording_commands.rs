@@ -2,8 +2,8 @@ use crate::events::EventEmitter;
 use crate::evidence::proof_pack::ProofPackMetadata;
 use crate::logger::{LogEntry, LogLevel, LOGGER};
 use crate::recording_manager::{
-    create_recording_manager, ActiveRecordingWithStatus, RecordingInfo,
-    RecordingManager, RecordingPreferences, RecordingState, SharedRecordingState,
+    create_recording_manager, ActiveRecordingWithStatus, RecordingInfo, RecordingManager,
+    RecordingPreferences, RecordingState, SharedRecordingState,
 };
 use crate::window_manager::{create_window_manager, PermissionStatus, WindowInfo};
 
@@ -404,8 +404,10 @@ pub async fn update_recording_preferences(
     let mut state_guard = state.recording_state.lock().map_err(|e| e.to_string())?;
     state_guard.preferences = preferences.clone();
 
-    // Persist preferences to storage
-    if let Err(e) = crate::storage::get_storage().save_recording_preferences(&preferences) {
+    // Persist preferences to repository
+    use crate::repository::PreferencesRepository;
+    let repo_manager = crate::repository::get_repository_manager();
+    if let Err(e) = repo_manager.preferences().save_preferences(&preferences) {
         LOGGER.log(
             LogLevel::Warn,
             &format!("Failed to persist recording preferences: {}", e),

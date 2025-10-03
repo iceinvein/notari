@@ -1,6 +1,6 @@
 use super::{
-    ActiveRecording, InternalRecordingState, RecordingInfo,
-    RecordingManager, RecordingPreferences, SharedRecordingState,
+    ActiveRecording, InternalRecordingState, RecordingInfo, RecordingManager, RecordingPreferences,
+    SharedRecordingState,
 };
 use crate::error::{NotariError, NotariResult};
 use crate::evidence::keychain;

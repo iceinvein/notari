@@ -71,7 +71,9 @@ impl MockAnchorer {
             storage.clear();
 
             // Clear persistent storage too
-            let _ = crate::storage::get_storage().clear_mock_anchors();
+            use crate::repository::AnchorRepository;
+            let repo_manager = crate::repository::get_repository_manager();
+            let _ = repo_manager.anchors().clear_all_anchors();
         }
     }
 
@@ -79,7 +81,9 @@ impl MockAnchorer {
     /// Should be called after storage is initialized
     pub fn load_from_storage() {
         if let Ok(mut storage) = MOCK_ANCHOR_STORAGE.lock() {
-            if let Ok(anchors) = crate::storage::get_storage().load_mock_anchors() {
+            use crate::repository::AnchorRepository;
+            let repo_manager = crate::repository::get_repository_manager();
+            if let Ok(anchors) = repo_manager.anchors().load_all_anchors() {
                 *storage = anchors;
                 app_log!(
                     crate::logger::LogLevel::Info,
@@ -122,7 +126,10 @@ impl BlockchainAnchorer for MockAnchorer {
             );
 
             // Persist to disk
-            if let Err(e) = crate::storage::get_storage().save_mock_anchors(&storage) {
+            use crate::repository::AnchorRepository;
+            let repo_manager = crate::repository::get_repository_manager();
+            // Save this specific anchor
+            if let Err(e) = repo_manager.anchors().save_anchor(hash, &proof) {
                 app_log!(
                     crate::logger::LogLevel::Warn,
                     "Mock anchor: failed to persist to disk: {}",

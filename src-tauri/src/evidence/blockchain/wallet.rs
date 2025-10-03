@@ -1,16 +1,26 @@
+//! Wallet manager for blockchain operations
+//!
+//! This module provides wallet management using the repository pattern.
+//! It wraps the KeychainRepository to maintain the existing API.
+
+use crate::repository::keychain::{key_ids, KeychainRepository};
+use crate::repository::traits::KeyRepository;
+use once_cell::sync::Lazy;
 use std::error::Error;
 
-#[cfg(target_os = "macos")]
-use security_framework::passwords::{
-    delete_generic_password, get_generic_password, set_generic_password,
-};
-
-const WALLET_KEYCHAIN_SERVICE: &str = "com.notari.blockchain.wallet";
+/// Global keychain repository instance for wallet keys
+static WALLET_KEYCHAIN_REPO: Lazy<KeychainRepository> =
+    Lazy::new(|| KeychainRepository::with_service_name("com.notari.blockchain.wallet"));
 
 /// Wallet manager for blockchain operations
 pub struct WalletManager;
 
 impl WalletManager {
+    /// Generate a key ID for a wallet private key
+    fn wallet_key_id(chain_id: u64, address: &str) -> String {
+        format!("chain_{}_address_{}", chain_id, address)
+    }
+
     /// Store a private key in the keychain
     ///
     /// # Arguments
@@ -21,15 +31,15 @@ impl WalletManager {
     /// # Returns
     /// * `Ok(())` if successful
     /// * `Err` if keychain operation fails
-    #[cfg(target_os = "macos")]
     pub fn store_private_key(
         chain_id: u64,
         address: &str,
         private_key: &str,
     ) -> Result<(), Box<dyn Error>> {
-        let account = format!("chain_{}_address_{}", chain_id, address);
-        set_generic_password(WALLET_KEYCHAIN_SERVICE, &account, private_key.as_bytes())?;
-        Ok(())
+        let key_id = Self::wallet_key_id(chain_id, address);
+        WALLET_KEYCHAIN_REPO
+            .store_key(&key_id, private_key.as_bytes())
+            .map_err(|e| e.into())
     }
 
     /// Retrieve a private key from the keychain
@@ -41,10 +51,11 @@ impl WalletManager {
     /// # Returns
     /// * `Ok(private_key)` if found
     /// * `Err` if not found or keychain operation fails
-    #[cfg(target_os = "macos")]
     pub fn get_private_key(chain_id: u64, address: &str) -> Result<String, Box<dyn Error>> {
-        let account = format!("chain_{}_address_{}", chain_id, address);
-        let bytes = get_generic_password(WALLET_KEYCHAIN_SERVICE, &account)?;
+        let key_id = Self::wallet_key_id(chain_id, address);
+        let bytes = WALLET_KEYCHAIN_REPO
+            .retrieve_key(&key_id)
+            .map_err(|e| e.to_string())?;
         let private_key = String::from_utf8(bytes)?;
         Ok(private_key)
     }
@@ -58,11 +69,11 @@ impl WalletManager {
     /// # Returns
     /// * `Ok(())` if successful
     /// * `Err` if keychain operation fails
-    #[cfg(target_os = "macos")]
     pub fn delete_private_key(chain_id: u64, address: &str) -> Result<(), Box<dyn Error>> {
-        let account = format!("chain_{}_address_{}", chain_id, address);
-        delete_generic_password(WALLET_KEYCHAIN_SERVICE, &account)?;
-        Ok(())
+        let key_id = Self::wallet_key_id(chain_id, address);
+        WALLET_KEYCHAIN_REPO
+            .delete_key(&key_id)
+            .map_err(|e| e.into())
     }
 
     /// Check if a private key exists in the keychain
@@ -74,34 +85,9 @@ impl WalletManager {
     /// # Returns
     /// * `true` if the private key exists
     /// * `false` otherwise
-    #[cfg(target_os = "macos")]
     pub fn has_private_key(chain_id: u64, address: &str) -> bool {
-        Self::get_private_key(chain_id, address).is_ok()
-    }
-
-    // Stub implementations for non-macOS platforms
-    #[cfg(not(target_os = "macos"))]
-    pub fn store_private_key(
-        _chain_id: u64,
-        _address: &str,
-        _private_key: &str,
-    ) -> Result<(), Box<dyn Error>> {
-        Err("Keychain storage not supported on this platform".into())
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    pub fn get_private_key(_chain_id: u64, _address: &str) -> Result<String, Box<dyn Error>> {
-        Err("Keychain storage not supported on this platform".into())
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    pub fn delete_private_key(_chain_id: u64, _address: &str) -> Result<(), Box<dyn Error>> {
-        Err("Keychain storage not supported on this platform".into())
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    pub fn has_private_key(_chain_id: u64, _address: &str) -> bool {
-        false
+        let key_id = Self::wallet_key_id(chain_id, address);
+        WALLET_KEYCHAIN_REPO.has_key(&key_id).unwrap_or(false)
     }
 
     /// Validate a private key format

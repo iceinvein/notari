@@ -120,7 +120,12 @@ pub async fn set_blockchain_config(
     config.auto_anchor = auto_anchor;
 
     // Save to persistent storage
-    crate::storage::get_storage().save_blockchain_config(&config)?;
+    use crate::repository::ConfigRepository;
+    let repo_manager = crate::repository::get_repository_manager();
+    repo_manager
+        .config()
+        .save_config(&config)
+        .map_err(|e| e.to_string())?;
 
     *config_lock = Some(config);
     Ok(())
@@ -181,7 +186,12 @@ pub async fn store_private_key(
         });
 
         // Save to persistent storage
-        crate::storage::get_storage().save_blockchain_config(config)?;
+        use crate::repository::ConfigRepository;
+        let repo_manager = crate::repository::get_repository_manager();
+        repo_manager
+            .config()
+            .save_config(config)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(address)
@@ -217,7 +227,12 @@ pub async fn delete_private_key(state: State<'_, BlockchainState>) -> Result<(),
         config.wallet = None;
 
         // Save to persistent storage
-        crate::storage::get_storage().save_blockchain_config(config)?;
+        use crate::repository::ConfigRepository;
+        let repo_manager = crate::repository::get_repository_manager();
+        repo_manager
+            .config()
+            .save_config(config)
+            .map_err(|e| e.to_string())?;
     }
 
     Ok(())
