@@ -5,7 +5,7 @@ use super::{
 use crate::error::{NotariError, NotariResult};
 use crate::evidence::keychain;
 use crate::evidence::{
-    EvidenceManifest, HashInfo, KeyManager, Metadata, SystemInfo, Timestamps, VideoInfo,
+    HashInfo, KeyManager, Metadata, SystemInfo, Timestamps, VideoInfo,
     WindowInfo as EvidenceWindowInfo,
 };
 use crate::logger::{LogLevel, LOGGER};
@@ -1053,27 +1053,55 @@ impl MacOSRecordingManager {
             manifest_created_at: now,
         };
 
-        // Create manifest
+        // Create manifest using builder
+        use crate::evidence::EvidenceManifestBuilder;
+
         let session_uuid = Uuid::parse_str(&session.session_id)
             .map_err(|e| format!("Invalid session ID: {}", e))?;
 
-        let mut manifest = EvidenceManifest::new(
-            session_uuid,
-            session.output_path.clone(),
-            manifest_plaintext_hash.clone(),
-            file_size,
-            duration,
-            metadata,
-            system,
-            timestamps,
-        );
+        let mut builder = EvidenceManifestBuilder::new()
+            .session_id(session_uuid)
+            .file_path(session.output_path.clone())
+            .file_hash(manifest_plaintext_hash.clone())
+            .file_size(file_size)
+            .duration(duration)
+            .window_title(&metadata.window.title)
+            .window_id(metadata.window.id)
+            .app_name(&metadata.window.app_name)
+            .app_bundle_id(&metadata.window.app_bundle_id)
+            .resolution(&metadata.video.resolution)
+            .frame_rate(metadata.video.frame_rate)
+            .codec(&metadata.video.codec)
+            .system(
+                &system.os,
+                &system.os_version,
+                &system.device_id,
+                &system.hostname,
+                &system.app_version,
+                &system.recorder,
+            )
+            .timestamps(timestamps);
 
-        // Update encryption fields if video was encrypted
+        // Add custom metadata if present
+        if let Some(custom) = &metadata.custom {
+            if let Some(title) = &custom.title {
+                builder = builder.title(title);
+            }
+            if let Some(description) = &custom.description {
+                builder = builder.description(description);
+            }
+            if let Some(tags) = &custom.tags {
+                for tag in tags {
+                    builder = builder.add_tag(tag);
+                }
+            }
+        }
+
+        // Add encryption info if video was encrypted
         if let Some(enc_info) = encryption_info {
-            manifest.recording.encrypted = true;
-            manifest.recording.encryption = Some(enc_info);
-            // Store the encrypted file hash
-            manifest.recording.encrypted_hash = Some(current_file_hash.clone());
+            builder = builder
+                .encryption_info(enc_info)
+                .encrypted_hash(current_file_hash.clone());
             LOGGER.log(
                 LogLevel::Info,
                 &format!(
@@ -1083,6 +1111,10 @@ impl MacOSRecordingManager {
                 "recording_manager",
             );
         }
+
+        let mut manifest = builder
+            .build()
+            .map_err(|e| format!("Failed to build manifest: {}", e))?;
 
         // Sign manifest
         manifest.sign(&key_manager);
@@ -1145,10 +1177,8 @@ impl MacOSRecordingManager {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::recording_manager::{ActiveRecording, EncryptionRecipient, RecordingPreferences};
     use chrono::Utc;
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
     #[test]

@@ -8,6 +8,8 @@ use uuid::Uuid;
 /// Test the complete workflow: create recording, sign, verify
 #[test]
 fn test_complete_recording_workflow() {
+    use app_lib::evidence::EvidenceManifestBuilder;
+
     // Setup: Create temporary directory
     let temp_dir = TempDir::new().unwrap();
     let video_path = temp_dir.path().join("recording.mov");
@@ -25,47 +27,32 @@ fn test_complete_recording_workflow() {
 
     // Step 3: Create manifest
     let session_id = Uuid::new_v4();
-    let metadata = manifest::Metadata {
-        window: manifest::WindowInfo {
-            title: "Test Window".to_string(),
-            id: 123,
-            app_name: "Test App".to_string(),
-            app_bundle_id: "com.test.app".to_string(),
-        },
-        video: manifest::VideoInfo {
-            resolution: "1920x1080".to_string(),
-            frame_rate: 30,
-            codec: "h264".to_string(),
-        },
-        custom: None,
-    };
-
-    let system = manifest::SystemInfo {
-        os: "macOS".to_string(),
-        os_version: "14.0".to_string(),
-        device_id: "test-device-id".to_string(),
-        hostname: "test-machine".to_string(),
-        app_version: env!("CARGO_PKG_VERSION").to_string(),
-        recorder: "ScreenCaptureKit".to_string(),
-    };
-
     let now = Utc::now();
-    let timestamps = manifest::Timestamps {
-        started_at: now,
-        stopped_at: now,
-        manifest_created_at: now,
-    };
 
-    let mut manifest = EvidenceManifest::new(
-        session_id,
-        video_path.clone(),
-        video_hash.clone(),
-        video_content.len() as u64,
-        10.0,
-        metadata,
-        system,
-        timestamps,
-    );
+    let mut manifest = EvidenceManifestBuilder::new()
+        .session_id(session_id)
+        .file_path(video_path.clone())
+        .file_hash(video_hash.clone())
+        .file_size(video_content.len() as u64)
+        .duration(10.0)
+        .window_title("Test Window")
+        .window_id(123)
+        .app_name("Test App")
+        .app_bundle_id("com.test.app")
+        .resolution("1920x1080")
+        .frame_rate(30)
+        .codec("h264")
+        .system(
+            "macOS",
+            "14.0",
+            "test-device-id",
+            "test-machine",
+            env!("CARGO_PKG_VERSION"),
+            "ScreenCaptureKit",
+        )
+        .timestamps_from_dates(now, now)
+        .build()
+        .unwrap();
 
     // Step 4: Sign manifest
     let key_manager = KeyManager::generate();
@@ -93,6 +80,7 @@ fn test_complete_recording_workflow() {
 
 /// Test encrypted recording workflow
 #[test]
+#[allow(deprecated)]
 fn test_encrypted_recording_workflow() {
     let temp_dir = TempDir::new().unwrap();
     let plaintext_path = temp_dir.path().join("plaintext.mov");
@@ -117,53 +105,37 @@ fn test_encrypted_recording_workflow() {
     let encrypted_hash = HashInfo::from_file(&encrypted_path).unwrap();
 
     // Create manifest with encryption info
+    use app_lib::evidence::EvidenceManifestBuilder;
+
     let session_id = Uuid::new_v4();
-    let metadata = manifest::Metadata {
-        window: manifest::WindowInfo {
-            title: "Encrypted Test".to_string(),
-            id: 456,
-            app_name: "Test App".to_string(),
-            app_bundle_id: "com.test.app".to_string(),
-        },
-        video: manifest::VideoInfo {
-            resolution: "1920x1080".to_string(),
-            frame_rate: 30,
-            codec: "h264".to_string(),
-        },
-        custom: None,
-    };
-
-    let system = manifest::SystemInfo {
-        os: "macOS".to_string(),
-        os_version: "14.0".to_string(),
-        device_id: "test-device-id".to_string(),
-        hostname: "test-machine".to_string(),
-        app_version: env!("CARGO_PKG_VERSION").to_string(),
-        recorder: "ScreenCaptureKit".to_string(),
-    };
-
     let now = Utc::now();
-    let timestamps = manifest::Timestamps {
-        started_at: now,
-        stopped_at: now,
-        manifest_created_at: now,
-    };
 
-    let mut manifest = EvidenceManifest::new(
-        session_id,
-        encrypted_path.clone(),
-        plaintext_hash.clone(),
-        video_content.len() as u64,
-        10.0,
-        metadata,
-        system,
-        timestamps,
-    );
-
-    // Set encryption info
-    manifest.recording.encrypted = true;
-    manifest.recording.encryption = Some(encryption_info.clone());
-    manifest.recording.encrypted_hash = Some(encrypted_hash.clone());
+    let mut manifest = EvidenceManifestBuilder::new()
+        .session_id(session_id)
+        .file_path(encrypted_path.clone())
+        .file_hash(plaintext_hash.clone())
+        .file_size(video_content.len() as u64)
+        .duration(10.0)
+        .window_title("Encrypted Test")
+        .window_id(456)
+        .app_name("Test App")
+        .app_bundle_id("com.test.app")
+        .resolution("1920x1080")
+        .frame_rate(30)
+        .codec("h264")
+        .system(
+            "macOS",
+            "14.0",
+            "test-device-id",
+            "test-machine",
+            env!("CARGO_PKG_VERSION"),
+            "ScreenCaptureKit",
+        )
+        .timestamps_from_dates(now, now)
+        .encryption_info(encryption_info.clone())
+        .encrypted_hash(encrypted_hash.clone())
+        .build()
+        .unwrap();
 
     // Sign manifest
     let key_manager = KeyManager::generate();
@@ -190,6 +162,7 @@ fn test_encrypted_recording_workflow() {
 
 /// Test verification failure when file is tampered
 #[test]
+#[allow(deprecated)]
 fn test_verification_fails_on_tampered_file() {
     let temp_dir = TempDir::new().unwrap();
     let video_path = temp_dir.path().join("recording.mov");
@@ -201,49 +174,29 @@ fn test_verification_fails_on_tampered_file() {
     video_file.flush().unwrap();
 
     // Create and sign manifest
+    use app_lib::evidence::EvidenceManifestBuilder;
+
     let video_hash = HashInfo::from_file(&video_path).unwrap();
     let session_id = Uuid::new_v4();
-    let metadata = manifest::Metadata {
-        window: manifest::WindowInfo {
-            title: "Test".to_string(),
-            id: 789,
-            app_name: "Test".to_string(),
-            app_bundle_id: "com.test".to_string(),
-        },
-        video: manifest::VideoInfo {
-            resolution: "1920x1080".to_string(),
-            frame_rate: 30,
-            codec: "h264".to_string(),
-        },
-        custom: None,
-    };
-
-    let system = manifest::SystemInfo {
-        os: "macOS".to_string(),
-        os_version: "14.0".to_string(),
-        device_id: "test-device".to_string(),
-        hostname: "test".to_string(),
-        app_version: "0.1.0".to_string(),
-        recorder: "ScreenCaptureKit".to_string(),
-    };
-
     let now = Utc::now();
-    let timestamps = manifest::Timestamps {
-        started_at: now,
-        stopped_at: now,
-        manifest_created_at: now,
-    };
 
-    let mut manifest = EvidenceManifest::new(
-        session_id,
-        video_path.clone(),
-        video_hash,
-        16,
-        10.0,
-        metadata,
-        system,
-        timestamps,
-    );
+    let mut manifest = EvidenceManifestBuilder::new()
+        .session_id(session_id)
+        .file_path(video_path.clone())
+        .file_hash(video_hash)
+        .file_size(16)
+        .duration(10.0)
+        .window_title("Test")
+        .window_id(789)
+        .app_name("Test")
+        .app_bundle_id("com.test")
+        .resolution("1920x1080")
+        .frame_rate(30)
+        .codec("h264")
+        .system("macOS", "14.0", "test-device", "test", "0.1.0", "ScreenCaptureKit")
+        .timestamps_from_dates(now, now)
+        .build()
+        .unwrap();
 
     let key_manager = KeyManager::generate();
     manifest.sign(&key_manager);

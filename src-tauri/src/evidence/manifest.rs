@@ -1,7 +1,5 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
-use uuid::Uuid;
 
 use super::blockchain::BlockchainAnchor;
 use super::{HashInfo, SignatureInfo};
@@ -148,72 +146,6 @@ pub struct Timestamps {
 }
 
 impl EvidenceManifest {
-    /// Create a new evidence manifest
-    ///
-    /// # Deprecated
-    /// Use `EvidenceManifestBuilder` instead for a more flexible and type-safe API.
-    ///
-    /// # Example
-    /// ```no_run
-    /// use app_lib::evidence::{EvidenceManifestBuilder, HashInfo};
-    /// use std::path::PathBuf;
-    /// use uuid::Uuid;
-    ///
-    /// let session_id = Uuid::new_v4();
-    /// let file_path = PathBuf::from("/tmp/recording.mov");
-    /// let file_hash = HashInfo::from_bytes(b"test data");
-    /// let file_size = 1024000u64;
-    /// let duration = 60.5;
-    ///
-    /// let manifest = EvidenceManifestBuilder::new()
-    ///     .session_id(session_id)
-    ///     .file_path(file_path)
-    ///     .file_hash(file_hash)
-    ///     .file_size(file_size)
-    ///     .duration(duration)
-    ///     // ... window, video, system fields ...
-    ///     .build()
-    ///     .unwrap();
-    /// ```
-    #[deprecated(
-        since = "0.2.0",
-        note = "Use EvidenceManifestBuilder for a more flexible API"
-    )]
-    pub fn new(
-        session_id: Uuid,
-        file_path: PathBuf,
-        file_hash: HashInfo,
-        file_size: u64,
-        duration: f64,
-        metadata: Metadata,
-        system: SystemInfo,
-        timestamps: Timestamps,
-    ) -> Self {
-        Self {
-            version: "1.0".to_string(),
-            recording: RecordingInfo {
-                session_id: session_id.to_string(),
-                file_path: file_path.to_string_lossy().to_string(),
-                encrypted: false,
-                encryption: None,
-                plaintext_hash: file_hash,
-                encrypted_hash: None,
-                file_size_bytes: file_size,
-                duration_seconds: duration,
-            },
-            metadata,
-            system,
-            timestamps,
-            signature: SignatureInfo {
-                algorithm: String::new(),
-                public_key: String::new(),
-                signature: String::new(),
-                signed_data_hash: String::new(),
-            },
-            blockchain_anchor: None,
-        }
-    }
-
     /// Get the data to be signed (everything except the signature itself)
     /// Note: blockchain_anchor IS included in the signature (if present) to provide
     /// offline verification of anchor metadata. The manifest is re-signed after anchoring.
@@ -286,9 +218,13 @@ impl EvidenceManifest {
 mod tests {
     use super::*;
     use crate::evidence::signature::KeyManager;
+    use std::path::PathBuf;
+    use uuid::Uuid;
 
     #[test]
     fn test_manifest_creation() {
+        use crate::evidence::EvidenceManifestBuilder;
+
         let session_id = Uuid::new_v4();
         let file_path = PathBuf::from("/tmp/test.mov");
         let file_hash = HashInfo {
@@ -296,40 +232,25 @@ mod tests {
             value: "abc123".to_string(),
         };
 
-        let metadata = Metadata {
-            window: WindowInfo {
-                title: "Test Window".to_string(),
-                id: 123,
-                app_name: "Test App".to_string(),
-                app_bundle_id: "com.test.app".to_string(),
-            },
-            video: VideoInfo {
-                resolution: "1920x1080".to_string(),
-                frame_rate: 30,
-                codec: "H.264".to_string(),
-            },
-            custom: None,
-        };
-
-        let system = SystemInfo {
-            os: "macOS".to_string(),
-            os_version: "14.0".to_string(),
-            device_id: "test-device".to_string(),
-            hostname: "test-host".to_string(),
-            app_version: "1.0.0".to_string(),
-            recorder: "notari".to_string(),
-        };
-
         let now = Utc::now();
-        let timestamps = Timestamps {
-            started_at: now,
-            stopped_at: now,
-            manifest_created_at: now,
-        };
 
-        let manifest = EvidenceManifest::new(
-            session_id, file_path, file_hash, 1024, 60.0, metadata, system, timestamps,
-        );
+        let manifest = EvidenceManifestBuilder::new()
+            .session_id(session_id)
+            .file_path(file_path)
+            .file_hash(file_hash)
+            .file_size(1024)
+            .duration(60.0)
+            .window_title("Test Window")
+            .window_id(123)
+            .app_name("Test App")
+            .app_bundle_id("com.test.app")
+            .resolution("1920x1080")
+            .frame_rate(30)
+            .codec("H.264")
+            .system("macOS", "14.0", "test-device", "test-host", "1.0.0", "notari")
+            .timestamps_from_dates(now, now)
+            .build()
+            .unwrap();
 
         assert_eq!(manifest.version, "1.0");
         assert_eq!(manifest.recording.session_id, session_id.to_string());
@@ -337,6 +258,8 @@ mod tests {
 
     #[test]
     fn test_manifest_sign_and_verify() {
+        use crate::evidence::EvidenceManifestBuilder;
+
         let session_id = Uuid::new_v4();
         let file_path = PathBuf::from("/tmp/test.mov");
         let file_hash = HashInfo {
@@ -344,40 +267,25 @@ mod tests {
             value: "abc123".to_string(),
         };
 
-        let metadata = Metadata {
-            window: WindowInfo {
-                title: "Test Window".to_string(),
-                id: 123,
-                app_name: "Test App".to_string(),
-                app_bundle_id: "com.test.app".to_string(),
-            },
-            video: VideoInfo {
-                resolution: "1920x1080".to_string(),
-                frame_rate: 30,
-                codec: "H.264".to_string(),
-            },
-            custom: None,
-        };
-
-        let system = SystemInfo {
-            os: "macOS".to_string(),
-            os_version: "14.0".to_string(),
-            device_id: "test-device".to_string(),
-            hostname: "test-host".to_string(),
-            app_version: "1.0.0".to_string(),
-            recorder: "notari".to_string(),
-        };
-
         let now = Utc::now();
-        let timestamps = Timestamps {
-            started_at: now,
-            stopped_at: now,
-            manifest_created_at: now,
-        };
 
-        let mut manifest = EvidenceManifest::new(
-            session_id, file_path, file_hash, 1024, 60.0, metadata, system, timestamps,
-        );
+        let mut manifest = EvidenceManifestBuilder::new()
+            .session_id(session_id)
+            .file_path(file_path)
+            .file_hash(file_hash)
+            .file_size(1024)
+            .duration(60.0)
+            .window_title("Test Window")
+            .window_id(123)
+            .app_name("Test App")
+            .app_bundle_id("com.test.app")
+            .resolution("1920x1080")
+            .frame_rate(30)
+            .codec("H.264")
+            .system("macOS", "14.0", "test-device", "test-host", "1.0.0", "notari")
+            .timestamps_from_dates(now, now)
+            .build()
+            .unwrap();
 
         let key_manager = KeyManager::generate();
         manifest.sign(&key_manager);
@@ -388,6 +296,7 @@ mod tests {
     #[test]
     fn test_manifest_signature_with_blockchain_anchor() {
         use crate::evidence::blockchain::{AnchorProof, BlockchainAnchor};
+        use crate::evidence::EvidenceManifestBuilder;
 
         let session_id = Uuid::new_v4();
         let file_path = PathBuf::from("/tmp/test.mov");
@@ -396,40 +305,25 @@ mod tests {
             value: "abc123".to_string(),
         };
 
-        let metadata = Metadata {
-            window: WindowInfo {
-                title: "Test Window".to_string(),
-                id: 123,
-                app_name: "Test App".to_string(),
-                app_bundle_id: "com.test.app".to_string(),
-            },
-            video: VideoInfo {
-                resolution: "1920x1080".to_string(),
-                frame_rate: 30,
-                codec: "H.264".to_string(),
-            },
-            custom: None,
-        };
-
-        let system = SystemInfo {
-            os: "macOS".to_string(),
-            os_version: "14.0".to_string(),
-            device_id: "test-device".to_string(),
-            hostname: "test-host".to_string(),
-            app_version: "1.0.0".to_string(),
-            recorder: "notari".to_string(),
-        };
-
         let now = Utc::now();
-        let timestamps = Timestamps {
-            started_at: now,
-            stopped_at: now,
-            manifest_created_at: now,
-        };
 
-        let mut manifest = EvidenceManifest::new(
-            session_id, file_path, file_hash, 1024, 60.0, metadata, system, timestamps,
-        );
+        let mut manifest = EvidenceManifestBuilder::new()
+            .session_id(session_id)
+            .file_path(file_path)
+            .file_hash(file_hash)
+            .file_size(1024)
+            .duration(60.0)
+            .window_title("Test Window")
+            .window_id(123)
+            .app_name("Test App")
+            .app_bundle_id("com.test.app")
+            .resolution("1920x1080")
+            .frame_rate(30)
+            .codec("H.264")
+            .system("macOS", "14.0", "test-device", "test-host", "1.0.0", "notari")
+            .timestamps_from_dates(now, now)
+            .build()
+            .unwrap();
 
         // Sign the manifest first (without anchor)
         let key_manager = KeyManager::generate();

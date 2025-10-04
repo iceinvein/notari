@@ -272,45 +272,6 @@ impl RecordingPreferences {
     }
 }
 
-/// Helper function to create a new recording session
-///
-/// # Deprecated
-/// Use `ActiveRecordingBuilder` instead for a more flexible and type-safe API.
-///
-/// # Example
-/// ```ignore
-/// // This example requires internal types from the recording_manager module
-/// use app_lib::recording_manager::{ActiveRecordingBuilder, RecordingPreferences};
-/// use std::path::PathBuf;
-///
-/// let window_id = "window-123";
-/// let output_path = PathBuf::from("/tmp/recording.mov");
-/// let preferences = RecordingPreferences::default();
-///
-/// let session = ActiveRecordingBuilder::new(window_id)
-///     .output_path(output_path)
-///     .preferences(preferences)
-///     .build()
-///     .unwrap();
-/// ```
-#[deprecated(
-    since = "0.2.0",
-    note = "Use ActiveRecordingBuilder for a more flexible API"
-)]
-#[allow(dead_code)]
-pub fn create_recording_session(
-    window_id: &str,
-    preferences: &RecordingPreferences,
-    output_path: PathBuf,
-) -> ActiveRecording {
-    // Use builder internally for consistency
-    ActiveRecordingBuilder::new(window_id)
-        .output_path(output_path)
-        .preferences(preferences.clone())
-        .build()
-        .expect("Builder should not fail with valid inputs from legacy function")
-}
-
 // Platform-specific implementations
 #[cfg(target_os = "macos")]
 pub mod macos;
@@ -418,11 +379,17 @@ mod tests {
 
     #[test]
     fn test_create_recording_session() {
+        use crate::recording_manager::ActiveRecordingBuilder;
+
         let window_id = "test_window_123";
         let prefs = RecordingPreferences::default();
         let output_path = PathBuf::from("/tmp/test.mov");
 
-        let session = create_recording_session(window_id, &prefs, output_path.clone());
+        let session = ActiveRecordingBuilder::new(window_id)
+            .output_path(output_path.clone())
+            .preferences(prefs)
+            .build()
+            .unwrap();
 
         assert_eq!(session.window_id, window_id);
         assert_eq!(session.output_path, output_path);

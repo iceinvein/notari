@@ -298,15 +298,14 @@ impl Verifier {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::evidence::{
-        manifest::{Metadata, SystemInfo, Timestamps, VideoInfo, WindowInfo},
-        signature::KeyManager,
-    };
+    use crate::evidence::signature::KeyManager;
     use std::io::Write;
     use uuid::Uuid;
 
     #[test]
     fn test_verification_success() {
+        use crate::evidence::EvidenceManifestBuilder;
+
         // Create a test video file
         let mut video_file = tempfile::NamedTempFile::new().unwrap();
         video_file.write_all(b"test video content").unwrap();
@@ -317,47 +316,25 @@ mod tests {
 
         // Create manifest
         let session_id = Uuid::new_v4();
-        let metadata = Metadata {
-            window: WindowInfo {
-                title: "Test Window".to_string(),
-                id: 123,
-                app_name: "Test App".to_string(),
-                app_bundle_id: "com.test.app".to_string(),
-            },
-            video: VideoInfo {
-                resolution: "1920x1080".to_string(),
-                frame_rate: 30,
-                codec: "H.264".to_string(),
-            },
-            custom: None,
-        };
-
-        let system = SystemInfo {
-            os: "macOS".to_string(),
-            os_version: "14.0".to_string(),
-            device_id: "test-device".to_string(),
-            hostname: "test-host".to_string(),
-            app_version: "1.0.0".to_string(),
-            recorder: "notari".to_string(),
-        };
-
         let now = Utc::now();
-        let timestamps = Timestamps {
-            started_at: now,
-            stopped_at: now,
-            manifest_created_at: now,
-        };
 
-        let mut manifest = EvidenceManifest::new(
-            session_id,
-            video_path.to_path_buf(),
-            file_hash,
-            18,
-            60.0,
-            metadata,
-            system,
-            timestamps,
-        );
+        let mut manifest = EvidenceManifestBuilder::new()
+            .session_id(session_id)
+            .file_path(video_path.to_path_buf())
+            .file_hash(file_hash)
+            .file_size(18)
+            .duration(60.0)
+            .window_title("Test Window")
+            .window_id(123)
+            .app_name("Test App")
+            .app_bundle_id("com.test.app")
+            .resolution("1920x1080")
+            .frame_rate(30)
+            .codec("H.264")
+            .system("macOS", "14.0", "test-device", "test-host", "1.0.0", "notari")
+            .timestamps_from_dates(now, now)
+            .build()
+            .unwrap();
 
         // Sign manifest
         let key_manager = KeyManager::generate();
@@ -378,6 +355,8 @@ mod tests {
 
     #[test]
     fn test_verification_fails_with_tampered_video() {
+        use crate::evidence::EvidenceManifestBuilder;
+
         // Create a test video file
         let mut video_file = tempfile::NamedTempFile::new().unwrap();
         video_file.write_all(b"test video content").unwrap();
@@ -388,47 +367,25 @@ mod tests {
 
         // Create and sign manifest
         let session_id = Uuid::new_v4();
-        let metadata = Metadata {
-            window: WindowInfo {
-                title: "Test Window".to_string(),
-                id: 123,
-                app_name: "Test App".to_string(),
-                app_bundle_id: "com.test.app".to_string(),
-            },
-            video: VideoInfo {
-                resolution: "1920x1080".to_string(),
-                frame_rate: 30,
-                codec: "H.264".to_string(),
-            },
-            custom: None,
-        };
-
-        let system = SystemInfo {
-            os: "macOS".to_string(),
-            os_version: "14.0".to_string(),
-            device_id: "test-device".to_string(),
-            hostname: "test-host".to_string(),
-            app_version: "1.0.0".to_string(),
-            recorder: "notari".to_string(),
-        };
-
         let now = Utc::now();
-        let timestamps = Timestamps {
-            started_at: now,
-            stopped_at: now,
-            manifest_created_at: now,
-        };
 
-        let mut manifest = EvidenceManifest::new(
-            session_id,
-            video_path.clone(),
-            file_hash,
-            18,
-            60.0,
-            metadata,
-            system,
-            timestamps,
-        );
+        let mut manifest = EvidenceManifestBuilder::new()
+            .session_id(session_id)
+            .file_path(video_path.clone())
+            .file_hash(file_hash)
+            .file_size(18)
+            .duration(60.0)
+            .window_title("Test Window")
+            .window_id(123)
+            .app_name("Test App")
+            .app_bundle_id("com.test.app")
+            .resolution("1920x1080")
+            .frame_rate(30)
+            .codec("H.264")
+            .system("macOS", "14.0", "test-device", "test-host", "1.0.0", "notari")
+            .timestamps_from_dates(now, now)
+            .build()
+            .unwrap();
 
         let key_manager = KeyManager::generate();
         manifest.sign(&key_manager);
