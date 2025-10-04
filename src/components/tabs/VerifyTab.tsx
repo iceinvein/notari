@@ -1,6 +1,8 @@
 import { Button } from "@heroui/button";
 import { Card, CardBody } from "@heroui/card";
 import { Chip } from "@heroui/chip";
+import { Input } from "@heroui/input";
+import { Modal, ModalBody, ModalContent, ModalFooter, ModalHeader } from "@heroui/modal";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
@@ -10,10 +12,14 @@ import {
 	ExternalLink,
 	FileSearch,
 	FolderOpen,
+	Play,
 	Shield,
 	XCircle,
 } from "lucide-react";
 import { useState } from "react";
+
+import { logger } from "../../utils/logger";
+import { VideoPlayer } from "../VideoPlayer";
 
 type OnChainVerificationResult = {
 	verified: boolean;
@@ -62,7 +68,13 @@ export default function VerifyTab() {
 	const [isVerifying, setIsVerifying] = useState(false);
 	const [verificationResult, setVerificationResult] = useState<VerificationReport | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const [verificationMode, setVerificationMode] = useState<"standard" | "deep">("standard");
+	const [isVerifyingOnChain, setIsVerifyingOnChain] = useState(false);
+
+	// Video playback state
+	const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+	const [videoPlayerPassword, setVideoPlayerPassword] = useState("");
+	const [showPasswordModal, setShowPasswordModal] = useState(false);
+	const [passwordInput, setPasswordInput] = useState("");
 
 	const handleSelectFile = async () => {
 		try {
@@ -102,10 +114,8 @@ export default function VerifyTab() {
 		setError(null);
 
 		try {
-			// For .notari files, both manifestPath and videoPath are the same
-			// The backend will extract and verify automatically
-			const command = verificationMode === "deep" ? "verify_recording_deep" : "verify_recording";
-			const result = await invoke<VerificationReport>(command, {
+			// Always perform standard (offline) verification first
+			const result = await invoke<VerificationReport>("verify_recording", {
 				manifestPath: selectedFile,
 				videoPath: selectedFile,
 			});
@@ -116,6 +126,28 @@ export default function VerifyTab() {
 			setError(err instanceof Error ? err.message : "Verification failed");
 		} finally {
 			setIsVerifying(false);
+		}
+	};
+
+	const handleVerifyOnChain = async () => {
+		if (!selectedFile || !verificationResult) return;
+
+		setIsVerifyingOnChain(true);
+
+		try {
+			// Perform deep verification with on-chain check
+			const result = await invoke<VerificationReport>("verify_recording_deep", {
+				manifestPath: selectedFile,
+				videoPath: selectedFile,
+			});
+
+			// Update verification result with on-chain data
+			setVerificationResult(result);
+		} catch (err) {
+			console.error("On-chain verification failed:", err);
+			setError(err instanceof Error ? err.message : "On-chain verification failed");
+		} finally {
+			setIsVerifyingOnChain(false);
 		}
 	};
 
@@ -145,6 +177,51 @@ export default function VerifyTab() {
 		}
 	};
 
+	const handlePlayVideo = async () => {
+		if (!selectedFile) return;
+
+		try {
+			// Read manifest from .notari file to check encryption
+			const manifestContent = await invoke<string>("read_manifest_from_notari", {
+				notariPath: selectedFile,
+			});
+			const manifest = JSON.parse(manifestContent);
+			const encryptionInfo = manifest.recording?.encryption;
+
+			if (encryptionInfo?.encrypted_keys) {
+				// Public key encryption - play directly (no password needed)
+				logger.info("VerifyTab", "Public key encrypted video, playing directly");
+				setVideoPlayerPassword(""); // Empty password for public key encryption
+				setShowVideoPlayer(true);
+			} else if (encryptionInfo) {
+				// Password-based encryption - show password modal
+				logger.info("VerifyTab", "Password encrypted video, showing password modal");
+				setShowPasswordModal(true);
+			} else {
+				// Not encrypted - play directly
+				logger.info("VerifyTab", "Unencrypted video, playing directly");
+				setVideoPlayerPassword("");
+				setShowVideoPlayer(true);
+			}
+		} catch (err) {
+			logger.error("VerifyTab", "Failed to load manifest", err as Error);
+			// Fallback to password modal
+			setShowPasswordModal(true);
+		}
+	};
+
+	const handlePasswordSubmit = () => {
+		setVideoPlayerPassword(passwordInput);
+		setShowPasswordModal(false);
+		setShowVideoPlayer(true);
+		setPasswordInput("");
+	};
+
+	const handleCloseVideoPlayer = () => {
+		setShowVideoPlayer(false);
+		setVideoPlayerPassword("");
+	};
+
 	return (
 		<div className="h-full overflow-auto p-4 space-y-6">
 			{/* File Selection */}
@@ -169,49 +246,33 @@ export default function VerifyTab() {
 						</Button>
 					</div>
 
-					{/* Verification Mode Selector */}
-					<div className="space-y-2">
-						<h4 className="text-sm font-medium text-foreground">Verification Mode</h4>
-						<div className="flex gap-2">
+					{/* Show Verify button before verification, Play Video button after */}
+					{!verificationResult ? (
+						<Button
+							color="primary"
+							size="lg"
+							className="w-full"
+							onPress={handleVerify}
+							isDisabled={!selectedFile || isVerifying}
+							isLoading={isVerifying}
+							startContent={!isVerifying && <FileSearch className="w-5 h-5" />}
+						>
+							Verify Recording
+						</Button>
+					) : (
+						(verificationResult.verification.status === "VERIFIED" ||
+							verificationResult.verification.status === "WARNING") && (
 							<Button
-								size="sm"
-								variant={verificationMode === "standard" ? "solid" : "flat"}
-								color={verificationMode === "standard" ? "primary" : "default"}
-								onPress={() => setVerificationMode("standard")}
-								className="flex-1"
-								startContent={<Shield className="w-4 h-4" />}
+								color="primary"
+								size="lg"
+								className="w-full"
+								onPress={handlePlayVideo}
+								startContent={<Play className="w-5 h-5" />}
 							>
-								Standard
+								Play Video
 							</Button>
-							<Button
-								size="sm"
-								variant={verificationMode === "deep" ? "solid" : "flat"}
-								color={verificationMode === "deep" ? "primary" : "default"}
-								onPress={() => setVerificationMode("deep")}
-								className="flex-1"
-								startContent={<Anchor className="w-4 h-4" />}
-							>
-								Deep
-							</Button>
-						</div>
-						<p className="text-xs text-foreground-500">
-							{verificationMode === "standard"
-								? "Offline verification: signature, hash, and anchor metadata"
-								: "On-chain verification: includes blockchain query to confirm anchor"}
-						</p>
-					</div>
-
-					<Button
-						color="primary"
-						size="lg"
-						className="w-full"
-						onPress={handleVerify}
-						isDisabled={!selectedFile || isVerifying}
-						isLoading={isVerifying}
-						startContent={!isVerifying && <FileSearch className="w-5 h-5" />}
-					>
-						{verificationMode === "deep" ? "Deep Verify Recording" : "Verify Recording"}
-					</Button>
+						)
+					)}
 				</CardBody>
 			</Card>
 
@@ -350,6 +411,27 @@ export default function VerifyTab() {
 												)}
 											</div>
 										</div>
+
+										{/* Verify On-Chain Button */}
+										{!verificationResult.verification.checks.blockchain_anchor
+											.on_chain_verified && (
+											<div className="mt-3">
+												<Button
+													size="lg"
+													color="primary"
+													className="w-full"
+													onPress={handleVerifyOnChain}
+													isLoading={isVerifyingOnChain}
+													isDisabled={isVerifyingOnChain}
+													startContent={!isVerifyingOnChain && <Anchor className="w-5 h-5" />}
+												>
+													{isVerifyingOnChain ? "Verifying On-Chain..." : "Verify On-Chain"}
+												</Button>
+												<p className="text-xs text-foreground-400 text-center mt-2">
+													Query the blockchain to confirm this anchor exists on-chain
+												</p>
+											</div>
+										)}
 
 										{/* On-chain Verification Result */}
 										{verificationResult.verification.checks.blockchain_anchor.on_chain_verified && (
@@ -513,6 +595,61 @@ export default function VerifyTab() {
 					</div>
 				</div>
 			)}
+
+			{/* Password Modal */}
+			<Modal isOpen={showPasswordModal} onClose={() => setShowPasswordModal(false)}>
+				<ModalContent>
+					<ModalHeader>Enter Password</ModalHeader>
+					<ModalBody>
+						<p className="text-sm text-foreground-500 mb-4">
+							This video is encrypted. Please enter the password to play it.
+						</p>
+						<Input
+							type="password"
+							label="Password"
+							placeholder="Enter password"
+							value={passwordInput}
+							onChange={(e) => setPasswordInput(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter") {
+									handlePasswordSubmit();
+								}
+							}}
+							autoFocus
+						/>
+					</ModalBody>
+					<ModalFooter>
+						<Button variant="flat" onPress={() => setShowPasswordModal(false)}>
+							Cancel
+						</Button>
+						<Button color="primary" onPress={handlePasswordSubmit}>
+							Play Video
+						</Button>
+					</ModalFooter>
+				</ModalContent>
+			</Modal>
+
+			{/* Video Player Modal */}
+			<Modal
+				size="full"
+				isOpen={showVideoPlayer}
+				onClose={handleCloseVideoPlayer}
+				hideCloseButton
+				classNames={{
+					base: "m-0 max-w-full max-h-full",
+					wrapper: "items-center justify-center",
+				}}
+			>
+				<ModalContent className="h-screen">
+					{selectedFile && (
+						<VideoPlayer
+							recordingPath={selectedFile}
+							password={videoPlayerPassword}
+							onClose={handleCloseVideoPlayer}
+						/>
+					)}
+				</ModalContent>
+			</Modal>
 		</div>
 	);
 }
