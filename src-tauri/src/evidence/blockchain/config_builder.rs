@@ -5,8 +5,8 @@ use crate::error::{NotariError, NotariResult};
 ///
 /// # Example
 /// ```
-/// use notari::evidence::blockchain::BlockchainConfigBuilder;
-/// use notari::evidence::blockchain::{BlockchainEnvironment, ChainConfig};
+/// use app_lib::evidence::blockchain::BlockchainConfigBuilder;
+/// use app_lib::evidence::blockchain::{BlockchainEnvironment, ChainConfig};
 ///
 /// let config = BlockchainConfigBuilder::new()
 ///     .enabled(true)

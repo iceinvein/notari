@@ -22,11 +22,13 @@ use std::time::Duration;
 /// - Updates `video_path` to point to encrypted file
 ///
 /// # Example
-/// ```
-/// use notari::pipeline::{Pipeline, PipelineContext};
-/// use notari::pipeline::stages::EncryptStage;
+/// ```no_run
+/// use app_lib::pipeline::{Pipeline, PipelineContext};
+/// use app_lib::pipeline::stages::EncryptStage;
+/// use app_lib::error::NotariResult;
 /// use std::path::PathBuf;
 ///
+/// # fn main() -> NotariResult<()> {
 /// let pipeline = Pipeline::builder("encrypt-video")
 ///     .add_stage(EncryptStage::new())
 ///     .build();
@@ -36,6 +38,8 @@ use std::time::Duration;
 /// context.set_string("password", "SecurePass123");
 ///
 /// let result = pipeline.execute(&mut context)?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct EncryptStage;
 

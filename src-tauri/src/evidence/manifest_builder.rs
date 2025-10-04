@@ -11,9 +11,15 @@ use uuid::Uuid;
 /// Builder for constructing EvidenceManifest instances with a fluent API
 ///
 /// # Example
-/// ```
-/// use notari::evidence::EvidenceManifestBuilder;
+/// ```no_run
+/// use app_lib::evidence::{EvidenceManifestBuilder, HashInfo};
+/// use app_lib::error::NotariResult;
 /// use std::path::PathBuf;
+/// use uuid::Uuid;
+///
+/// # fn main() -> NotariResult<()> {
+/// let session_id = Uuid::new_v4();
+/// let hash_info = HashInfo::from_bytes(b"test data");
 ///
 /// let manifest = EvidenceManifestBuilder::new()
 ///     .session_id(session_id)
@@ -29,6 +35,8 @@ use uuid::Uuid;
 ///     .frame_rate(30)
 ///     .codec("h264")
 ///     .build()?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct EvidenceManifestBuilder {
     // Recording info

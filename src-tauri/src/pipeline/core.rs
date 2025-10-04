@@ -10,7 +10,8 @@ use super::context::PipelineContext;
 ///
 /// # Example
 /// ```
-/// use notari::pipeline::{PipelineStage, PipelineContext};
+/// use app_lib::pipeline::{PipelineStage, PipelineContext};
+/// use app_lib::error::NotariResult;
 ///
 /// struct MyStage;
 ///

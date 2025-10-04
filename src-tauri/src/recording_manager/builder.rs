@@ -7,8 +7,9 @@ use uuid::Uuid;
 /// Builder for constructing ActiveRecording instances with a fluent API
 ///
 /// # Example
-/// ```
-/// use notari::recording_manager::ActiveRecordingBuilder;
+/// ```ignore
+/// // This example requires internal types from the recording_manager module
+/// use app_lib::recording_manager::ActiveRecordingBuilder;
 /// use std::path::PathBuf;
 ///
 /// let recording = ActiveRecordingBuilder::new("window-123")

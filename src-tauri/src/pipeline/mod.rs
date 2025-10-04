@@ -6,8 +6,8 @@
 //!
 //! # Example
 //! ```
-//! use notari::pipeline::{Pipeline, PipelineContext, PipelineStage};
-//! use notari::error::NotariResult;
+//! use app_lib::pipeline::{Pipeline, PipelineContext, PipelineStage};
+//! use app_lib::error::NotariResult;
 //!
 //! // Define a custom stage
 //! struct MyStage;
@@ -27,6 +27,7 @@
 //! }
 //!
 //! // Build and execute pipeline
+//! # fn main() -> NotariResult<()> {
 //! let pipeline = Pipeline::builder("my-pipeline")
 //!     .add_stage(MyStage)
 //!     .build();
@@ -34,6 +35,8 @@
 //! let mut context = PipelineContext::new("session-123");
 //! context.set_string("input", "hello");
 //! let result = pipeline.execute(&mut context)?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod context;

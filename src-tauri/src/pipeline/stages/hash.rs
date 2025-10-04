@@ -13,11 +13,13 @@ use std::time::Duration;
 /// - `plaintext_hash` (HashInfo serialized as JSON) - SHA-256 hash of video
 ///
 /// # Example
-/// ```
-/// use notari::pipeline::{Pipeline, PipelineContext};
-/// use notari::pipeline::stages::HashStage;
+/// ```no_run
+/// use app_lib::pipeline::{Pipeline, PipelineContext};
+/// use app_lib::pipeline::stages::HashStage;
+/// use app_lib::error::NotariResult;
 /// use std::path::PathBuf;
 ///
+/// # fn main() -> NotariResult<()> {
 /// let pipeline = Pipeline::builder("hash-video")
 ///     .add_stage(HashStage::new())
 ///     .build();
@@ -26,6 +28,8 @@ use std::time::Duration;
 /// context.set_path("video_path", PathBuf::from("/tmp/video.mov"));
 ///
 /// let result = pipeline.execute(&mut context)?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct HashStage;
 

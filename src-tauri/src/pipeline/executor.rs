@@ -9,16 +9,33 @@ use tauri::AppHandle;
 /// Pipeline executor that runs stages sequentially
 ///
 /// # Example
-/// ```
-/// use notari::pipeline::{Pipeline, PipelineContext};
+/// ```no_run
+/// use app_lib::pipeline::{Pipeline, PipelineContext, PipelineStage};
+/// use app_lib::error::NotariResult;
 ///
+/// // Example stage implementations
+/// struct Stage1;
+/// impl PipelineStage for Stage1 {
+///     fn execute(&self, _context: &mut PipelineContext) -> NotariResult<()> { Ok(()) }
+///     fn name(&self) -> &str { "Stage1" }
+/// }
+///
+/// struct Stage2;
+/// impl PipelineStage for Stage2 {
+///     fn execute(&self, _context: &mut PipelineContext) -> NotariResult<()> { Ok(()) }
+///     fn name(&self) -> &str { "Stage2" }
+/// }
+///
+/// # fn main() -> NotariResult<()> {
 /// let pipeline = Pipeline::builder("my-pipeline")
-///     .add_stage(Stage1::new())
-///     .add_stage(Stage2::new())
+///     .add_stage(Stage1)
+///     .add_stage(Stage2)
 ///     .build();
 ///
 /// let mut context = PipelineContext::new("session-123");
 /// let result = pipeline.execute(&mut context)?;
+/// # Ok(())
+/// # }
 /// ```
 pub struct Pipeline {
     name: String,

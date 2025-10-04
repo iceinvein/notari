@@ -154,8 +154,16 @@ impl EvidenceManifest {
     /// Use `EvidenceManifestBuilder` instead for a more flexible and type-safe API.
     ///
     /// # Example
-    /// ```
-    /// use notari::evidence::EvidenceManifestBuilder;
+    /// ```no_run
+    /// use app_lib::evidence::{EvidenceManifestBuilder, HashInfo};
+    /// use std::path::PathBuf;
+    /// use uuid::Uuid;
+    ///
+    /// let session_id = Uuid::new_v4();
+    /// let file_path = PathBuf::from("/tmp/recording.mov");
+    /// let file_hash = HashInfo::from_bytes(b"test data");
+    /// let file_size = 1024000u64;
+    /// let duration = 60.5;
     ///
     /// let manifest = EvidenceManifestBuilder::new()
     ///     .session_id(session_id)

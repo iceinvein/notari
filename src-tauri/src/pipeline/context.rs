@@ -10,7 +10,7 @@ use std::path::PathBuf;
 ///
 /// # Example
 /// ```
-/// use notari::pipeline::PipelineContext;
+/// use app_lib::pipeline::PipelineContext;
 /// use std::path::PathBuf;
 ///
 /// let mut context = PipelineContext::new("session-123");

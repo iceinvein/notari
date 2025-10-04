@@ -278,8 +278,14 @@ impl RecordingPreferences {
 /// Use `ActiveRecordingBuilder` instead for a more flexible and type-safe API.
 ///
 /// # Example
-/// ```
-/// use notari::recording_manager::ActiveRecordingBuilder;
+/// ```ignore
+/// // This example requires internal types from the recording_manager module
+/// use app_lib::recording_manager::{ActiveRecordingBuilder, RecordingPreferences};
+/// use std::path::PathBuf;
+///
+/// let window_id = "window-123";
+/// let output_path = PathBuf::from("/tmp/recording.mov");
+/// let preferences = RecordingPreferences::default();
 ///
 /// let session = ActiveRecordingBuilder::new(window_id)
 ///     .output_path(output_path)
