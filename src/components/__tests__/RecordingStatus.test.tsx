@@ -97,14 +97,6 @@ describe("RecordingStatus", () => {
 				mutate: vi.fn(),
 				isPending: false,
 			} as any);
-			vi.mocked(useRecordingSystem.usePauseRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
-			vi.mocked(useRecordingSystem.useResumeRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
 			vi.mocked(useRecordingSystem.useClearActiveRecordingMutation).mockReturnValue({
 				mutate: vi.fn(),
 				isPending: false,
@@ -113,11 +105,10 @@ describe("RecordingStatus", () => {
 			render(<RecordingStatus />, { wrapper: createWrapper() });
 
 			expect(screen.getByText("Recording")).toBeInTheDocument();
-			expect(screen.getByLabelText("Pause")).toBeInTheDocument();
 			expect(screen.getByLabelText("Stop")).toBeInTheDocument();
 		});
 
-		it("should show pause and stop buttons when recording", () => {
+		it("should show stop button when recording", () => {
 			vi.mocked(useRecordingSystem.useActiveRecordingSessionQuery).mockReturnValue({
 				data: {
 					session_id: "test-session",
@@ -132,14 +123,6 @@ describe("RecordingStatus", () => {
 				mutate: vi.fn(),
 				isPending: false,
 			} as any);
-			vi.mocked(useRecordingSystem.usePauseRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
-			vi.mocked(useRecordingSystem.useResumeRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
 			vi.mocked(useRecordingSystem.useClearActiveRecordingMutation).mockReturnValue({
 				mutate: vi.fn(),
 				isPending: false,
@@ -147,15 +130,14 @@ describe("RecordingStatus", () => {
 
 			render(<RecordingStatus />, { wrapper: createWrapper() });
 
-			expect(screen.getByLabelText("Pause")).toBeInTheDocument();
 			expect(screen.getByLabelText("Stop")).toBeInTheDocument();
 		});
 
-		it("should show resume button when paused", () => {
+		it("should show processing status", () => {
 			vi.mocked(useRecordingSystem.useActiveRecordingSessionQuery).mockReturnValue({
 				data: {
 					session_id: "test-session",
-					status: "Paused",
+					status: "Processing",
 					start_time: new Date().toISOString(),
 				},
 			} as any);
@@ -166,14 +148,6 @@ describe("RecordingStatus", () => {
 				mutate: vi.fn(),
 				isPending: false,
 			} as any);
-			vi.mocked(useRecordingSystem.usePauseRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
-			vi.mocked(useRecordingSystem.useResumeRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
 			vi.mocked(useRecordingSystem.useClearActiveRecordingMutation).mockReturnValue({
 				mutate: vi.fn(),
 				isPending: false,
@@ -181,22 +155,17 @@ describe("RecordingStatus", () => {
 
 			render(<RecordingStatus />, { wrapper: createWrapper() });
 
-			expect(screen.getByText("Paused")).toBeInTheDocument();
-			// When paused, only Resume button is shown (Stop is only shown for active recordings)
-			const buttons = screen.getAllByRole("button");
-			const resumeButton = buttons.find((btn) => btn.getAttribute("aria-label") === "Resume");
-
-			expect(resumeButton).toBeDefined();
-			// Stop button is NOT shown when paused (only for Recording/Preparing states)
-			const stopButton = buttons.find((btn) => btn.getAttribute("aria-label") === "Stop");
-			expect(stopButton).toBeUndefined();
+			expect(screen.getByText("Processing")).toBeInTheDocument();
+			// No buttons shown during processing
+			const buttons = screen.queryAllByRole("button");
+			expect(buttons.length).toBe(0);
 		});
 
-		it("should show open and clear buttons when stopped", () => {
+		it("should show open and clear buttons when completed", () => {
 			vi.mocked(useRecordingSystem.useActiveRecordingSessionQuery).mockReturnValue({
 				data: {
 					session_id: "test-session",
-					status: "Stopped",
+					status: "Completed",
 					start_time: new Date().toISOString(),
 					output_path: "/path/to/video.mp4",
 				},
@@ -208,14 +177,6 @@ describe("RecordingStatus", () => {
 				mutate: vi.fn(),
 				isPending: false,
 			} as any);
-			vi.mocked(useRecordingSystem.usePauseRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
-			vi.mocked(useRecordingSystem.useResumeRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
 			vi.mocked(useRecordingSystem.useClearActiveRecordingMutation).mockReturnValue({
 				mutate: vi.fn(),
 				isPending: false,
@@ -223,7 +184,7 @@ describe("RecordingStatus", () => {
 
 			render(<RecordingStatus />, { wrapper: createWrapper() });
 
-			expect(screen.getByText("Stopped")).toBeInTheDocument();
+			expect(screen.getByText("Completed")).toBeInTheDocument();
 			expect(screen.getByLabelText("Open Video")).toBeInTheDocument();
 			expect(screen.getByLabelText("Clear")).toBeInTheDocument();
 		});
@@ -370,28 +331,18 @@ describe("RecordingStatus", () => {
 	});
 
 	describe("duration counter", () => {
-		it("should update duration counter for active recording", async () => {
-			const startTime = new Date(Date.now() - 5000).toISOString(); // 5 seconds ago
-
+		it("should display duration for active recording", async () => {
 			vi.mocked(useRecordingSystem.useActiveRecordingSessionQuery).mockReturnValue({
 				data: {
 					session_id: "test-session",
 					status: "Recording",
-					start_time: startTime,
+					start_time: new Date().toISOString(),
 				},
 			} as any);
 			vi.mocked(useRecordingSystem.useRecordingInfoQuery).mockReturnValue({
-				data: null,
+				data: { duration_seconds: 5, file_size_bytes: 1024 },
 			} as any);
 			vi.mocked(useRecordingSystem.useStopRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
-			vi.mocked(useRecordingSystem.usePauseRecordingMutation).mockReturnValue({
-				mutate: vi.fn(),
-				isPending: false,
-			} as any);
-			vi.mocked(useRecordingSystem.useResumeRecordingMutation).mockReturnValue({
 				mutate: vi.fn(),
 				isPending: false,
 			} as any);
@@ -402,14 +353,13 @@ describe("RecordingStatus", () => {
 
 			render(<RecordingStatus />, { wrapper: createWrapper() });
 
-			// Should show duration (format is "0:05" or "0:06" - around 5-6 seconds)
+			// Should show duration (format is "0:05 •")
 			await waitFor(
 				() => {
-					// Look for text containing duration pattern like "0:05 •" or "0:06 •"
-					const text = screen.getByText(/0:0[456789]\s*•/);
+					const text = screen.getByText(/0:05\s*•/);
 					expect(text).toBeInTheDocument();
 				},
-				{ timeout: 2000 }
+				{ timeout: 1000 }
 			);
 		});
 	});
