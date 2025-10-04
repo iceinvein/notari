@@ -1,17 +1,23 @@
 import { Button } from "@heroui/button";
 import { Input } from "@heroui/input";
 import { Textarea } from "@heroui/react";
-import { Switch } from "@heroui/switch";
-import { Circle, Eye, EyeOff, Lock } from "lucide-react";
+import { Circle } from "lucide-react";
 import { useState } from "react";
 import { useRecordingSystemStatusQuery } from "../../hooks/useRecordingSystem";
+import EncryptionSettings, { type EncryptionMethod, type Recipient } from "../EncryptionSettings";
 import RecordingStatus from "../RecordingStatus";
 import { TagInput } from "../TagInput";
 
 type RecordingTabProps = {
 	onOpenWindowPicker: () => void;
+	encryptionEnabled: boolean;
+	setEncryptionEnabled: (enabled: boolean) => void;
 	encryptionPassword: string;
 	setEncryptionPassword: (password: string) => void;
+	encryptionMethod: EncryptionMethod;
+	setEncryptionMethod: (method: EncryptionMethod) => void;
+	recipients: Recipient[];
+	setRecipients: (recipients: Recipient[]) => void;
 	recordingTitle: string;
 	setRecordingTitle: (title: string) => void;
 	recordingDescription: string;
@@ -22,8 +28,14 @@ type RecordingTabProps = {
 
 export default function RecordingTab({
 	onOpenWindowPicker,
+	encryptionEnabled,
+	setEncryptionEnabled,
 	encryptionPassword,
 	setEncryptionPassword,
+	encryptionMethod,
+	setEncryptionMethod,
+	recipients,
+	setRecipients,
 	recordingTitle,
 	setRecordingTitle,
 	recordingDescription,
@@ -33,8 +45,6 @@ export default function RecordingTab({
 }: RecordingTabProps) {
 	const { data: recordingStatus } = useRecordingSystemStatusQuery();
 
-	const [encryptionEnabled, setEncryptionEnabled] = useState(false);
-	const [showPassword, setShowPassword] = useState(false);
 	const [passwordError, setPasswordError] = useState<string | null>(null);
 
 	const hasActiveRecording = recordingStatus?.has_active_recording ?? false;
@@ -76,12 +86,19 @@ export default function RecordingTab({
 			return;
 		}
 
-		// Validate password if encryption is enabled
+		// Validate encryption settings if enabled
 		if (encryptionEnabled) {
-			const error = validatePassword(encryptionPassword);
-			if (error) {
-				setPasswordError(error);
-				return;
+			if (encryptionMethod === "password") {
+				const error = validatePassword(encryptionPassword);
+				if (error) {
+					setPasswordError(error);
+					return;
+				}
+			} else if (encryptionMethod === "public-key") {
+				if (recipients.length === 0) {
+					setPasswordError("At least one recipient is required for public key encryption");
+					return;
+				}
 			}
 		}
 
@@ -103,78 +120,18 @@ export default function RecordingTab({
 				<>
 					<div className="flex-1 overflow-auto p-4 space-y-4">
 						{/* Encryption Settings */}
-						<div className="p-4 bg-content2 rounded-lg space-y-4">
-							<Switch
-								isSelected={encryptionEnabled}
-								onValueChange={(enabled) => {
-									setEncryptionEnabled(enabled);
-									if (!enabled) {
-										setEncryptionPassword("");
-										setPasswordError(null);
-									}
-								}}
-								size="sm"
-							>
-								<div className="flex items-center space-x-2">
-									<Lock className="w-4 h-4" />
-									<div>
-										<p className="text-sm font-medium">Encrypt Recording</p>
-										<p className="text-xs text-foreground-500">
-											Password-protect your video with AES-256-GCM
-										</p>
-									</div>
-								</div>
-							</Switch>
-
-							{/* Password Input - shown when encryption is enabled */}
-							{encryptionEnabled && (
-								<div className="space-y-2">
-									<Input
-										type={showPassword ? "text" : "password"}
-										label="Encryption Password"
-										placeholder="Enter a strong password"
-										value={encryptionPassword}
-										onValueChange={(value) => {
-											setEncryptionPassword(value);
-											setPasswordError(null);
-										}}
-										isInvalid={!!passwordError}
-										errorMessage={passwordError}
-										endContent={
-											<button
-												className="focus:outline-none"
-												type="button"
-												onClick={() => setShowPassword(!showPassword)}
-											>
-												{showPassword ? (
-													<EyeOff className="w-4 h-4 text-foreground-400" />
-												) : (
-													<Eye className="w-4 h-4 text-foreground-400" />
-												)}
-											</button>
-										}
-										size="sm"
-									/>
-									<div className="text-xs text-foreground-500 space-y-1">
-										<p className="font-medium">Password requirements:</p>
-										<ul className="list-disc list-inside space-y-0.5 ml-2">
-											<li className={encryptionPassword.length >= 8 ? "text-success" : ""}>
-												At least 8 characters
-											</li>
-											<li className={/[A-Z]/.test(encryptionPassword) ? "text-success" : ""}>
-												One uppercase letter
-											</li>
-											<li className={/[a-z]/.test(encryptionPassword) ? "text-success" : ""}>
-												One lowercase letter
-											</li>
-											<li className={/[0-9]/.test(encryptionPassword) ? "text-success" : ""}>
-												One number
-											</li>
-										</ul>
-									</div>
-								</div>
-							)}
-						</div>
+						<EncryptionSettings
+							encryptionEnabled={encryptionEnabled}
+							onEncryptionEnabledChange={setEncryptionEnabled}
+							encryptionMethod={encryptionMethod}
+							onEncryptionMethodChange={setEncryptionMethod}
+							password={encryptionPassword}
+							onPasswordChange={setEncryptionPassword}
+							passwordError={passwordError}
+							onPasswordErrorChange={setPasswordError}
+							recipients={recipients}
+							onRecipientsChange={setRecipients}
+						/>
 
 						{/* Metadata Settings */}
 						<div className="p-4 bg-content2 rounded-lg space-y-4">

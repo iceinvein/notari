@@ -6,7 +6,7 @@ use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use sha2::Sha256;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::{Read, Seek, Write};
 use std::path::Path;
 
 // Re-export types from manifest module
@@ -78,11 +78,12 @@ impl VideoEncryptor {
         use base64::{engine::general_purpose, Engine as _};
         Ok(EncryptionInfo {
             algorithm: "AES-256-GCM".to_string(),
-            key_derivation: KeyDerivationInfo {
+            key_derivation: Some(KeyDerivationInfo {
                 algorithm: "PBKDF2-HMAC-SHA256".to_string(),
                 iterations: PBKDF2_ITERATIONS,
                 salt: general_purpose::STANDARD.encode(&salt),
-            },
+            }),
+            encrypted_keys: None,
             nonce: Some(general_purpose::STANDARD.encode(&nonce_bytes)),
             tag: Some(general_purpose::STANDARD.encode(tag_bytes)),
             chunked: None,
@@ -173,11 +174,12 @@ impl VideoEncryptor {
         // Return encryption info with chunked metadata
         Ok(EncryptionInfo {
             algorithm: "AES-256-GCM-CHUNKED".to_string(),
-            key_derivation: KeyDerivationInfo {
+            key_derivation: Some(KeyDerivationInfo {
                 algorithm: "PBKDF2-HMAC-SHA256".to_string(),
                 iterations: PBKDF2_ITERATIONS,
                 salt: general_purpose::STANDARD.encode(&salt),
-            },
+            }),
+            encrypted_keys: None,
             nonce: None,
             tag: None,
             chunked: Some(ChunkedEncryptionInfo {
@@ -208,7 +210,14 @@ impl VideoEncryptor {
 
         // Legacy file-level decryption
         use base64::{engine::general_purpose, Engine as _};
-        let salt = general_purpose::STANDARD.decode(&encryption_info.key_derivation.salt)?;
+
+        let key_derivation = encryption_info.key_derivation.as_ref().ok_or_else(|| {
+            NotariError::DecryptionFailed(
+                "Missing key derivation info for password-based encryption".to_string(),
+            )
+        })?;
+
+        let salt = general_purpose::STANDARD.decode(&key_derivation.salt)?;
         let nonce_bytes = general_purpose::STANDARD.decode(
             encryption_info.nonce.as_ref().ok_or_else(|| {
                 NotariError::DecryptionFailed("Missing nonce for file-level encryption".to_string())
@@ -220,7 +229,7 @@ impl VideoEncryptor {
         pbkdf2_hmac::<Sha256>(
             password.as_bytes(),
             &salt,
-            encryption_info.key_derivation.iterations,
+            key_derivation.iterations,
             &mut key_bytes,
         );
         let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
@@ -258,15 +267,21 @@ impl VideoEncryptor {
     ) -> NotariResult<()> {
         use base64::{engine::general_purpose, Engine as _};
 
+        let key_derivation = encryption_info.key_derivation.as_ref().ok_or_else(|| {
+            NotariError::DecryptionFailed(
+                "Missing key derivation info for password-based encryption".to_string(),
+            )
+        })?;
+
         // Decode salt
-        let salt = general_purpose::STANDARD.decode(&encryption_info.key_derivation.salt)?;
+        let salt = general_purpose::STANDARD.decode(&key_derivation.salt)?;
 
         // Derive key from password
         let mut key_bytes = [0u8; KEY_SIZE];
         pbkdf2_hmac::<Sha256>(
             password.as_bytes(),
             &salt,
-            encryption_info.key_derivation.iterations,
+            key_derivation.iterations,
             &mut key_bytes,
         );
         let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
@@ -350,15 +365,21 @@ impl VideoEncryptor {
             "encryption",
         );
 
+        let key_derivation = encryption_info.key_derivation.as_ref().ok_or_else(|| {
+            NotariError::DecryptionFailed(
+                "Missing key derivation info for password-based encryption".to_string(),
+            )
+        })?;
+
         // Decode salt
-        let salt = general_purpose::STANDARD.decode(&encryption_info.key_derivation.salt)?;
+        let salt = general_purpose::STANDARD.decode(&key_derivation.salt)?;
 
         // Derive key from password
         let mut key_bytes = [0u8; KEY_SIZE];
         pbkdf2_hmac::<Sha256>(
             password.as_bytes(),
             &salt,
-            encryption_info.key_derivation.iterations,
+            key_derivation.iterations,
             &mut key_bytes,
         );
         let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
@@ -449,6 +470,178 @@ impl VideoEncryptor {
         Ok(plaintext)
     }
 
+    /// Decrypt a specific chunk by index with private key (for streaming with public key encryption)
+    pub fn decrypt_chunk_by_index_with_private_key<P: AsRef<Path>>(
+        input_path: P,
+        chunk_index: usize,
+        private_key: &crypto_box::SecretKey,
+        encryption_info: &EncryptionInfo,
+    ) -> NotariResult<Vec<u8>> {
+        use base64::{engine::general_purpose, Engine as _};
+
+        let chunked_info = encryption_info
+            .chunked
+            .as_ref()
+            .ok_or_else(|| NotariError::DecryptionFailed("Not a chunked encryption".to_string()))?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Decrypting chunk {} of {} total chunks with private key",
+                chunk_index, chunked_info.total_chunks
+            ),
+            "encryption",
+        );
+
+        let chunk_info = chunked_info.chunks.get(chunk_index).ok_or_else(|| {
+            NotariError::DecryptionFailed(format!(
+                "Chunk index {} out of bounds (total chunks: {})",
+                chunk_index,
+                chunked_info.chunks.len()
+            ))
+        })?;
+
+        // Get video key by decrypting with private key (only need to do this once, but for simplicity we do it per chunk)
+        // In a real implementation, you'd cache the video key
+        let video_key_bytes =
+            Self::decrypt_video_key_with_private_key(private_key, encryption_info)?;
+        let key = Key::<Aes256Gcm>::from_slice(&video_key_bytes);
+
+        // Create cipher
+        let cipher = Aes256Gcm::new(key);
+
+        // Decode nonce for this chunk
+        let nonce_bytes = general_purpose::STANDARD
+            .decode(&chunk_info.nonce)
+            .map_err(|e| {
+                LOGGER.log(
+                    LogLevel::Error,
+                    &format!("Failed to decode nonce for chunk {}: {}", chunk_index, e),
+                    "encryption",
+                );
+                format!("Failed to decode nonce for chunk {}: {}", chunk_index, e)
+            })?;
+
+        if nonce_bytes.len() != NONCE_SIZE {
+            let err_msg = format!(
+                "Invalid nonce size for chunk {}: expected {}, got {}",
+                chunk_index,
+                NONCE_SIZE,
+                nonce_bytes.len()
+            );
+            LOGGER.log(LogLevel::Error, &err_msg, "encryption");
+            return Err(NotariError::DecryptionFailed(err_msg));
+        }
+
+        let nonce = Nonce::from_slice(&nonce_bytes);
+
+        // Open input file and seek to chunk
+        let mut input_file = File::open(&input_path)?;
+        use std::io::Seek;
+        input_file.seek(std::io::SeekFrom::Start(chunk_info.offset))?;
+
+        // Read encrypted chunk
+        let mut ciphertext = vec![0u8; chunk_info.size as usize];
+        input_file.read_exact(&mut ciphertext).map_err(|e| {
+            LOGGER.log(
+                LogLevel::Error,
+                &format!(
+                    "Failed to read chunk {} at offset {}: {}",
+                    chunk_index, chunk_info.offset, e
+                ),
+                "encryption",
+            );
+            NotariError::DecryptionFailed(format!(
+                "Failed to read chunk {} at offset {}: {}",
+                chunk_index, chunk_info.offset, e
+            ))
+        })?;
+
+        // Decrypt chunk
+        let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|e| {
+            LOGGER.log(
+                LogLevel::Error,
+                &format!("Decryption error for chunk {}: {:?}", chunk_index, e),
+                "encryption",
+            );
+            NotariError::DecryptionFailed(format!(
+                "Decryption failed for chunk {}: incorrect key or corrupted file",
+                chunk_index
+            ))
+        })?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Successfully decrypted chunk {} with private key - plaintext size: {}",
+                chunk_index,
+                plaintext.len()
+            ),
+            "encryption",
+        );
+
+        Ok(plaintext)
+    }
+
+    /// Helper method to decrypt video key with private key
+    fn decrypt_video_key_with_private_key(
+        private_key: &crypto_box::SecretKey,
+        encryption_info: &EncryptionInfo,
+    ) -> NotariResult<Vec<u8>> {
+        use base64::{engine::general_purpose, Engine as _};
+
+        // Get encrypted keys
+        let encrypted_keys = encryption_info.encrypted_keys.as_ref().ok_or_else(|| {
+            NotariError::DecryptionFailed("No encrypted keys found in encryption info".to_string())
+        })?;
+
+        // Find our encrypted key entry
+        let my_public_key = private_key.public_key();
+        let my_public_key_b64 = general_purpose::STANDARD.encode(my_public_key.as_bytes());
+
+        let encrypted_key_entry = encrypted_keys
+            .iter()
+            .find(|ek| ek.recipient_public_key == my_public_key_b64)
+            .ok_or_else(|| {
+                NotariError::DecryptionFailed(
+                    "No encrypted key found for this recipient".to_string(),
+                )
+            })?;
+
+        // Decode ephemeral public key
+        let ephemeral_public_key_bytes =
+            general_purpose::STANDARD.decode(&encrypted_key_entry.ephemeral_public_key)?;
+        let ephemeral_public_key = crypto_box::PublicKey::from(
+            <[u8; 32]>::try_from(ephemeral_public_key_bytes.as_slice()).map_err(|_| {
+                NotariError::DecryptionFailed("Invalid ephemeral public key length".to_string())
+            })?,
+        );
+
+        // Create shared secret box
+        let salsa_box = crypto_box::SalsaBox::new(&ephemeral_public_key, private_key);
+
+        // Decode encrypted video key (format: nonce || ciphertext)
+        let encrypted_video_key_data =
+            general_purpose::STANDARD.decode(&encrypted_key_entry.encrypted_video_key)?;
+
+        if encrypted_video_key_data.len() < 24 {
+            return Err(NotariError::DecryptionFailed(
+                "Encrypted video key too short".to_string(),
+            ));
+        }
+
+        // Split nonce and ciphertext
+        let (nonce_bytes, key_ciphertext) = encrypted_video_key_data.split_at(24);
+        let key_nonce = crypto_box::Nonce::from_slice(nonce_bytes);
+
+        // Decrypt video key
+        let video_key_bytes = salsa_box.decrypt(key_nonce, key_ciphertext).map_err(|e| {
+            NotariError::DecryptionFailed(format!("Failed to decrypt video key: {:?}", e))
+        })?;
+
+        Ok(video_key_bytes)
+    }
+
     /// Decrypt a byte range (for HTTP range requests)
     pub fn decrypt_byte_range<P: AsRef<Path>>(
         input_path: P,
@@ -536,6 +729,398 @@ impl VideoEncryptor {
 
         Ok(result)
     }
+
+    /// Decrypt a byte range with private key (for HTTP range requests with public key encryption)
+    pub fn decrypt_byte_range_with_private_key<P: AsRef<Path>>(
+        input_path: P,
+        start: u64,
+        end: u64,
+        private_key: &crypto_box::SecretKey,
+        encryption_info: &EncryptionInfo,
+    ) -> NotariResult<Vec<u8>> {
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "decrypt_byte_range_with_private_key: requested bytes {}-{} (total {} bytes)",
+                start,
+                end,
+                end - start + 1
+            ),
+            "encryption",
+        );
+
+        let chunked_info = encryption_info
+            .chunked
+            .as_ref()
+            .ok_or_else(|| NotariError::DecryptionFailed("Not a chunked encryption".to_string()))?;
+
+        // Calculate which chunks we need
+        let chunk_size = chunked_info.chunk_size;
+        let start_chunk = (start / chunk_size) as usize;
+        let end_chunk = (end / chunk_size) as usize;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "decrypt_byte_range_with_private_key: need chunks {}-{} (chunk_size={})",
+                start_chunk, end_chunk, chunk_size
+            ),
+            "encryption",
+        );
+
+        let mut result = Vec::new();
+
+        // Decrypt needed chunks
+        for chunk_idx in start_chunk..=end_chunk {
+            if chunk_idx >= chunked_info.total_chunks {
+                break;
+            }
+
+            let chunk_data = Self::decrypt_chunk_by_index_with_private_key(
+                &input_path,
+                chunk_idx,
+                private_key,
+                encryption_info,
+            )?;
+
+            // Calculate which bytes from this chunk we need
+            let chunk_start_offset = chunk_idx as u64 * chunk_size;
+            let chunk_end_offset = chunk_start_offset + chunk_data.len() as u64 - 1;
+
+            let copy_start = if start > chunk_start_offset {
+                (start - chunk_start_offset) as usize
+            } else {
+                0
+            };
+
+            let copy_end = if end < chunk_end_offset {
+                (end - chunk_start_offset + 1) as usize
+            } else {
+                chunk_data.len()
+            };
+
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("decrypt_byte_range_with_private_key: chunk {} - chunk_offset={}-{}, copy_range={}..{}, copying {} bytes",
+                    chunk_idx, chunk_start_offset, chunk_end_offset, copy_start, copy_end, copy_end - copy_start),
+                "encryption",
+            );
+
+            result.extend_from_slice(&chunk_data[copy_start..copy_end]);
+        }
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "decrypt_byte_range_with_private_key: returning {} bytes (requested {})",
+                result.len(),
+                end - start + 1
+            ),
+            "encryption",
+        );
+
+        Ok(result)
+    }
+
+    // ============================================================================
+    // Public Key Encryption Methods
+    // ============================================================================
+
+    /// Encrypt a video file with public key encryption (chunked)
+    ///
+    /// This method:
+    /// 1. Generates a random 256-bit video encryption key
+    /// 2. Encrypts the video with AES-256-GCM using the video key (chunked)
+    /// 3. Encrypts the video key with each recipient's public key (X25519)
+    /// 4. Returns EncryptionInfo with encrypted keys for all recipients
+    pub fn encrypt_file_with_public_keys<P: AsRef<Path>>(
+        input_path: P,
+        output_path: P,
+        recipient_public_keys: Vec<(String, crypto_box::PublicKey)>, // (recipient_id, public_key)
+    ) -> NotariResult<EncryptionInfo> {
+        use crate::evidence::EncryptedKey;
+        use base64::{engine::general_purpose, Engine as _};
+
+        // Validate recipients
+        if recipient_public_keys.is_empty() {
+            return Err(NotariError::EncryptionFailed(
+                "At least one recipient is required for public key encryption".to_string(),
+            ));
+        }
+
+        // 1. Generate random video encryption key (256-bit)
+        let mut video_key_bytes = [0u8; KEY_SIZE];
+        OsRng.fill_bytes(&mut video_key_bytes);
+        let video_key = Key::<Aes256Gcm>::from_slice(&video_key_bytes);
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Encrypting video with public key encryption for {} recipients",
+                recipient_public_keys.len()
+            ),
+            "encryption",
+        );
+
+        // 2. Encrypt video with AES-256-GCM using video key (chunked)
+        let cipher = Aes256Gcm::new(video_key);
+        let mut input_file = File::open(&input_path)?;
+        let mut output_file = File::create(&output_path)?;
+
+        let file_size = input_file.metadata()?.len();
+        let mut chunks = Vec::new();
+        let mut plaintext_offset = 0u64;
+        let mut ciphertext_offset = 0u64;
+        let mut chunk_index = 0;
+
+        while plaintext_offset < file_size {
+            // Calculate chunk size (last chunk may be smaller)
+            let remaining = file_size - plaintext_offset;
+            let current_chunk_size = std::cmp::min(CHUNK_SIZE as u64, remaining) as usize;
+
+            // Read chunk
+            let mut plaintext_chunk = vec![0u8; current_chunk_size];
+            input_file.read_exact(&mut plaintext_chunk)?;
+
+            // Generate unique nonce for this chunk
+            let mut nonce_bytes = [0u8; NONCE_SIZE];
+            OsRng.fill_bytes(&mut nonce_bytes);
+            let nonce = Nonce::from_slice(&nonce_bytes);
+
+            // Encrypt chunk
+            let ciphertext = cipher
+                .encrypt(nonce, plaintext_chunk.as_ref())
+                .map_err(|e| {
+                    NotariError::EncryptionFailed(format!(
+                        "Encryption failed for chunk {}: {}",
+                        chunk_index, e
+                    ))
+                })?;
+
+            // Write encrypted chunk
+            output_file.write_all(&ciphertext)?;
+
+            // Store chunk info
+            chunks.push(ChunkInfo {
+                index: chunk_index,
+                offset: ciphertext_offset,
+                size: ciphertext.len() as u64,
+                nonce: general_purpose::STANDARD.encode(&nonce_bytes),
+            });
+
+            plaintext_offset += current_chunk_size as u64;
+            ciphertext_offset += ciphertext.len() as u64;
+            chunk_index += 1;
+        }
+
+        let total_chunks = chunks.len();
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!("Video encrypted into {} chunks", total_chunks),
+            "encryption",
+        );
+
+        // 3. Encrypt video key for each recipient using their public key
+        let mut encrypted_keys = Vec::new();
+
+        for (recipient_id, recipient_public_key) in recipient_public_keys {
+            // Generate ephemeral keypair for this encryption
+            let ephemeral_secret = crypto_box::SecretKey::generate(&mut OsRng);
+            let ephemeral_public = ephemeral_secret.public_key();
+
+            // Create crypto_box for encryption
+            let salsa_box = crypto_box::SalsaBox::new(&recipient_public_key, &ephemeral_secret);
+
+            // Generate nonce for key encryption
+            let mut key_nonce_bytes = [0u8; 24]; // XSalsa20 uses 24-byte nonce
+            OsRng.fill_bytes(&mut key_nonce_bytes);
+            let key_nonce = crypto_box::Nonce::from(key_nonce_bytes);
+
+            // Encrypt video key
+            let ciphertext = salsa_box
+                .encrypt(&key_nonce, &video_key_bytes[..])
+                .map_err(|e| {
+                    NotariError::EncryptionFailed(format!(
+                        "Failed to encrypt video key for recipient {}: {}",
+                        recipient_id, e
+                    ))
+                })?;
+
+            // Prepend nonce to ciphertext (nonce || ciphertext)
+            let mut encrypted_video_key = Vec::with_capacity(24 + ciphertext.len());
+            encrypted_video_key.extend_from_slice(&key_nonce_bytes);
+            encrypted_video_key.extend_from_slice(&ciphertext);
+
+            encrypted_keys.push(EncryptedKey {
+                recipient_id: recipient_id.clone(),
+                recipient_public_key: general_purpose::STANDARD
+                    .encode(recipient_public_key.as_bytes()),
+                ephemeral_public_key: general_purpose::STANDARD.encode(ephemeral_public.as_bytes()),
+                encrypted_video_key: general_purpose::STANDARD.encode(&encrypted_video_key),
+                algorithm: "X25519-XSalsa20-Poly1305".to_string(),
+            });
+
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Encrypted video key for recipient: {}", recipient_id),
+                "encryption",
+            );
+        }
+
+        // 4. Return encryption info
+        Ok(EncryptionInfo {
+            algorithm: "AES-256-GCM-CHUNKED-PUBKEY".to_string(),
+            key_derivation: None,
+            encrypted_keys: Some(encrypted_keys),
+            nonce: None,
+            tag: None,
+            chunked: Some(ChunkedEncryptionInfo {
+                chunk_size: CHUNK_SIZE as u64,
+                total_chunks,
+                chunks,
+            }),
+        })
+    }
+
+    /// Decrypt a video file with public key encryption
+    ///
+    /// This method:
+    /// 1. Finds the encrypted video key for this recipient
+    /// 2. Decrypts the video key using the recipient's private key
+    /// 3. Decrypts the video using the video key
+    pub fn decrypt_file_with_private_key<P: AsRef<Path>>(
+        input_path: P,
+        output_path: P,
+        private_key: &crypto_box::SecretKey,
+        encryption_info: &EncryptionInfo,
+    ) -> NotariResult<()> {
+        use base64::{engine::general_purpose, Engine as _};
+
+        LOGGER.log(
+            LogLevel::Info,
+            "Decrypting video with private key",
+            "encryption",
+        );
+
+        // 1. Get encrypted keys
+        let encrypted_keys = encryption_info.encrypted_keys.as_ref().ok_or_else(|| {
+            NotariError::DecryptionFailed("No encrypted keys found in encryption info".to_string())
+        })?;
+
+        // 2. Find encrypted key for this recipient (try all keys)
+        let my_public_key = private_key.public_key();
+        let my_public_key_b64 = general_purpose::STANDARD.encode(my_public_key.as_bytes());
+
+        let encrypted_key_entry = encrypted_keys
+            .iter()
+            .find(|ek| ek.recipient_public_key == my_public_key_b64)
+            .ok_or_else(|| {
+                NotariError::DecryptionFailed(
+                    "No encrypted key found for this recipient".to_string(),
+                )
+            })?;
+
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Found encrypted key for recipient: {}",
+                encrypted_key_entry.recipient_id
+            ),
+            "encryption",
+        );
+
+        // 3. Decrypt video key
+        let encrypted_video_key_bytes =
+            general_purpose::STANDARD.decode(&encrypted_key_entry.encrypted_video_key)?;
+
+        // Extract nonce (first 24 bytes) and ciphertext
+        if encrypted_video_key_bytes.len() < 24 {
+            return Err(NotariError::DecryptionFailed(
+                "Invalid encrypted video key: too short".to_string(),
+            ));
+        }
+
+        let key_nonce_bytes: [u8; 24] = encrypted_video_key_bytes[..24]
+            .try_into()
+            .map_err(|_| NotariError::DecryptionFailed("Invalid nonce".to_string()))?;
+        let key_nonce = crypto_box::Nonce::from(key_nonce_bytes);
+        let key_ciphertext = &encrypted_video_key_bytes[24..];
+
+        // Decrypt using recipient's private key and ephemeral public key
+        let ephemeral_public_key_bytes =
+            general_purpose::STANDARD.decode(&encrypted_key_entry.ephemeral_public_key)?;
+        let mut ephemeral_pk_array = [0u8; 32];
+        ephemeral_pk_array.copy_from_slice(&ephemeral_public_key_bytes);
+        let ephemeral_public_key = crypto_box::PublicKey::from(ephemeral_pk_array);
+
+        let salsa_box = crypto_box::SalsaBox::new(&ephemeral_public_key, private_key);
+        let video_key_bytes = salsa_box.decrypt(&key_nonce, key_ciphertext).map_err(|e| {
+            NotariError::DecryptionFailed(format!(
+                "Failed to decrypt video key: {}. Wrong private key?",
+                e
+            ))
+        })?;
+
+        if video_key_bytes.len() != KEY_SIZE {
+            return Err(NotariError::DecryptionFailed(
+                "Invalid video key size after decryption".to_string(),
+            ));
+        }
+
+        LOGGER.log(
+            LogLevel::Info,
+            "Video key decrypted successfully",
+            "encryption",
+        );
+
+        // 4. Decrypt video using video key
+        let video_key = Key::<Aes256Gcm>::from_slice(&video_key_bytes);
+        let cipher = Aes256Gcm::new(video_key);
+
+        let chunked_info = encryption_info
+            .chunked
+            .as_ref()
+            .ok_or_else(|| NotariError::DecryptionFailed("Not a chunked encryption".to_string()))?;
+
+        let mut input_file = File::open(&input_path)?;
+        let mut output_file = File::create(&output_path)?;
+
+        // Decrypt each chunk
+        for chunk_info in &chunked_info.chunks {
+            // Decode nonce
+            let nonce_bytes = general_purpose::STANDARD.decode(&chunk_info.nonce)?;
+            if nonce_bytes.len() != NONCE_SIZE {
+                return Err(NotariError::DecryptionFailed(format!(
+                    "Invalid nonce size for chunk {}: expected {}, got {}",
+                    chunk_info.index,
+                    NONCE_SIZE,
+                    nonce_bytes.len()
+                )));
+            }
+            let nonce = Nonce::from_slice(&nonce_bytes);
+
+            // Read encrypted chunk
+            input_file.seek(std::io::SeekFrom::Start(chunk_info.offset))?;
+            let mut ciphertext = vec![0u8; chunk_info.size as usize];
+            input_file.read_exact(&mut ciphertext)?;
+
+            // Decrypt chunk
+            let plaintext = cipher.decrypt(nonce, ciphertext.as_ref()).map_err(|_| {
+                NotariError::DecryptionFailed(format!(
+                    "Decryption failed for chunk {}: corrupted file or wrong key",
+                    chunk_info.index
+                ))
+            })?;
+
+            // Write decrypted chunk
+            output_file.write_all(&plaintext)?;
+        }
+
+        LOGGER.log(LogLevel::Info, "Video decrypted successfully", "encryption");
+
+        Ok(())
+    }
 }
 
 /// Validate password strength
@@ -582,11 +1167,10 @@ mod tests {
 
         // Verify encryption info
         assert_eq!(encryption_info.algorithm, "AES-256-GCM");
-        assert_eq!(
-            encryption_info.key_derivation.algorithm,
-            "PBKDF2-HMAC-SHA256"
-        );
-        assert_eq!(encryption_info.key_derivation.iterations, PBKDF2_ITERATIONS);
+        assert!(encryption_info.key_derivation.is_some());
+        let key_derivation = encryption_info.key_derivation.as_ref().unwrap();
+        assert_eq!(key_derivation.algorithm, "PBKDF2-HMAC-SHA256");
+        assert_eq!(key_derivation.iterations, PBKDF2_ITERATIONS);
 
         // Decrypt
         let decrypted_file = NamedTempFile::new().unwrap();
@@ -841,11 +1425,12 @@ mod tests {
         // Create encryption info
         let encryption_info = EncryptionInfo {
             algorithm: "AES-256-GCM".to_string(),
-            key_derivation: KeyDerivationInfo {
+            key_derivation: Some(KeyDerivationInfo {
                 algorithm: "PBKDF2-HMAC-SHA256".to_string(),
                 iterations: PBKDF2_ITERATIONS,
                 salt: "test_salt_base64".to_string(),
-            },
+            }),
+            encrypted_keys: None,
             nonce: Some("test_nonce_base64".to_string()),
             tag: Some("test_tag_base64".to_string()),
             chunked: None,
@@ -857,9 +1442,238 @@ mod tests {
 
         assert_eq!(deserialized.algorithm, encryption_info.algorithm);
         assert_eq!(
-            deserialized.key_derivation.iterations,
-            encryption_info.key_derivation.iterations
+            deserialized.key_derivation.as_ref().unwrap().iterations,
+            encryption_info.key_derivation.as_ref().unwrap().iterations
         );
         assert_eq!(deserialized.nonce, encryption_info.nonce);
+    }
+
+    // ========================================================================
+    // Public Key Encryption Tests
+    // ========================================================================
+
+    #[test]
+    fn test_public_key_encrypt_decrypt_roundtrip() {
+        use crate::evidence::EncryptionKeyManager;
+
+        // Create test file
+        let mut input_file = NamedTempFile::new().unwrap();
+        let test_data = b"This is a test video file for public key encryption";
+        input_file.write_all(test_data).unwrap();
+        input_file.flush().unwrap();
+
+        // Generate recipient key pair
+        let recipient_key_manager = EncryptionKeyManager::generate();
+        let recipient_public_key = recipient_key_manager.public_key();
+
+        // Encrypt for recipient
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let recipients = vec![("alice@example.com".to_string(), recipient_public_key)];
+
+        let encryption_info = VideoEncryptor::encrypt_file_with_public_keys(
+            input_file.path(),
+            encrypted_file.path(),
+            recipients,
+        )
+        .unwrap();
+
+        // Verify encryption info
+        assert_eq!(encryption_info.algorithm, "AES-256-GCM-CHUNKED-PUBKEY");
+        assert!(encryption_info.key_derivation.is_none());
+        assert!(encryption_info.encrypted_keys.is_some());
+        let encrypted_keys = encryption_info.encrypted_keys.as_ref().unwrap();
+        assert_eq!(encrypted_keys.len(), 1);
+        assert_eq!(encrypted_keys[0].recipient_id, "alice@example.com");
+        assert_eq!(encrypted_keys[0].algorithm, "X25519-XSalsa20-Poly1305");
+
+        // Decrypt with recipient's private key
+        let decrypted_file = NamedTempFile::new().unwrap();
+        VideoEncryptor::decrypt_file_with_private_key(
+            encrypted_file.path(),
+            decrypted_file.path(),
+            recipient_key_manager.secret_key(),
+            &encryption_info,
+        )
+        .unwrap();
+
+        // Verify decrypted content matches original
+        let mut decrypted_content = Vec::new();
+        File::open(decrypted_file.path())
+            .unwrap()
+            .read_to_end(&mut decrypted_content)
+            .unwrap();
+        assert_eq!(decrypted_content, test_data);
+    }
+
+    #[test]
+    fn test_public_key_multi_recipient() {
+        use crate::evidence::EncryptionKeyManager;
+
+        // Create test file
+        let mut input_file = NamedTempFile::new().unwrap();
+        let test_data = b"Multi-recipient test data";
+        input_file.write_all(test_data).unwrap();
+        input_file.flush().unwrap();
+
+        // Generate 3 recipient key pairs
+        let alice_key = EncryptionKeyManager::generate();
+        let bob_key = EncryptionKeyManager::generate();
+        let charlie_key = EncryptionKeyManager::generate();
+
+        // Encrypt for all 3 recipients
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let recipients = vec![
+            ("alice@example.com".to_string(), alice_key.public_key()),
+            ("bob@example.com".to_string(), bob_key.public_key()),
+            ("charlie@example.com".to_string(), charlie_key.public_key()),
+        ];
+
+        let encryption_info = VideoEncryptor::encrypt_file_with_public_keys(
+            input_file.path(),
+            encrypted_file.path(),
+            recipients,
+        )
+        .unwrap();
+
+        // Verify 3 encrypted keys
+        let encrypted_keys = encryption_info.encrypted_keys.as_ref().unwrap();
+        assert_eq!(encrypted_keys.len(), 3);
+
+        // Each recipient should be able to decrypt
+        for (key_manager, expected_id) in [
+            (&alice_key, "alice@example.com"),
+            (&bob_key, "bob@example.com"),
+            (&charlie_key, "charlie@example.com"),
+        ] {
+            let decrypted_file = NamedTempFile::new().unwrap();
+            VideoEncryptor::decrypt_file_with_private_key(
+                encrypted_file.path(),
+                decrypted_file.path(),
+                key_manager.secret_key(),
+                &encryption_info,
+            )
+            .unwrap();
+
+            let mut decrypted_content = Vec::new();
+            File::open(decrypted_file.path())
+                .unwrap()
+                .read_to_end(&mut decrypted_content)
+                .unwrap();
+            assert_eq!(decrypted_content, test_data, "Failed for {}", expected_id);
+        }
+    }
+
+    #[test]
+    fn test_public_key_wrong_private_key() {
+        use crate::evidence::EncryptionKeyManager;
+
+        // Create test file
+        let mut input_file = NamedTempFile::new().unwrap();
+        let test_data = b"Secret data";
+        input_file.write_all(test_data).unwrap();
+        input_file.flush().unwrap();
+
+        // Generate recipient key pair
+        let recipient_key = EncryptionKeyManager::generate();
+
+        // Encrypt for recipient
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let recipients = vec![("alice@example.com".to_string(), recipient_key.public_key())];
+
+        let encryption_info = VideoEncryptor::encrypt_file_with_public_keys(
+            input_file.path(),
+            encrypted_file.path(),
+            recipients,
+        )
+        .unwrap();
+
+        // Try to decrypt with wrong private key
+        let wrong_key = EncryptionKeyManager::generate();
+        let decrypted_file = NamedTempFile::new().unwrap();
+
+        let result = VideoEncryptor::decrypt_file_with_private_key(
+            encrypted_file.path(),
+            decrypted_file.path(),
+            wrong_key.secret_key(),
+            &encryption_info,
+        );
+
+        // Should fail
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("No encrypted key found"));
+    }
+
+    #[test]
+    fn test_public_key_large_file() {
+        use crate::evidence::EncryptionKeyManager;
+
+        // Create large test file (5MB - multiple chunks)
+        let mut input_file = NamedTempFile::new().unwrap();
+        let chunk_data = vec![0xAB; CHUNK_SIZE]; // 1MB of data
+        for _ in 0..5 {
+            input_file.write_all(&chunk_data).unwrap();
+        }
+        input_file.flush().unwrap();
+
+        // Generate recipient key pair
+        let recipient_key = EncryptionKeyManager::generate();
+
+        // Encrypt
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let recipients = vec![("alice@example.com".to_string(), recipient_key.public_key())];
+
+        let encryption_info = VideoEncryptor::encrypt_file_with_public_keys(
+            input_file.path(),
+            encrypted_file.path(),
+            recipients,
+        )
+        .unwrap();
+
+        // Verify chunked
+        assert!(encryption_info.chunked.is_some());
+        let chunked_info = encryption_info.chunked.as_ref().unwrap();
+        assert_eq!(chunked_info.total_chunks, 5);
+
+        // Decrypt
+        let decrypted_file = NamedTempFile::new().unwrap();
+        VideoEncryptor::decrypt_file_with_private_key(
+            encrypted_file.path(),
+            decrypted_file.path(),
+            recipient_key.secret_key(),
+            &encryption_info,
+        )
+        .unwrap();
+
+        // Verify size matches
+        let original_size = input_file.as_file().metadata().unwrap().len();
+        let decrypted_size = File::open(decrypted_file.path())
+            .unwrap()
+            .metadata()
+            .unwrap()
+            .len();
+        assert_eq!(decrypted_size, original_size);
+    }
+
+    #[test]
+    fn test_public_key_empty_recipients() {
+        // Create test file
+        let mut input_file = NamedTempFile::new().unwrap();
+        input_file.write_all(b"test").unwrap();
+        input_file.flush().unwrap();
+
+        let encrypted_file = NamedTempFile::new().unwrap();
+        let recipients = vec![];
+
+        let result = VideoEncryptor::encrypt_file_with_public_keys(
+            input_file.path(),
+            encrypted_file.path(),
+            recipients,
+        );
+
+        // Should fail - need at least one recipient
+        assert!(result.is_err());
     }
 }

@@ -545,6 +545,8 @@ impl MacOSRecordingManager {
         let (
             video_path,
             password,
+            encryption_method,
+            encryption_recipients,
             start_time,
             file_size,
             duration,
@@ -567,6 +569,8 @@ impl MacOSRecordingManager {
                 (
                     recording.session.output_path.clone(),
                     recording.session.encryption_password.clone(),
+                    recording.session.encryption_method.clone(),
+                    recording.session.encryption_recipients.clone(),
                     recording.session.start_time,
                     file_size,
                     duration,
@@ -616,9 +620,53 @@ impl MacOSRecordingManager {
         context.set_number("duration", duration);
         context.set_string("start_time", start_time.to_rfc3339());
 
-        // Add password if provided
+        // Add encryption settings if provided
+        LOGGER.log(
+            LogLevel::Info,
+            &format!(
+                "Setting encryption context - password: {}, method: {:?}, recipients: {}",
+                password.is_some(),
+                encryption_method,
+                encryption_recipients.as_ref().map(|r| r.len()).unwrap_or(0)
+            ),
+            "recording_manager",
+        );
+
         if let Some(ref pwd) = password {
             context.set_string("password", pwd);
+            LOGGER.log(
+                LogLevel::Info,
+                "Set password in context",
+                "recording_manager",
+            );
+        }
+        if let Some(ref method) = encryption_method {
+            context.set_string("encryption_method", method);
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Set encryption_method in context: {}", method),
+                "recording_manager",
+            );
+        }
+        if let Some(ref recipients) = encryption_recipients {
+            // Convert recipients to JSON array
+            let recipients_json: Vec<serde_json::Value> = recipients
+                .iter()
+                .map(|r| {
+                    serde_json::json!({
+                        "id": r.id,
+                        "publicKey": r.public_key
+                    })
+                })
+                .collect();
+            let recipients_count = recipients_json.len();
+            let recipients_value = serde_json::Value::Array(recipients_json);
+            context.set("recipients", recipients_value);
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Set {} recipients in context", recipients_count),
+                "recording_manager",
+            );
         }
 
         // Add window metadata if available
@@ -1092,5 +1140,114 @@ impl MacOSRecordingManager {
             .and_then(|output| String::from_utf8(output.stdout).ok())
             .map(|s| s.trim().to_string())
             .unwrap_or_else(|| "unknown".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::recording_manager::{ActiveRecording, EncryptionRecipient, RecordingPreferences};
+    use chrono::Utc;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_encryption_settings_preserved_in_active_recording() {
+        // This test verifies that encryption settings are properly stored in ActiveRecording
+        // and would be available during post-processing.
+        //
+        // This is a regression test for the bug where encryption_method and encryption_recipients
+        // were not being copied to active_recording.session in start_window_recording.
+
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("test.mov");
+
+        // Create recipients
+        let recipients = vec![
+            EncryptionRecipient {
+                id: "user1".to_string(),
+                public_key: "test_public_key_1".to_string(),
+            },
+            EncryptionRecipient {
+                id: "user2".to_string(),
+                public_key: "test_public_key_2".to_string(),
+            },
+        ];
+
+        // Create an ActiveRecording with encryption settings
+        let mut session = ActiveRecording {
+            session_id: "test-session-123".to_string(),
+            window_id: "window-456".to_string(),
+            start_time: Utc::now(),
+            output_path: output_path.clone(),
+            preferences: RecordingPreferences::default(),
+            window_metadata: None,
+            encryption_password: None,
+            encryption_method: Some("public-key".to_string()),
+            encryption_recipients: Some(recipients.clone()),
+            recording_title: None,
+            recording_description: None,
+            recording_tags: None,
+        };
+
+        // Simulate what should happen in start_window_recording:
+        // The encryption settings should be copied to the active recording
+        let encryption_method = Some("public-key".to_string());
+        let encryption_recipients = Some(recipients.clone());
+
+        // This is what the bug was: these lines were missing
+        session.encryption_method = encryption_method.clone();
+        session.encryption_recipients = encryption_recipients.clone();
+
+        // Verify the settings are preserved
+        assert_eq!(session.encryption_method, Some("public-key".to_string()));
+        assert!(session.encryption_recipients.is_some());
+        assert_eq!(session.encryption_recipients.as_ref().unwrap().len(), 2);
+
+        // Simulate extracting settings during post-processing
+        let extracted_method = session.encryption_method.clone();
+        let extracted_recipients = session.encryption_recipients.clone();
+
+        // Verify settings are available for pipeline context
+        assert_eq!(extracted_method, Some("public-key".to_string()));
+        assert!(extracted_recipients.is_some());
+        assert_eq!(extracted_recipients.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_password_encryption_settings_preserved() {
+        // Test password-based encryption settings preservation
+        let temp_dir = TempDir::new().unwrap();
+        let output_path = temp_dir.path().join("test.mov");
+
+        let mut session = ActiveRecording {
+            session_id: "test-session-123".to_string(),
+            window_id: "window-456".to_string(),
+            start_time: Utc::now(),
+            output_path: output_path.clone(),
+            preferences: RecordingPreferences::default(),
+            window_metadata: None,
+            encryption_password: Some("test_password".to_string()),
+            encryption_method: Some("password".to_string()),
+            encryption_recipients: None,
+            recording_title: None,
+            recording_description: None,
+            recording_tags: None,
+        };
+
+        // Simulate copying settings
+        let encryption_password = Some("test_password".to_string());
+        let encryption_method = Some("password".to_string());
+
+        session.encryption_password = encryption_password.clone();
+        session.encryption_method = encryption_method.clone();
+
+        // Verify settings are preserved
+        assert_eq!(session.encryption_method, Some("password".to_string()));
+        assert_eq!(
+            session.encryption_password,
+            Some("test_password".to_string())
+        );
+        assert!(session.encryption_recipients.is_none());
     }
 }

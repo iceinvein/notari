@@ -64,6 +64,13 @@ pub struct WindowMetadata {
     pub height: u32,
 }
 
+/// Recipient for public key encryption
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptionRecipient {
+    pub id: String,
+    pub public_key: String,
+}
+
 /// Information about an active recording session (internal, no status field)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActiveRecording {
@@ -74,8 +81,11 @@ pub struct ActiveRecording {
     // Note: status is derived from state machine, not stored here
     pub preferences: RecordingPreferences,
     pub window_metadata: Option<WindowMetadata>,
+    // Encryption settings
     #[serde(skip_serializing)]
     pub encryption_password: Option<String>,
+    pub encryption_method: Option<String>, // "password" or "public-key"
+    pub encryption_recipients: Option<Vec<EncryptionRecipient>>,
     // Custom metadata fields
     pub recording_title: Option<String>,
     pub recording_description: Option<String>,
@@ -470,6 +480,8 @@ mod tests {
                 height: 1080,
             }),
             encryption_password: None,
+            encryption_method: None,
+            encryption_recipients: None,
             recording_title: Some("My Recording".to_string()),
             recording_description: Some("Test description".to_string()),
             recording_tags: Some(vec!["test".to_string(), "demo".to_string()]),
@@ -484,5 +496,75 @@ mod tests {
         assert_eq!(deserialized.recording_tags, session.recording_tags);
         // encryption_password should not be serialized
         assert!(deserialized.encryption_password.is_none());
+    }
+
+    #[test]
+    fn test_active_recording_encryption_settings() {
+        // Test that encryption settings are properly stored in ActiveRecording
+        let recipients = vec![
+            EncryptionRecipient {
+                id: "user1".to_string(),
+                public_key: "test_public_key_1".to_string(),
+            },
+            EncryptionRecipient {
+                id: "user2".to_string(),
+                public_key: "test_public_key_2".to_string(),
+            },
+        ];
+
+        let session = ActiveRecording {
+            session_id: "test-session-123".to_string(),
+            window_id: "window-456".to_string(),
+            start_time: Utc::now(),
+            output_path: PathBuf::from("/tmp/test.mov"),
+            preferences: RecordingPreferences::default(),
+            window_metadata: None,
+            encryption_password: None,
+            encryption_method: Some("public-key".to_string()),
+            encryption_recipients: Some(recipients.clone()),
+            recording_title: None,
+            recording_description: None,
+            recording_tags: None,
+        };
+
+        // Verify encryption settings are stored
+        assert_eq!(session.encryption_method, Some("public-key".to_string()));
+        assert!(session.encryption_recipients.is_some());
+        assert_eq!(session.encryption_recipients.as_ref().unwrap().len(), 2);
+        assert_eq!(
+            session.encryption_recipients.as_ref().unwrap()[0].id,
+            "user1"
+        );
+        assert_eq!(
+            session.encryption_recipients.as_ref().unwrap()[0].public_key,
+            "test_public_key_1"
+        );
+    }
+
+    #[test]
+    fn test_active_recording_password_encryption() {
+        // Test password-based encryption settings
+        let session = ActiveRecording {
+            session_id: "test-session-123".to_string(),
+            window_id: "window-456".to_string(),
+            start_time: Utc::now(),
+            output_path: PathBuf::from("/tmp/test.mov"),
+            preferences: RecordingPreferences::default(),
+            window_metadata: None,
+            encryption_password: Some("test_password".to_string()),
+            encryption_method: Some("password".to_string()),
+            encryption_recipients: None,
+            recording_title: None,
+            recording_description: None,
+            recording_tags: None,
+        };
+
+        // Verify password encryption settings
+        assert_eq!(session.encryption_method, Some("password".to_string()));
+        assert_eq!(
+            session.encryption_password,
+            Some("test_password".to_string())
+        );
+        assert!(session.encryption_recipients.is_none());
     }
 }

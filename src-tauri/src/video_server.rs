@@ -18,6 +18,7 @@ use crate::logger::{LogLevel, LOGGER};
 pub struct VideoStream {
     pub video_path: PathBuf,
     pub password: Option<String>,
+    pub private_key: Option<crypto_box::SecretKey>,
     pub encryption_info: Option<EncryptionInfo>,
     pub file_size: u64,
     pub temp_dir: PathBuf,
@@ -254,18 +255,31 @@ pub async fn decrypt_chunk(stream: &VideoStream, start: u64, end: u64) -> Result
         "video_server",
     );
 
-    let data = if let (Some(password), Some(encryption_info)) =
-        (&stream.password, &stream.encryption_info)
-    {
-        // Encrypted video - decrypt byte range
-        VideoEncryptor::decrypt_byte_range(
-            &stream.video_path,
-            start,
-            end,
-            password,
-            encryption_info,
-        )
-        .map_err(|e| format!("Failed to decrypt byte range: {}", e))?
+    let data = if let Some(encryption_info) = &stream.encryption_info {
+        // Encrypted video - determine decryption method
+        if let Some(password) = &stream.password {
+            // Password-based decryption
+            VideoEncryptor::decrypt_byte_range(
+                &stream.video_path,
+                start,
+                end,
+                password,
+                encryption_info,
+            )
+            .map_err(|e| format!("Failed to decrypt byte range with password: {}", e))?
+        } else if let Some(private_key) = &stream.private_key {
+            // Public key decryption
+            VideoEncryptor::decrypt_byte_range_with_private_key(
+                &stream.video_path,
+                start,
+                end,
+                private_key,
+                encryption_info,
+            )
+            .map_err(|e| format!("Failed to decrypt byte range with private key: {}", e))?
+        } else {
+            return Err("Encrypted video but no password or private key provided".to_string());
+        }
     } else {
         // Unencrypted video - read directly
         use std::io::{Read, Seek, SeekFrom};

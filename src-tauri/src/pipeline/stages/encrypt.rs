@@ -6,11 +6,15 @@ use std::time::Duration;
 
 /// Stage that encrypts the video file with AES-256-GCM
 ///
-/// This stage is optional and will be skipped if no password is provided.
+/// This stage is optional and will be skipped if no encryption is requested.
+/// Supports both password-based and public key encryption.
 ///
 /// # Context Requirements
 /// - Input: `video_path` (PathBuf) - Path to video file
-/// - Input: `password` (String, optional) - Encryption password
+/// - Input: `password` (String, optional) - Encryption password (for password-based encryption)
+/// - Input: `encryption_method` (String, optional) - "password" or "public-key"
+/// - Input: `recipients` (Array of JSON objects, optional) - Recipients for public key encryption
+///   Each recipient: {"id": "alice@example.com", "publicKey": "base64..."}
 ///
 /// # Context Outputs
 /// - `encrypted_path` (PathBuf) - Path to encrypted video file
@@ -51,12 +55,17 @@ impl Default for EncryptStage {
 impl PipelineStage for EncryptStage {
     fn execute(&self, context: &mut PipelineContext) -> NotariResult<()> {
         let video_path = context.get_path("video_path")?;
-        let password = context.get_string("password")?;
+
+        // Determine encryption method
+        let encryption_method = context
+            .get_string("encryption_method")
+            .unwrap_or_else(|_| "password".to_string());
 
         LOGGER.log(
             LogLevel::Info,
             &format!(
-                "Encrypting video: {} (session: {})",
+                "Encrypting video with {} encryption: {} (session: {})",
+                encryption_method,
                 video_path.display(),
                 context.session_id()
             ),
@@ -66,9 +75,59 @@ impl PipelineStage for EncryptStage {
         // Generate encrypted file path
         let encrypted_path = video_path.with_extension("mov.enc");
 
-        // Encrypt the video file with chunked encryption (for streaming)
-        let encryption_info =
-            VideoEncryptor::encrypt_file_chunked(&video_path, &encrypted_path, &password)?;
+        // Encrypt based on method
+        let encryption_info = if encryption_method == "public-key" {
+            // Public key encryption
+            use crate::evidence::EncryptionKeyManager;
+
+            // Get recipients from context
+            let recipients_json = context.get_required("recipients")?;
+            let recipients_array = recipients_json.as_array().ok_or_else(|| {
+                crate::error::NotariError::PipelineError("Recipients must be an array".to_string())
+            })?;
+
+            // Parse recipients
+            let mut recipient_keys = Vec::new();
+            for recipient in recipients_array {
+                let id = recipient["id"]
+                    .as_str()
+                    .ok_or_else(|| {
+                        crate::error::NotariError::PipelineError(
+                            "Recipient missing 'id' field".to_string(),
+                        )
+                    })?
+                    .to_string();
+
+                let public_key_b64 = recipient["publicKey"].as_str().ok_or_else(|| {
+                    crate::error::NotariError::PipelineError(
+                        "Recipient missing 'publicKey' field".to_string(),
+                    )
+                })?;
+
+                let public_key = EncryptionKeyManager::import_public_key(public_key_b64)?;
+                recipient_keys.push((id, public_key));
+            }
+
+            LOGGER.log(
+                LogLevel::Info,
+                &format!(
+                    "Encrypting for {} recipients (session: {})",
+                    recipient_keys.len(),
+                    context.session_id()
+                ),
+                "pipeline::encrypt",
+            );
+
+            VideoEncryptor::encrypt_file_with_public_keys(
+                &video_path,
+                &encrypted_path,
+                recipient_keys,
+            )?
+        } else {
+            // Password-based encryption
+            let password = context.get_string("password")?;
+            VideoEncryptor::encrypt_file_chunked(&video_path, &encrypted_path, &password)?
+        };
 
         LOGGER.log(
             LogLevel::Info,
@@ -133,8 +192,21 @@ impl PipelineStage for EncryptStage {
     }
 
     fn should_skip(&self, context: &PipelineContext) -> bool {
-        // Skip if no password provided
-        !context.has("password")
+        // Skip if no encryption method specified and no password provided
+        let has_password = context.has("password");
+        let has_method = context.has("encryption_method");
+        let should_skip = !has_password && !has_method;
+
+        crate::logger::LOGGER.log(
+            crate::logger::LogLevel::Info,
+            &format!(
+                "EncryptStage::should_skip - has_password: {}, has_method: {}, should_skip: {} (session: {})",
+                has_password, has_method, should_skip, context.session_id()
+            ),
+            "pipeline::encrypt",
+        );
+
+        should_skip
     }
 
     fn pre_execute(&self, context: &PipelineContext) -> NotariResult<()> {
@@ -147,12 +219,37 @@ impl PipelineStage for EncryptStage {
             )));
         }
 
-        // Validate password is not empty
-        let password = context.get_string("password")?;
-        if password.trim().is_empty() {
-            return Err(crate::error::NotariError::PipelineError(
-                "Password cannot be empty".to_string(),
-            ));
+        // Determine encryption method
+        let encryption_method = context
+            .get_string("encryption_method")
+            .unwrap_or_else(|_| "password".to_string());
+
+        if encryption_method == "public-key" {
+            // Validate recipients are provided
+            if !context.has("recipients") {
+                return Err(crate::error::NotariError::PipelineError(
+                    "Recipients required for public key encryption".to_string(),
+                ));
+            }
+
+            let recipients_json = context.get_required("recipients")?;
+            let recipients_array = recipients_json.as_array().ok_or_else(|| {
+                crate::error::NotariError::PipelineError("Recipients must be an array".to_string())
+            })?;
+
+            if recipients_array.is_empty() {
+                return Err(crate::error::NotariError::PipelineError(
+                    "At least one recipient required for public key encryption".to_string(),
+                ));
+            }
+        } else {
+            // Validate password is not empty
+            let password = context.get_string("password")?;
+            if password.trim().is_empty() {
+                return Err(crate::error::NotariError::PipelineError(
+                    "Password cannot be empty".to_string(),
+                ));
+            }
         }
 
         Ok(())

@@ -49,11 +49,15 @@ pnpm tauri build
 
 - **[Setup Guide](docs/SETUP.md)** - Development environment, code signing, and permissions
 
+### User Guides
+
+- **[Encryption Guide](docs/user-guides/encryption-guide.md)** - How to use password and public key encryption
+
 ### System Documentation
 
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - System architecture, data flow, and component interaction
 - **[Recording System](docs/recording.md)** - Screen recording architecture, commands, and Swift sidecar
-- **[Encryption System](docs/encryption.md)** - AES-256-GCM chunked encryption, video playback, and security
+- **[Encryption System](docs/encryption.md)** - Technical details of encryption implementation
 
 ### Developer Guides
 
@@ -65,7 +69,9 @@ pnpm tauri build
 ### Core Capabilities
 
 - **Screen Recording**: Capture individual windows using macOS ScreenCaptureKit
-- **Encryption**: AES-256-GCM chunked encryption with password protection
+- **Dual Encryption Methods**:
+  - Password-based encryption (PBKDF2 + AES-256-GCM)
+  - Public key encryption (X25519 + XSalsa20-Poly1305)
 - **Digital Signatures**: Ed25519 signatures for tamper detection
 - **Proof Packs**: Self-contained .notari files with video, manifest, and verification data
 - **Video Playback**: Stream encrypted videos without full decryption to disk
@@ -74,7 +80,11 @@ pnpm tauri build
 
 ### Security Features
 
-- **Password-protected encryption** with PBKDF2 key derivation (600,000 iterations)
+- **Password-based encryption** with PBKDF2 key derivation (600,000 iterations)
+- **Public key encryption** with X25519 elliptic curve cryptography
+  - Secure key storage in system keychain
+  - Multiple recipients per recording
+  - No password exchange required
 - **Chunked encryption** for efficient streaming playback
 - **SHA-256 hashing** of both plaintext and encrypted videos
 - **Ed25519 digital signatures** for authenticity verification

@@ -118,8 +118,11 @@ impl KeyRepository for KeychainRepository {
 
 /// Well-known key identifiers used by Notari
 pub mod key_ids {
-    /// Signing key for evidence manifests
+    /// Signing key for evidence manifests (Ed25519)
     pub const SIGNING_KEY: &str = "signing_key";
+
+    /// Encryption key for video encryption (X25519)
+    pub const ENCRYPTION_KEY: &str = "encryption_key";
 
     /// Prefix for wallet private keys (followed by chain_id)
     pub const WALLET_KEY_PREFIX: &str = "wallet_";

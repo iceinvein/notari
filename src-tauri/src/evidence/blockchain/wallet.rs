@@ -3,7 +3,7 @@
 //! This module provides wallet management using the repository pattern.
 //! It wraps the KeychainRepository to maintain the existing API.
 
-use crate::repository::keychain::{key_ids, KeychainRepository};
+use crate::repository::keychain::KeychainRepository;
 use crate::repository::traits::KeyRepository;
 use once_cell::sync::Lazy;
 use std::error::Error;

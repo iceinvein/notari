@@ -32,6 +32,32 @@ pub fn has_signing_key() -> bool {
     KEYCHAIN_REPO.has_key(key_ids::SIGNING_KEY).unwrap_or(false)
 }
 
+// ============================================================================
+// Encryption Key Operations (X25519)
+// ============================================================================
+
+/// Store encryption key in Keychain
+pub fn store_encryption_key(key_bytes: &[u8]) -> NotariResult<()> {
+    KEYCHAIN_REPO.store_key(key_ids::ENCRYPTION_KEY, key_bytes)
+}
+
+/// Retrieve encryption key from Keychain
+pub fn retrieve_encryption_key() -> NotariResult<Vec<u8>> {
+    KEYCHAIN_REPO.retrieve_key(key_ids::ENCRYPTION_KEY)
+}
+
+/// Delete encryption key from Keychain
+pub fn delete_encryption_key() -> NotariResult<()> {
+    KEYCHAIN_REPO.delete_key(key_ids::ENCRYPTION_KEY)
+}
+
+/// Check if encryption key exists in Keychain
+pub fn has_encryption_key() -> bool {
+    KEYCHAIN_REPO
+        .has_key(key_ids::ENCRYPTION_KEY)
+        .unwrap_or(false)
+}
+
 // Note: No unit tests for keychain operations because:
 // 1. These are thin wrappers around Apple's security_framework crate
 // 2. Testing would require system keychain access (can't run in parallel)

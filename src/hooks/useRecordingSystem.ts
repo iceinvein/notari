@@ -98,6 +98,8 @@ export function useStartRecordingMutation() {
 			windowId,
 			preferences,
 			encryptionPassword,
+			encryptionMethod,
+			encryptionRecipients,
 			recordingTitle,
 			recordingDescription,
 			recordingTags,
@@ -105,6 +107,8 @@ export function useStartRecordingMutation() {
 			windowId: string;
 			preferences?: RecordingPreferences;
 			encryptionPassword?: string | null;
+			encryptionMethod?: string | null;
+			encryptionRecipients?: Array<{ id: string; publicKey: string }> | null;
 			recordingTitle?: string;
 			recordingDescription?: string;
 			recordingTags?: string[];
@@ -113,6 +117,8 @@ export function useStartRecordingMutation() {
 				windowId,
 				preferences,
 				encryptionPassword,
+				encryptionMethod,
+				encryptionRecipients,
 				recordingTitle: recordingTitle || null,
 				recordingDescription: recordingDescription || null,
 				recordingTags: recordingTags && recordingTags.length > 0 ? recordingTags : null,

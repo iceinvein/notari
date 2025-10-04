@@ -203,7 +203,7 @@ impl PipelineStage for ManifestStage {
                     e
                 ))
             })?;
-            builder = builder.encryption_info(encryption_info);
+            builder = builder.encrypted(true).encryption_info(encryption_info);
         }
 
         // Add encrypted hash if provided
@@ -374,11 +374,12 @@ mod tests {
         // Set encryption info
         let encryption_info = crate::evidence::manifest::EncryptionInfo {
             algorithm: "AES-256-GCM-CHUNKED".to_string(),
-            key_derivation: crate::evidence::manifest::KeyDerivationInfo {
+            key_derivation: Some(crate::evidence::manifest::KeyDerivationInfo {
                 algorithm: "PBKDF2-HMAC-SHA256".to_string(),
                 iterations: 600000,
                 salt: "test_salt".to_string(),
-            },
+            }),
+            encrypted_keys: None,
             nonce: None,
             tag: None,
             chunked: Some(crate::evidence::manifest::ChunkedEncryptionInfo {

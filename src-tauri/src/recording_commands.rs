@@ -151,28 +151,39 @@ pub async fn start_window_recording(
     window_id: String,
     preferences: Option<RecordingPreferences>,
     encryption_password: Option<String>,
+    encryption_method: Option<String>,
+    encryption_recipients: Option<Vec<serde_json::Value>>,
     recording_title: Option<String>,
     recording_description: Option<String>,
     recording_tags: Option<Vec<String>>,
     state: State<'_, WindowManagerState>,
     app: AppHandle,
 ) -> Result<ActiveRecordingWithStatus, String> {
+    let method = encryption_method.as_deref().unwrap_or("password");
     LOGGER.log(
         LogLevel::Info,
         &format!(
-            "Starting recording for window: {} (encryption: {})",
+            "Starting recording for window: {} (encryption_password: {:?}, encryption_method: {:?}, encryption_recipients: {:?})",
             window_id,
-            encryption_password.is_some()
+            encryption_password.as_ref().map(|_| "<redacted>"),
+            encryption_method,
+            encryption_recipients.as_ref().map(|r| r.len())
         ),
         "recording_commands",
     );
 
     let prefs = preferences.unwrap_or_default();
 
-    // Validate encryption password if provided
-    if let Some(ref pwd) = encryption_password {
-        use crate::evidence::validate_password;
-        validate_password(pwd)?;
+    // Validate encryption settings
+    if method == "password" {
+        if let Some(ref pwd) = encryption_password {
+            use crate::evidence::validate_password;
+            validate_password(pwd)?;
+        }
+    } else if method == "public-key" {
+        if encryption_recipients.is_none() || encryption_recipients.as_ref().unwrap().is_empty() {
+            return Err("At least one recipient is required for public key encryption".to_string());
+        }
     }
 
     // Get window information before starting recording
@@ -191,8 +202,23 @@ pub async fn start_window_recording(
         state.recording_state.clone(),
     )?;
 
-    // Store encryption password and metadata in session (will be used during stop_recording)
+    // Store encryption settings and metadata in session (will be used during stop_recording)
     session.encryption_password = encryption_password;
+    session.encryption_method = encryption_method;
+
+    // Convert recipients to EncryptionRecipient structs
+    session.encryption_recipients = encryption_recipients.map(|recipients| {
+        recipients
+            .into_iter()
+            .filter_map(|r| {
+                Some(crate::recording_manager::EncryptionRecipient {
+                    id: r["id"].as_str()?.to_string(),
+                    public_key: r["publicKey"].as_str()?.to_string(),
+                })
+            })
+            .collect()
+    });
+
     session.recording_title = recording_title;
     session.recording_description = recording_description;
     session.recording_tags = recording_tags;
@@ -202,6 +228,8 @@ pub async fn start_window_recording(
         let mut recording_state = state.recording_state.lock().map_err(|e| e.to_string())?;
         if let Some(ref mut active) = recording_state.active_recording {
             active.session.encryption_password = session.encryption_password.clone();
+            active.session.encryption_method = session.encryption_method.clone();
+            active.session.encryption_recipients = session.encryption_recipients.clone();
             active.session.recording_title = session.recording_title.clone();
             active.session.recording_description = session.recording_description.clone();
             active.session.recording_tags = session.recording_tags.clone();
@@ -1021,6 +1049,73 @@ pub async fn get_signing_key_info() -> Result<serde_json::Value, String> {
     }
 }
 
+// ============================================================================
+// Encryption Key Commands (X25519)
+// ============================================================================
+
+/// Generate new encryption key (overwrites existing)
+#[tauri::command]
+pub async fn generate_encryption_key() -> Result<String, String> {
+    use crate::evidence::keychain;
+    use crate::evidence::EncryptionKeyManager;
+
+    let key_manager = EncryptionKeyManager::generate();
+    keychain::store_encryption_key(&key_manager.to_bytes())
+        .map_err(|e| format!("Failed to store encryption key: {}", e))?;
+
+    Ok(key_manager.export_public_key())
+}
+
+/// Export encryption public key
+#[tauri::command]
+pub async fn export_encryption_public_key() -> Result<String, String> {
+    use crate::evidence::keychain;
+    use crate::evidence::EncryptionKeyManager;
+
+    if !keychain::has_encryption_key() {
+        return Err("No encryption key found".to_string());
+    }
+
+    let key_bytes = keychain::retrieve_encryption_key()
+        .map_err(|e| format!("Failed to retrieve encryption key: {}", e))?;
+
+    let key_manager = EncryptionKeyManager::from_bytes(&key_bytes)
+        .map_err(|e| format!("Failed to load encryption key: {}", e))?;
+
+    Ok(key_manager.export_public_key())
+}
+
+/// Check if encryption key exists
+#[tauri::command]
+pub async fn has_encryption_key() -> Result<bool, String> {
+    use crate::evidence::keychain;
+    Ok(keychain::has_encryption_key())
+}
+
+/// Delete encryption key
+#[tauri::command]
+pub async fn delete_encryption_key() -> Result<(), String> {
+    use crate::evidence::keychain;
+    keychain::delete_encryption_key().map_err(|e| format!("Failed to delete encryption key: {}", e))
+}
+
+/// Import a recipient's public key (for validation)
+/// Returns the recipient's public key in base64 format if valid
+#[tauri::command]
+pub async fn validate_recipient_public_key(public_key_b64: String) -> Result<String, String> {
+    use crate::evidence::EncryptionKeyManager;
+
+    // Try to import it to validate
+    EncryptionKeyManager::import_public_key(&public_key_b64)
+        .map_err(|e| format!("Invalid public key: {}", e))?;
+
+    Ok(public_key_b64)
+}
+
+// ============================================================================
+// Video Encryption Commands
+// ============================================================================
+
 /// Encrypt a video file
 #[tauri::command]
 pub async fn encrypt_video(
@@ -1050,6 +1145,75 @@ pub async fn decrypt_video(
         .map_err(|e| format!("Decryption failed: {}", e))
 }
 
+/// Encrypt a video file with public key encryption
+///
+/// recipients: Array of {id: string, publicKey: string} objects
+#[tauri::command]
+pub async fn encrypt_video_with_public_keys(
+    input_path: String,
+    output_path: String,
+    recipients: Vec<serde_json::Value>,
+) -> Result<crate::evidence::EncryptionInfo, String> {
+    use crate::evidence::{EncryptionKeyManager, VideoEncryptor};
+
+    if recipients.is_empty() {
+        return Err("At least one recipient is required".to_string());
+    }
+
+    // Parse recipients
+    let mut recipient_keys = Vec::new();
+    for recipient in recipients {
+        let id = recipient["id"]
+            .as_str()
+            .ok_or("Missing recipient id")?
+            .to_string();
+        let public_key_b64 = recipient["publicKey"]
+            .as_str()
+            .ok_or("Missing recipient publicKey")?;
+
+        let public_key = EncryptionKeyManager::import_public_key(public_key_b64)
+            .map_err(|e| format!("Invalid public key for {}: {}", id, e))?;
+
+        recipient_keys.push((id, public_key));
+    }
+
+    VideoEncryptor::encrypt_file_with_public_keys(&input_path, &output_path, recipient_keys)
+        .map_err(|e| format!("Encryption failed: {}", e))
+}
+
+/// Decrypt a video file with private key
+#[tauri::command]
+pub async fn decrypt_video_with_private_key(
+    input_path: String,
+    output_path: String,
+    encryption_info: crate::evidence::EncryptionInfo,
+) -> Result<(), String> {
+    use crate::evidence::{keychain, EncryptionKeyManager, VideoEncryptor};
+
+    // Get private key from keychain
+    if !keychain::has_encryption_key() {
+        return Err(
+            "No encryption key found. Please generate an encryption key first.".to_string(),
+        );
+    }
+
+    let key_bytes = keychain::retrieve_encryption_key()
+        .map_err(|e| format!("Failed to retrieve encryption key: {}", e))?;
+
+    let key_manager = EncryptionKeyManager::from_bytes(&key_bytes)
+        .map_err(|e| format!("Failed to load encryption key: {}", e))?;
+
+    let private_key = key_manager.secret_key();
+
+    VideoEncryptor::decrypt_file_with_private_key(
+        &input_path,
+        &output_path,
+        private_key,
+        &encryption_info,
+    )
+    .map_err(|e| format!("Decryption failed: {}", e))
+}
+
 /// Validate encryption password strength
 #[tauri::command]
 pub async fn validate_encryption_password(password: String) -> Result<(), String> {
@@ -1062,6 +1226,50 @@ pub async fn validate_encryption_password(password: String) -> Result<(), String
 pub async fn read_file(path: String) -> Result<String, String> {
     use std::fs;
     fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
+}
+
+/// Read manifest from a .notari proof pack file
+#[tauri::command]
+pub async fn read_manifest_from_notari(notari_path: String) -> Result<String, String> {
+    use std::fs::File;
+    use std::io::Read;
+    use zip::ZipArchive;
+
+    LOGGER.log(
+        LogLevel::Info,
+        &format!("Reading manifest from .notari file: {}", notari_path),
+        "recording_commands",
+    );
+
+    let file =
+        File::open(&notari_path).map_err(|e| format!("Failed to open .notari file: {}", e))?;
+
+    let mut archive =
+        ZipArchive::new(file).map_err(|e| format!("Failed to read .notari archive: {}", e))?;
+
+    // Find the manifest file (evidence/*.json)
+    for i in 0..archive.len() {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("Failed to read archive entry: {}", e))?;
+
+        let name = file.name().to_string();
+        if name.starts_with("evidence/") && name.ends_with(".json") {
+            let mut contents = String::new();
+            file.read_to_string(&mut contents)
+                .map_err(|e| format!("Failed to read manifest: {}", e))?;
+
+            LOGGER.log(
+                LogLevel::Info,
+                &format!("Found manifest in .notari: {}", name),
+                "recording_commands",
+            );
+
+            return Ok(contents);
+        }
+    }
+
+    Err("No manifest found in .notari file".to_string())
 }
 
 /// Delete a file
@@ -1567,10 +1775,31 @@ pub async fn decrypt_and_play_video(
         "recording_commands",
     );
 
-    // Decrypt the video
+    // Decrypt the video based on encryption method
     let temp_path_str = temp_path.to_string_lossy().to_string();
-    VideoEncryptor::decrypt_file(&resolved_video, &temp_path_str, &password, &encryption_info)
+
+    if encryption_info.encrypted_keys.is_some() {
+        // Public key encryption - use private key
+        use crate::evidence::keychain;
+        use crate::evidence::EncryptionKeyManager;
+
+        let key_bytes = keychain::retrieve_encryption_key()
+            .map_err(|e| format!("Failed to retrieve encryption key: {}", e))?;
+        let key_manager = EncryptionKeyManager::from_bytes(&key_bytes)
+            .map_err(|e| format!("Failed to load encryption key: {}", e))?;
+
+        VideoEncryptor::decrypt_file_with_private_key(
+            &resolved_video,
+            &temp_path_str,
+            key_manager.secret_key(),
+            &encryption_info,
+        )
         .map_err(|e| format!("Decryption failed: {}", e))?;
+    } else {
+        // Password-based encryption
+        VideoEncryptor::decrypt_file(&resolved_video, &temp_path_str, &password, &encryption_info)
+            .map_err(|e| format!("Decryption failed: {}", e))?;
+    }
 
     // Cleanup extracted files
     let _ = std::fs::remove_dir_all(&temp_dir);
@@ -1650,9 +1879,40 @@ pub async fn start_video_playback(
     let encryption_info = manifest.recording.encryption;
     let is_encrypted = encryption_info.is_some();
 
+    // Determine encryption method
+    let (use_password, use_private_key) = if let Some(ref enc_info) = encryption_info {
+        let has_password_encryption = enc_info.key_derivation.is_some();
+        let has_public_key_encryption = enc_info.encrypted_keys.is_some();
+
+        if has_public_key_encryption {
+            // Public key encryption - retrieve private key from keychain
+            LOGGER.log(
+                LogLevel::Info,
+                "Video encrypted with public key encryption, retrieving private key",
+                "recording_commands",
+            );
+            (false, true)
+        } else if has_password_encryption {
+            // Password-based encryption
+            LOGGER.log(
+                LogLevel::Info,
+                "Video encrypted with password-based encryption",
+                "recording_commands",
+            );
+            (true, false)
+        } else {
+            return Err("Invalid encryption info: no key derivation or encrypted keys".to_string());
+        }
+    } else {
+        (false, false)
+    };
+
     LOGGER.log(
         LogLevel::Info,
-        &format!("Video is encrypted: {}", is_encrypted),
+        &format!(
+            "Video is encrypted: {}, use_password: {}, use_private_key: {}",
+            is_encrypted, use_password, use_private_key
+        ),
         "recording_commands",
     );
 
@@ -1696,11 +1956,36 @@ pub async fn start_video_playback(
         "recording_commands",
     );
 
+    // Retrieve private key if needed
+    let private_key = if use_private_key {
+        use crate::evidence::keychain;
+        match keychain::retrieve_encryption_key() {
+            Ok(key_bytes) => {
+                use crate::evidence::EncryptionKeyManager;
+                match EncryptionKeyManager::from_bytes(&key_bytes) {
+                    Ok(key_manager) => Some(key_manager.secret_key().clone()),
+                    Err(e) => {
+                        return Err(format!("Failed to load encryption key: {}", e));
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(format!(
+                    "Failed to retrieve encryption key from keychain: {}",
+                    e
+                ));
+            }
+        }
+    } else {
+        None
+    };
+
     // Create stream
     let stream_id = uuid::Uuid::new_v4().to_string();
     let stream = crate::video_server::VideoStream {
         video_path: video_path.into(),
-        password: if is_encrypted { Some(password) } else { None },
+        password: if use_password { Some(password) } else { None },
+        private_key,
         encryption_info,
         file_size: plaintext_size, // Use plaintext size for streaming
         temp_dir: temp_dir.into(),

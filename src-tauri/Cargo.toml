@@ -53,6 +53,7 @@ hex = "0.4"
 # Evidence system (Phase 2 - Encryption)
 aes-gcm = "0.10"
 pbkdf2 = { version = "0.12", features = ["simple"] }
+crypto_box = "0.9"  # X25519-XSalsa20-Poly1305 for public key encryption
 zip = "4.2.0"
 
 # Evidence system (Phase 2 - Blockchain)

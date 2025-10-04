@@ -24,6 +24,7 @@ import {
 import { preferencesLogger } from "../utils/logger";
 import ApplicationSelector from "./ApplicationSelector";
 import BlockchainSettings from "./BlockchainSettings";
+import KeyManagement from "./KeyManagement";
 import KeyManagementModal from "./KeyManagementModal";
 import LogViewer from "./LogViewer";
 import RecordingPreferences from "./RecordingPreferences";
@@ -39,6 +40,7 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 	const [clickCount, setClickCount] = useState(0);
 	const [showResetConfirm, setShowResetConfirm] = useState(false);
 	const [showKeyManagement, setShowKeyManagement] = useState(false);
+	const [showEncryptionKeyManagement, setShowEncryptionKeyManagement] = useState(false);
 	const { resetToDefaults } = useApplicationPreferencesQuery();
 	const { data: hasSigningKey } = useHasSigningKeyQuery();
 	const { data: publicKey } = usePublicKeyQuery();
@@ -229,6 +231,34 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 										</CardBody>
 									</Card>
 
+									{/* Encryption Key Management */}
+									<Card className="bg-content1">
+										<CardHeader>
+											<h4 className="text-sm font-medium text-foreground">Encryption Key</h4>
+										</CardHeader>
+										<Divider />
+										<CardBody className="space-y-3">
+											<div>
+												<p className="text-sm font-medium text-foreground mb-1">
+													Public Key Encryption
+												</p>
+												<p className="text-xs text-foreground-500">
+													Share your public key with others so they can encrypt videos for you. No
+													password sharing needed!
+												</p>
+											</div>
+											<Button
+												color="primary"
+												variant="flat"
+												size="sm"
+												onPress={() => setShowEncryptionKeyManagement(true)}
+												startContent={<Key className="w-4 h-4" />}
+											>
+												Manage Encryption Key
+											</Button>
+										</CardBody>
+									</Card>
+
 									<Card className="bg-content2">
 										<CardBody className="p-4">
 											<h4 className="font-semibold mb-2 text-sm">About Evidence System</h4>
@@ -404,6 +434,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
 			{/* Key Management Modal */}
 			<KeyManagementModal isOpen={showKeyManagement} onClose={() => setShowKeyManagement(false)} />
+
+			{/* Encryption Key Management Modal */}
+			<KeyManagement
+				isOpen={showEncryptionKeyManagement}
+				onClose={() => setShowEncryptionKeyManagement(false)}
+			/>
 		</>
 	);
 }

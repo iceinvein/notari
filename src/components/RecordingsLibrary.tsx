@@ -139,9 +139,39 @@ export default function RecordingsLibrary({ onSettings }: RecordingsLibraryProps
 
 	const handlePlayVideo = async (recording: RecordingEntry) => {
 		if (recording.is_encrypted) {
-			// Show password modal for encrypted videos
-			setSelectedRecording(recording);
-			setShowPasswordModal(true);
+			// Check encryption method by loading manifest
+			try {
+				// Read manifest from .notari file
+				const manifestContent = await invoke<string>("read_manifest_from_notari", {
+					notariPath: recording.manifest_path,
+				});
+				const manifest = JSON.parse(manifestContent);
+				const encryptionInfo = manifest.recording?.encryption;
+
+				logger.info("RecordingsLibrary", "Loaded manifest from .notari", {
+					has_encryption: !!encryptionInfo,
+					has_encrypted_keys: !!encryptionInfo?.encrypted_keys,
+					algorithm: encryptionInfo?.algorithm,
+				});
+
+				if (encryptionInfo?.encrypted_keys) {
+					// Public key encryption - play directly (no password needed)
+					logger.info("RecordingsLibrary", "Public key encrypted video, playing directly");
+					setVideoPlayerRecording(recording);
+					setVideoPlayerPassword(""); // Empty password for public key encryption
+					setShowVideoPlayer(true);
+				} else {
+					// Password-based encryption - show password modal
+					logger.info("RecordingsLibrary", "Password encrypted video, showing password modal");
+					setSelectedRecording(recording);
+					setShowPasswordModal(true);
+				}
+			} catch (err) {
+				logger.error("RecordingsLibrary", "Failed to load manifest", err as Error);
+				// Fallback to password modal
+				setSelectedRecording(recording);
+				setShowPasswordModal(true);
+			}
 		} else {
 			// Open unencrypted videos directly in player
 			setVideoPlayerRecording(recording);

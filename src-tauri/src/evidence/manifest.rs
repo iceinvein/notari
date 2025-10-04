@@ -37,7 +37,15 @@ pub struct RecordingInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EncryptionInfo {
     pub algorithm: String,
-    pub key_derivation: KeyDerivationInfo,
+
+    // Password-based encryption (legacy)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub key_derivation: Option<KeyDerivationInfo>,
+
+    // Public key encryption (new)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encrypted_keys: Option<Vec<EncryptedKey>>,
+
     // For backward compatibility with file-level encryption
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nonce: Option<String>,
@@ -46,6 +54,25 @@ pub struct EncryptionInfo {
     // For chunk-based encryption
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chunked: Option<ChunkedEncryptionInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedKey {
+    /// Recipient identifier (email, name, or public key fingerprint)
+    pub recipient_id: String,
+
+    /// Recipient's public key (X25519, base64 encoded)
+    pub recipient_public_key: String,
+
+    /// Ephemeral public key used for encryption (X25519, base64 encoded)
+    pub ephemeral_public_key: String,
+
+    /// Video encryption key, encrypted with recipient's public key (base64 encoded)
+    /// Format: nonce (24 bytes) || ciphertext
+    pub encrypted_video_key: String,
+
+    /// Algorithm used for key encryption (X25519-XSalsa20-Poly1305)
+    pub algorithm: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

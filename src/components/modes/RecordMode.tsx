@@ -7,7 +7,9 @@ import { useState } from "react";
 
 import { useRecordingStateChanged } from "../../hooks/useEventListener";
 import { useStartRecordingMutation } from "../../hooks/useRecordingSystem";
+import { logger } from "../../utils/logger";
 import AppHeader from "../AppHeader";
+import type { EncryptionMethod, Recipient } from "../EncryptionSettings";
 import SettingsModal from "../SettingsModal";
 import RecordedVideosTab from "../tabs/RecordedVideosTab";
 import RecordingTab from "../tabs/RecordingTab";
@@ -36,7 +38,10 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 	const [selectedTab, setSelectedTab] = useState("recording");
 	const [showSettings, setShowSettings] = useState(false);
 	const [showWindowPicker, setShowWindowPicker] = useState(false);
+	const [encryptionEnabled, setEncryptionEnabled] = useState(false);
 	const [encryptionPassword, setEncryptionPassword] = useState("");
+	const [encryptionMethod, setEncryptionMethod] = useState<EncryptionMethod>("password");
+	const [recipients, setRecipients] = useState<Recipient[]>([]);
 	const [recordingTitle, setRecordingTitle] = useState("");
 	const [recordingDescription, setRecordingDescription] = useState("");
 	const [recordingTags, setRecordingTags] = useState<string[]>([]);
@@ -52,11 +57,30 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 
 	const handleWindowSelect = async (window: WindowInfo) => {
 		try {
-			// Start recording with or without password and metadata
-			const password = encryptionPassword || null;
+			// Prepare encryption parameters based on enabled state and method
+			const password =
+				encryptionEnabled && encryptionMethod === "password" ? encryptionPassword || null : null;
+			const method = encryptionEnabled ? encryptionMethod : null;
+			const recipientsList =
+				encryptionEnabled && encryptionMethod === "public-key" && recipients.length > 0
+					? recipients
+					: null;
+
+			// Debug logging
+			logger.info("RecordMode", "Starting recording with encryption settings", {
+				encryptionEnabled,
+				encryptionMethod,
+				recipientsCount: recipients.length,
+				sendingPassword: password !== null,
+				sendingMethod: method,
+				sendingRecipientsCount: recipientsList?.length ?? 0,
+			});
+
 			await startRecordingMutation.mutateAsync({
 				windowId: window.id,
 				encryptionPassword: password,
+				encryptionMethod: method,
+				encryptionRecipients: recipientsList,
 				recordingTitle: recordingTitle || undefined,
 				recordingDescription: recordingDescription || undefined,
 				recordingTags: recordingTags.length > 0 ? recordingTags : undefined,
@@ -124,8 +148,14 @@ export default function RecordMode({ onStartRecording }: RecordModeProps) {
 						>
 							<RecordingTab
 								onOpenWindowPicker={handleOpenWindowPicker}
+								encryptionEnabled={encryptionEnabled}
+								setEncryptionEnabled={setEncryptionEnabled}
 								encryptionPassword={encryptionPassword}
 								setEncryptionPassword={setEncryptionPassword}
+								encryptionMethod={encryptionMethod}
+								setEncryptionMethod={setEncryptionMethod}
+								recipients={recipients}
+								setRecipients={setRecipients}
 								recordingTitle={recordingTitle}
 								setRecordingTitle={setRecordingTitle}
 								recordingDescription={recordingDescription}

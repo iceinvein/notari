@@ -65,10 +65,18 @@ pub fn run() {
             recording_commands::has_signing_key,
             recording_commands::generate_signing_key,
             recording_commands::get_signing_key_info,
+            recording_commands::generate_encryption_key,
+            recording_commands::export_encryption_public_key,
+            recording_commands::has_encryption_key,
+            recording_commands::delete_encryption_key,
+            recording_commands::validate_recipient_public_key,
             recording_commands::encrypt_video,
             recording_commands::decrypt_video,
+            recording_commands::encrypt_video_with_public_keys,
+            recording_commands::decrypt_video_with_private_key,
             recording_commands::validate_encryption_password,
             recording_commands::read_file,
+            recording_commands::read_manifest_from_notari,
             recording_commands::delete_file,
             recording_commands::list_recordings,
             recording_commands::update_recording_metadata,
@@ -154,6 +162,28 @@ pub fn run() {
                     app_log!(
                         logger::LogLevel::Info,
                         "Signing key generated and stored successfully"
+                    );
+                }
+            }
+
+            // Ensure encryption key exists (generate if needed)
+            use evidence::EncryptionKeyManager;
+            if !keychain::has_encryption_key() {
+                app_log!(
+                    logger::LogLevel::Info,
+                    "No encryption key found on startup, generating new key"
+                );
+                let key_manager = EncryptionKeyManager::generate();
+                if let Err(e) = keychain::store_encryption_key(&key_manager.to_bytes()) {
+                    app_log!(
+                        logger::LogLevel::Error,
+                        "Failed to store encryption key on startup: {}",
+                        e
+                    );
+                } else {
+                    app_log!(
+                        logger::LogLevel::Info,
+                        "Encryption key generated and stored successfully"
                     );
                 }
             } else {
