@@ -13,26 +13,7 @@
 /// - `Completed` - Recording ready for verification/anchoring
 /// - `Failed` - Error occurred
 ///
-/// # Example
-///
-/// ```ignore
-/// // This example shows the conceptual API, but requires internal types
-/// use app_lib::state_machine::RecordingSession;
-/// use app_lib::error::NotariResult;
-///
-/// # fn main() -> NotariResult<()> {
-/// let window_id = "window-123".to_string();
-/// let preferences = /* RecordingPreferencesSnapshot */;
-///
-/// let session = RecordingSession::new(window_id, preferences);
-/// let session = session.prepare();
-/// let session = session.start()?;
-/// let session = session.stop();
-/// let session = session.process()?;
-/// let session = session.complete()?;
-/// # Ok(())
-/// # }
-/// ```
+/// See the individual state modules and transition functions for detailed usage.
 pub mod states;
 pub mod transitions;
 pub mod wrapper;

@@ -6,20 +6,8 @@ use uuid::Uuid;
 
 /// Builder for constructing ActiveRecording instances with a fluent API
 ///
-/// # Example
-/// ```ignore
-/// // This example requires internal types from the recording_manager module
-/// use app_lib::recording_manager::ActiveRecordingBuilder;
-/// use std::path::PathBuf;
-///
-/// let recording = ActiveRecordingBuilder::new("window-123")
-///     .output_path(PathBuf::from("/tmp/recording.mov"))
-///     .title("My Recording")
-///     .description("Test recording")
-///     .tags(vec!["test".to_string(), "demo".to_string()])
-///     .build()
-///     .unwrap();
-/// ```
+/// This builder provides a type-safe way to construct `ActiveRecording` instances
+/// with optional fields like encryption settings, custom metadata, and tags.
 pub struct ActiveRecordingBuilder {
     window_id: String,
     output_path: Option<PathBuf>,
